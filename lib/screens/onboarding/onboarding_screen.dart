@@ -59,130 +59,166 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final slide = _slides[_current];
     final isLast = _current == _slides.length - 1;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       body: GestureDetector(
         onHorizontalDragStart: _onPanStart,
         onHorizontalDragEnd: _onPanEnd,
+        onTap: () => FocusScope.of(context).unfocus(),
         child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        width: 120, height: 120,
-                        decoration: BoxDecoration(
-                          color: slide.color.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(36),
-                        ),
-                        child: Center(child: Text(slide.emoji, style: const TextStyle(fontSize: 56))),
-                      ),
-                      const SizedBox(height: 36),
-                      Text(slide.title,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, height: 1.3, letterSpacing: -0.5, color: AppTheme.textPrimary),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(slide.desc,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16, color: AppTheme.textSecondary, height: 1.7),
-                      ),
-                      if (isLast) ...[
-                        const SizedBox(height: 32),
-                        TextField(
-                          controller: _nicknameController,
-                          maxLength: 12,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 16),
-                          decoration: InputDecoration(
-                            hintText: '닉네임을 입력하세요',
-                            counterText: '',
-                            filled: true,
-                            fillColor: const Color(0xFFFAFAFA),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: slide.color),
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 200),
+            padding: EdgeInsets.only(bottom: bottomInset),
+            child: Column(
+              children: [
+                // 슬라이드 내용
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(height: MediaQuery.of(context).size.height * 0.08),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            width: 120, height: 120,
+                            decoration: BoxDecoration(
+                              color: slide.color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(36),
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: AppTheme.border),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: slide.color, width: 2),
+                            child: Center(child: Text(slide.emoji, style: const TextStyle(fontSize: 56))),
+                          ),
+                          const SizedBox(height: 36),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: Text(
+                              slide.title,
+                              key: ValueKey(_current),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 28, fontWeight: FontWeight.w700,
+                                height: 1.3, letterSpacing: -0.5, color: AppTheme.textPrimary,
+                              ),
                             ),
                           ),
-                          onChanged: (_) => setState(() {}),
+                          const SizedBox(height: 16),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: Text(
+                              slide.desc,
+                              key: ValueKey('desc_$_current'),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 16, color: AppTheme.textSecondary, height: 1.7,
+                              ),
+                            ),
+                          ),
+                          if (isLast) ...[
+                            const SizedBox(height: 32),
+                            TextField(
+                              controller: _nicknameController,
+                              maxLength: 12,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 16),
+                              decoration: InputDecoration(
+                                hintText: '닉네임을 입력하세요',
+                                counterText: '',
+                                filled: true,
+                                fillColor: const Color(0xFFFAFAFA),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide(color: slide.color),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: AppTheme.border),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide(color: slide.color, width: 2),
+                                ),
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text('최대 12자', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 하단 버튼
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 인디케이터
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(_slides.length, (i) => GestureDetector(
+                          onTap: () => setState(() => _current = i),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            width: i == _current ? 24 : 8,
+                            height: 8,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: i == _current ? slide.color : const Color(0xFFE0E0E0),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                        )),
+                      ),
+                      const SizedBox(height: 24),
+                      if (!isLast)
+                        GestureDetector(
+                          onTap: () => setState(() => _current++),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: slide.color,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Center(child: Text('다음',
+                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
+                          ),
+                        )
+                      else
+                        GestureDetector(
+                          onTap: _nicknameController.text.trim().isEmpty || _loading ? null : _handleStart,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: _nicknameController.text.trim().isEmpty ? const Color(0xFFE0E0E0) : slide.color,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Center(child: _loading
+                                ? const SizedBox(width: 20, height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : Text('시작하기 🚀',
+                                    style: TextStyle(
+                                      color: _nicknameController.text.trim().isEmpty
+                                          ? AppTheme.textSecondary : Colors.white,
+                                      fontSize: 16, fontWeight: FontWeight.w600,
+                                    ))),
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        const Text('최대 12자', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                      ],
                     ],
                   ),
                 ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
-                child: Column(
-                  children: [
-                    // 인디케이터
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(_slides.length, (i) => GestureDetector(
-                        onTap: () => setState(() => _current = i),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          width: i == _current ? 24 : 8,
-                          height: 8,
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          decoration: BoxDecoration(
-                            color: i == _current ? slide.color : const Color(0xFFE0E0E0),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                        ),
-                      )),
-                    ),
-                    const SizedBox(height: 28),
-                    if (!isLast)
-                      GestureDetector(
-                        onTap: () => setState(() => _current++),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: slide.color,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Center(child: Text('다음', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
-                        ),
-                      )
-                    else
-                      GestureDetector(
-                        onTap: _nicknameController.text.trim().isEmpty || _loading ? null : _handleStart,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: _nicknameController.text.trim().isEmpty ? const Color(0xFFE0E0E0) : slide.color,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Center(child: _loading
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Text('시작하기 🚀', style: TextStyle(color: _nicknameController.text.trim().isEmpty ? AppTheme.textSecondary : Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

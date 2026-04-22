@@ -19,7 +19,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // 마지막 로그인 방법 로드 (SharedPreferences 대신 간단히 static 변수 사용)
     _lastMethod = _LastLogin.method;
   }
 
@@ -28,6 +27,10 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await fn();
       _LastLogin.method = name;
+      // 로그인 성공 후 Provider 직접 갱신
+      if (mounted) {
+        await context.read<AppProvider>().reloadUser();
+      }
     } catch (e) {
       if (e.toString() != 'cancelled') {
         setState(() => _error = '로그인에 실패했습니다. 다시 시도해주세요.');
@@ -46,24 +49,19 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Hero 영역 ──
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(32, 40, 32, 24),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // 로고
                     Container(
                       width: 72, height: 72,
                       decoration: BoxDecoration(
                         color: AppTheme.primary,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Center(
-                        child: Text('⭐',
-                            style: TextStyle(fontSize: 36)),
-                      ),
+                      child: const Center(child: Text('⭐', style: TextStyle(fontSize: 36))),
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -103,7 +101,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
 
-            // ── 로그인 버튼 영역 ──
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
               child: Column(
@@ -112,8 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(_error,
-                          style: const TextStyle(
-                              color: AppTheme.danger, fontSize: 13),
+                          style: const TextStyle(color: AppTheme.danger, fontSize: 13),
                           textAlign: TextAlign.center),
                     ),
 
@@ -144,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // 카카오
                   _LoginButton(
                     onTap: () => _handle(() async {
-                      // 카카오 로그인은 추후 구현
+                      await auth.signInWithKakao(context);
                     }, 'kakao'),
                     loading: _loading == 'kakao',
                     isLast: _lastMethod == 'kakao',
@@ -174,15 +170,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Center(
                         child: _loading == 'guest'
-                            ? const SizedBox(
-                                width: 16, height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppTheme.textSecondary))
+                            ? const SizedBox(width: 16, height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.textSecondary))
                             : const Text('게스트로 시작 (저장 안됨)',
-                                style: TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 13)),
+                                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                       ),
                     ),
                   ),
@@ -191,8 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const Text(
                     '계속하면 이용약관 및 개인정보처리방침에\n동의하는 것으로 간주합니다',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Color(0xFFBDBDBD), fontSize: 11, height: 1.6),
+                    style: TextStyle(color: Color(0xFFBDBDBD), fontSize: 11, height: 1.6),
                   ),
                 ],
               ),
@@ -231,8 +221,7 @@ class _FeatureChip extends StatelessWidget {
 
 class _LoginButton extends StatelessWidget {
   final VoidCallback onTap;
-  final bool loading;
-  final bool isLast;
+  final bool loading, isLast;
   final Color backgroundColor;
   final Color? borderColor;
   final Widget child;
@@ -258,9 +247,7 @@ class _LoginButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: backgroundColor,
               borderRadius: BorderRadius.circular(14),
-              border: borderColor != null
-                  ? Border.all(color: borderColor!)
-                  : null,
+              border: borderColor != null ? Border.all(color: borderColor!) : null,
             ),
             child: loading
                 ? Center(
@@ -269,8 +256,7 @@ class _LoginButton extends StatelessWidget {
                       child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: backgroundColor == Colors.white
-                              ? AppTheme.primary
-                              : const Color(0xCC000000)),
+                              ? AppTheme.primary : const Color(0xCC000000)),
                     ),
                   )
                 : child,
@@ -287,10 +273,7 @@ class _LoginButton extends StatelessWidget {
                   borderRadius: BorderRadius.circular(99),
                 ),
                 child: const Text('마지막 로그인',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500)),
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500)),
               ),
             ),
           ),
@@ -315,8 +298,6 @@ class _GoogleIconPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
     final w = size.width;
     final h = size.height;
-
-    // 간단한 G 아이콘 대체 - 컬러 원
     paint.color = const Color(0xFF4285F4);
     canvas.drawArc(Rect.fromLTWH(0, 0, w, h), -1.57, 3.14, true, paint);
     paint.color = const Color(0xFF34A853);
@@ -325,8 +306,6 @@ class _GoogleIconPainter extends CustomPainter {
     canvas.drawArc(Rect.fromLTWH(0, 0, w, h), 3.14, 0.79, true, paint);
     paint.color = const Color(0xFFEA4335);
     canvas.drawArc(Rect.fromLTWH(0, 0, w, h), 3.93, 0.79, true, paint);
-
-    // 흰 원으로 가운데 뚫기
     paint.color = Colors.white;
     canvas.drawCircle(Offset(w / 2, h / 2), w * 0.35, paint);
   }

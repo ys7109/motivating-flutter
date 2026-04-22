@@ -8,6 +8,8 @@ import '../screens/focus/focus_screen.dart';
 import '../screens/ranking/ranking_screen.dart';
 import '../screens/my/my_screen.dart';
 
+final mainNavKey = GlobalKey<_MainNavState>();
+
 class MainNav extends StatefulWidget {
   const MainNav({super.key});
 
@@ -26,6 +28,10 @@ class _MainNavState extends State<MainNav> {
     MyScreen(),
   ];
 
+  void switchTab(int index) {
+    setState(() => _currentIndex = index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
@@ -34,26 +40,14 @@ class _MainNavState extends State<MainNav> {
       backgroundColor: AppTheme.background,
       body: Stack(
         children: [
-          IndexedStack(
-            index: _currentIndex,
-            children: _screens,
-          ),
+          IndexedStack(index: _currentIndex, children: _screens),
           if (app.toast != null)
             Positioned(
-              bottom: 90,
-              left: 24,
-              right: 24,
+              bottom: 90, left: 24, right: 24,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF323232),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  app.toast!,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  textAlign: TextAlign.center,
-                ),
+                decoration: BoxDecoration(color: const Color(0xFF323232), borderRadius: BorderRadius.circular(12)),
+                child: Text(app.toast!, style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.center),
               ),
             ),
         ],
@@ -85,19 +79,11 @@ class _MainNavState extends State<MainNav> {
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final int index;
-  final int current;
+  final int index, current;
   final ValueChanged<int> onTap;
   final int badge;
 
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.index,
-    required this.current,
-    required this.onTap,
-    this.badge = 0,
-  });
+  const _NavItem({required this.icon, required this.label, required this.index, required this.current, required this.onTap, this.badge = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -109,47 +95,21 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  icon,
-                  size: 24,
-                  color: isActive ? AppTheme.primary : const Color(0xFFBDBDBD),
-                ),
-                if (badge > 0)
-                  Positioned(
-                    top: -4,
-                    right: -6,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.danger,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          badge > 9 ? '9+' : '$badge',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            Stack(clipBehavior: Clip.none, children: [
+              Icon(icon, size: 24, color: isActive ? AppTheme.primary : const Color(0xFFBDBDBD)),
+              if (badge > 0)
+                Positioned(top: -4, right: -6,
+                  child: Container(
+                    width: 14, height: 14,
+                    decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
+                    child: Center(child: Text(badge > 9 ? '9+' : '$badge',
+                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
+                  )),
+            ]),
             const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
+            Text(label, style: TextStyle(fontSize: 10,
                 color: isActive ? AppTheme.primary : const Color(0xFFBDBDBD),
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
           ],
         ),
       ),

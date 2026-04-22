@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'firebase_options.dart';
 import 'utils/theme.dart';
 import 'providers/app_provider.dart';
@@ -8,12 +9,12 @@ import 'screens/auth/login_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/withdraw/withdraw_pending_screen.dart';
 import 'widgets/main_nav.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService.init();
   runApp(const MyApp());
 }
 
@@ -30,6 +31,15 @@ class MyApp extends StatelessWidget {
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: ThemeMode.light,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('ko', 'KR'),
+          Locale('en', 'US'),
+        ],
         home: const RootScreen(),
       ),
     );
@@ -52,10 +62,22 @@ class RootScreen extends StatelessWidget {
       );
     }
 
-    if (app.authUser == null) return const LoginScreen();
-    if (app.userData == null) return const LoginScreen();
-    if (app.userData!.withdrawScheduledAt != null) return WithdrawPendingScreen();
-    if (!app.userData!.onboardingDone) return OnboardingScreen();
-    return MainNav();
+    // 로그인 안 된 상태
+    if (app.authUser == null || app.userData == null) {
+      return const LoginScreen();
+    }
+
+    // 탈퇴 예정
+    if (app.userData!.withdrawScheduledAt != null) {
+      return const WithdrawPendingScreen();
+    }
+
+    // 온보딩 미완료
+    if (!app.userData!.onboardingDone) {
+      return const OnboardingScreen();
+    }
+
+    // 메인
+    return MainNav(key: mainNavKey);
   }
 }

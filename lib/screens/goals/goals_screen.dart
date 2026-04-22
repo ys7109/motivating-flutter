@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../models/goal_model.dart';
+import 'add_goal_screen.dart';
 
 const _weekDays = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -89,7 +90,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           Text('진행 중 ${activeCount}개 · 완료 ${doneCount}개',
                               style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
                         ]),
-                        _PrimaryBtn(label: '+ 추가', onTap: () {}),
+                        _PrimaryBtn(
+                          label: '+ 추가',
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => AddGoalScreen(initialDate: _selectedDate))),
+                        ),
                       ],
                     ),
                   ),
@@ -107,7 +112,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       ),
                       child: Column(
                         children: [
-                          // 월 이동
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -134,20 +138,18 @@ class _GoalsScreenState extends State<GoalsScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          // 요일
                           Row(
                             children: List.generate(7, (i) => Expanded(
                               child: Center(
                                 child: Text(_weekDays[i],
-                                  style: TextStyle(
-                                    fontSize: 11, fontWeight: FontWeight.w500,
-                                    color: i == 0 ? AppTheme.danger : i == 6 ? const Color(0xFF3949ab) : AppTheme.textSecondary,
-                                  )),
+                                    style: TextStyle(
+                                      fontSize: 11, fontWeight: FontWeight.w500,
+                                      color: i == 0 ? AppTheme.danger : i == 6 ? const Color(0xFF3949ab) : AppTheme.textSecondary,
+                                    )),
                               ),
                             )),
                           ),
                           const SizedBox(height: 6),
-                          // 날짜 그리드
                           GridView.count(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -178,15 +180,15 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                       ),
                                       child: Center(
                                         child: Text('$day',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
-                                            color: isSelected ? Colors.white
-                                                : isToday ? AppTheme.primary
-                                                : dow == 0 ? AppTheme.danger
-                                                : dow == 6 ? const Color(0xFF3949ab)
-                                                : AppTheme.textPrimary,
-                                          )),
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
+                                              color: isSelected ? Colors.white
+                                                  : isToday ? AppTheme.primary
+                                                  : dow == 0 ? AppTheme.danger
+                                                  : dow == 6 ? const Color(0xFF3949ab)
+                                                  : AppTheme.textPrimary,
+                                            )),
                                       ),
                                     ),
                                     if (hasGoals)
@@ -222,20 +224,22 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
                         ),
                         Row(
-                          children: [['all','전체'],['active','진행'],['done','완료']].map((f) =>
-                            GestureDetector(
-                              onTap: () => setState(() => _filter = f[0]),
-                              child: Container(
-                                margin: const EdgeInsets.only(left: 6),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: _filter == f[0] ? AppTheme.primary : Colors.transparent,
-                                  border: Border.all(color: _filter == f[0] ? AppTheme.primary : AppTheme.border),
-                                  borderRadius: BorderRadius.circular(99),
+                          children: [['all', '전체'], ['active', '진행'], ['done', '완료']].map((f) =>
+                              GestureDetector(
+                                onTap: () => setState(() => _filter = f[0]),
+                                child: Container(
+                                  margin: const EdgeInsets.only(left: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: _filter == f[0] ? AppTheme.primary : Colors.transparent,
+                                    border: Border.all(color: _filter == f[0] ? AppTheme.primary : AppTheme.border),
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                  child: Text(f[1], style: TextStyle(
+                                      fontSize: 11,
+                                      color: _filter == f[0] ? Colors.white : AppTheme.textSecondary)),
                                 ),
-                                child: Text(f[1], style: TextStyle(fontSize: 11, color: _filter == f[0] ? Colors.white : AppTheme.textSecondary)),
-                              ),
-                            )
+                              )
                           ).toList(),
                         ),
                       ],
@@ -250,9 +254,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         child: Column(children: [
                           const Text('📅', style: TextStyle(fontSize: 32)),
                           const SizedBox(height: 8),
-                          const Text('이 날의 목표가 없어요', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+                          const Text('이 날의 목표가 없어요',
+                              style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
                           const SizedBox(height: 12),
-                          _OutlineBtn(label: '+ 목표 추가', onTap: () {}),
+                          _OutlineBtn(
+                            label: '+ 목표 추가',
+                            onTap: () => Navigator.push(context,
+                                MaterialPageRoute(builder: (_) => AddGoalScreen(initialDate: _selectedDate))),
+                          ),
                         ]),
                       ),
                     )
@@ -274,7 +283,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
             ),
           ),
 
-          // 삭제 모달
           if (_deleteModal != null)
             _DeleteModal(
               repeatInfo: _deleteModal!['repeatInfo'],
@@ -326,7 +334,6 @@ class _GoalCardState extends State<_GoalCard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 체크박스
           GestureDetector(
             onTap: () {
               if (!g.done && widget.selectedDate.compareTo(widget.todayStr) > 0) {
@@ -347,7 +354,6 @@ class _GoalCardState extends State<_GoalCard> {
           ),
           const SizedBox(width: 12),
 
-          // 내용
           Expanded(
             child: GestureDetector(
               onTap: () => setState(() => _expanded = !_expanded),
@@ -363,11 +369,11 @@ class _GoalCardState extends State<_GoalCard> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(g.title,
-                        style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w500,
-                          color: g.done ? AppTheme.textSecondary : AppTheme.textPrimary,
-                          decoration: g.done ? TextDecoration.lineThrough : null,
-                        )),
+                          style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500,
+                            color: g.done ? AppTheme.textSecondary : AppTheme.textPrimary,
+                            decoration: g.done ? TextDecoration.lineThrough : null,
+                          )),
                     ),
                   ]),
                   if (g.repeat != null) ...[
@@ -403,12 +409,12 @@ class _GoalCardState extends State<_GoalCard> {
           ),
           const SizedBox(width: 8),
 
-          // 오른쪽
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text('+${g.xp} XP',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: g.done ? const Color(0xFF1b8a5a) : AppTheme.textSecondary)),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
+                      color: g.done ? const Color(0xFF1b8a5a) : AppTheme.textSecondary)),
               const SizedBox(height: 8),
               Row(children: [
                 if (g.done)
@@ -455,12 +461,14 @@ class _DeleteModal extends StatelessWidget {
               children: [
                 const Text('반복 목표 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
-                const Text('반복 목표를 모두 함께 삭제하시겠습니까?', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.6)),
+                const Text('반복 목표를 모두 함께 삭제하시겠습니까?',
+                    style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.6)),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(10)),
-                  child: Text('삭제되는 목표: ${repeatInfo['undone']}개', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  child: Text('삭제되는 목표: ${repeatInfo['undone']}개',
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                 ),
                 const SizedBox(height: 16),
                 _ModalBtn(label: '모두 삭제', color: AppTheme.danger, textColor: Colors.white, onTap: onDeleteAll),
@@ -495,7 +503,9 @@ class _ModalBtn extends StatelessWidget {
           border: color == null ? Border.all(color: AppTheme.border) : null,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Center(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: textColor ?? AppTheme.textPrimary))),
+        child: Center(child: Text(label,
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500,
+                color: textColor ?? AppTheme.textPrimary))),
       ),
     );
   }
