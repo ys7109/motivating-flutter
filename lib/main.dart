@@ -42,6 +42,7 @@ class MyApp extends StatelessWidget {
             Locale('en', 'US'),
           ],
           home: const RootScreen(),
+          navigatorKey: AppProvider.navigatorKey,
         ),
       ),
     );
@@ -56,10 +57,10 @@ class RootScreen extends StatelessWidget {
     final app = context.watch<AppProvider>();
 
     if (app.loading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF5F5F5),
+      return Scaffold(
+        backgroundColor: context.bgColor,
         body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF0a0a0a)),
+          child: CircularProgressIndicator(color: context.primaryColor),
         ),
       );
     }

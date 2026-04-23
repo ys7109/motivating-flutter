@@ -112,38 +112,38 @@ class _MyScreenState extends State<MyScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // 부활 아이템
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                    decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(14)),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(children: [
-                          const Text('🛡️', style: TextStyle(fontSize: 22)),
-                          const SizedBox(width: 10),
-                          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text('부활 아이템', style: TextStyle(fontSize: 12, color: context.textSecondary)),
-                            Text('${userData.reviveItem}개 보유', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.textPrimary)),
-                          ]),
-                        ]),
-                        GestureDetector(
-                          onTap: () => setState(() => _shopModal = true),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
-                            child: Text('+ 구매', style: TextStyle(
-                                color: context.isDark ? Colors.black : Colors.white,
-                                fontSize: 13, fontWeight: FontWeight.w500)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
+                // 부활 아이템 -> 기능 임시 비활성화
+                // Padding(
+                //   padding: const EdgeInsets.symmetric(horizontal: 20),
+                //   child: Container(
+                //     padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                //     decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(14)),
+                //     child: Row(
+                //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                //       children: [
+                //         Row(children: [
+                //           const Text('🛡️', style: TextStyle(fontSize: 22)),
+                //           const SizedBox(width: 10),
+                //           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                //             Text('부활 아이템', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+                //             Text('${userData.reviveItem}개 보유', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                //           ]),
+                //         ]),
+                //         GestureDetector(
+                //           onTap: () => setState(() => _shopModal = true),
+                //           child: Container(
+                //             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                //             decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
+                //             child: Text('+ 구매', style: TextStyle(
+                //                 color: context.isDark ? Colors.black : Colors.white,
+                //                 fontSize: 13, fontWeight: FontWeight.w500)),
+                //           ),
+                //         ),
+                //       ],
+                //     ),
+                //   ),
+                // ),
+                // const SizedBox(height: 20),
 
                 // 캐릭터 미리보기
                 Column(children: [
