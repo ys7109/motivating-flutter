@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../services/auth_service.dart';
@@ -33,6 +34,13 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } finally {
       if (mounted) setState(() => _loading = null);
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.inAppWebView);
     }
   }
 
@@ -153,33 +161,43 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-
-                  // 게스트 로그인 -> 기능 미구현으로 인한 비활성화
-                  // GestureDetector(
-                  //   onTap: _loading != null
-                  //       ? null
-                  //       : () => _handle(() async { await auth.signInAnonymously(); }, 'guest'),
-                  //   child: Container(
-                  //     width: double.infinity,
-                  //     padding: const EdgeInsets.symmetric(vertical: 10),
-                  //     child: Center(
-                  //       child: _loading == 'guest'
-                  //           ? SizedBox(
-                  //               width: 16, height: 16,
-                  //               child: CircularProgressIndicator(
-                  //                   strokeWidth: 2, color: context.textSecondary))
-                  //           : Text('게스트로 시작 (저장 안됨)',
-                  //               style: TextStyle(color: context.textSecondary, fontSize: 13)),
-                  //     ),
-                  //   ),
-                  // ),
-
                   const SizedBox(height: 16),
-                  Text(
-                    '계속하면 이용약관 및 개인정보처리방침에\n동의하는 것으로 간주합니다',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: context.textSecondary, fontSize: 11, height: 1.6),
+
+                  // 약관 링크
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    children: [
+                      Text('계속하면 ',
+                          style: TextStyle(
+                              color: context.textSecondary, fontSize: 11, height: 1.6)),
+                      GestureDetector(
+                        onTap: () => _openUrl('https://motivating-5a036.web.app/terms.html'),
+                        child: Text('이용약관',
+                            style: TextStyle(
+                                color: context.textSecondary,
+                                fontSize: 11,
+                                height: 1.6,
+                                decoration: TextDecoration.underline,
+                                decorationColor: context.textSecondary)),
+                      ),
+                      Text(' 및 ',
+                          style: TextStyle(
+                              color: context.textSecondary, fontSize: 11, height: 1.6)),
+                      GestureDetector(
+                        onTap: () =>
+                            _openUrl('https://motivating-5a036.web.app/privacy.html'),
+                        child: Text('개인정보처리방침',
+                            style: TextStyle(
+                                color: context.textSecondary,
+                                fontSize: 11,
+                                height: 1.6,
+                                decoration: TextDecoration.underline,
+                                decorationColor: context.textSecondary)),
+                      ),
+                      Text('에 동의하는 것으로 간주합니다',
+                          style: TextStyle(
+                              color: context.textSecondary, fontSize: 11, height: 1.6)),
+                    ],
                   ),
                 ],
               ),
@@ -282,7 +300,7 @@ class _LoginButton extends StatelessWidget {
   }
 }
 
-// ── 구글 아이콘 (공식 SVG 패스) ──────────────────────────
+// ── 구글 아이콘 ──────────────────────────────────────────
 class _GoogleIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -296,7 +314,6 @@ class _GoogleIconPainter extends CustomPainter {
     final s = size.width / 18;
     final paint = Paint()..style = PaintingStyle.fill;
 
-    // Blue
     paint.color = const Color(0xFF4285F4);
     canvas.drawPath(Path()
       ..moveTo(17.64 * s, 9.2 * s)
@@ -310,7 +327,6 @@ class _GoogleIconPainter extends CustomPainter {
       ..cubicTo(16.658 * s, 14.249 * s, 17.64 * s, 11.942 * s, 17.64 * s, 9.2 * s)
       ..close(), paint);
 
-    // Green
     paint.color = const Color(0xFF34A853);
     canvas.drawPath(Path()
       ..moveTo(9 * s, 18 * s)
@@ -323,7 +339,6 @@ class _GoogleIconPainter extends CustomPainter {
       ..cubicTo(2.438 * s, 15.983 * s, 5.482 * s, 18 * s, 9 * s, 18 * s)
       ..close(), paint);
 
-    // Yellow
     paint.color = const Color(0xFFFBBC05);
     canvas.drawPath(Path()
       ..moveTo(3.964 * s, 10.707 * s)
@@ -336,7 +351,6 @@ class _GoogleIconPainter extends CustomPainter {
       ..lineTo(3.964 * s, 10.707 * s)
       ..close(), paint);
 
-    // Red
     paint.color = const Color(0xFFEA4335);
     canvas.drawPath(Path()
       ..moveTo(9 * s, 3.58 * s)
@@ -353,7 +367,7 @@ class _GoogleIconPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ── 카카오 아이콘 (공식 SVG 패스) ────────────────────────
+// ── 카카오 아이콘 ────────────────────────────────────────
 class _KakaoIcon extends StatelessWidget {
   const _KakaoIcon();
   @override

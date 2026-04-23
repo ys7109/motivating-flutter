@@ -12,6 +12,7 @@ import '../services/firestore_service.dart';
 class AppProvider extends ChangeNotifier {
   final AuthService _auth = AuthService();
   final FirestoreService _db = FirestoreService();
+  final Set<String> _processingGoals = {}; // 중복 처리 방지
 
   static final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -230,57 +231,87 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> completeGoal(String goalId) async {
     if (authUser == null || userData == null) return;
-    final goal = goals.firstWhere((g) => g.id == goalId);
-    if (goal.done) return;
+    if (_processingGoals.contains(goalId)) return; // 중복 방지
+    _processingGoals.add(goalId);
 
-    await _db.updateGoal(authUser!.uid, goalId, {
-      'done': true, 'progress': 100,
-      'completedAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      // Firestore 최신값 기준으로 처리
+      final freshUser = await _db.getUser(authUser!.uid);
+      if (freshUser == null) return;
+      userData = freshUser;
 
-    final prevLevel = userData!.level;
-    int newXp = userData!.xp + goal.xp;
-    int newLevel = userData!.level;
-    int newXpToNext = userData!.xpToNext;
+      final goal = goals.firstWhere((g) => g.id == goalId);
+      if (goal.done) return;
 
-    while (newXp >= newXpToNext) {
-      newXp -= newXpToNext; newLevel++;
-      newXpToNext = (newXpToNext * 1.3).round();
+      await _db.updateGoal(authUser!.uid, goalId, {
+        'done': true, 'progress': 100,
+        'completedAt': FieldValue.serverTimestamp(),
+      });
+
+      final prevLevel = userData!.level;
+      int newXp = userData!.xp + goal.xp;
+      int newLevel = userData!.level;
+      int newXpToNext = userData!.xpToNext;
+
+      while (newXp >= newXpToNext) {
+        newXp -= newXpToNext; newLevel++;
+        newXpToNext = (newXpToNext * 1.3).round();
+      }
+
+      await _db.updateUser(authUser!.uid, {
+        'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext,
+      });
+      userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
+      if (newLevel > prevLevel) levelUpTo = newLevel;
+      showToast('🎉 목표 완료! +${goal.xp} XP 획득');
+      await loadGoals();
+      notifyListeners();
+    } finally {
+      _processingGoals.remove(goalId);
     }
-
-    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
-    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
-    if (newLevel > prevLevel) levelUpTo = newLevel;
-    showToast('🎉 목표 완료! +${goal.xp} XP 획득');
-    await loadGoals();
-    notifyListeners();
   }
 
   void dismissLevelUp() { levelUpTo = null; notifyListeners(); }
 
   Future<void> uncompleteGoal(String goalId) async {
     if (authUser == null || userData == null) return;
-    final goal = goals.firstWhere((g) => g.id == goalId);
-    if (!goal.done) return;
+    if (_processingGoals.contains(goalId)) return; // 중복 방지
+    _processingGoals.add(goalId);
 
-    await _db.updateGoal(authUser!.uid, goalId, {'done': false, 'progress': 0, 'completedAt': null});
+    try {
+      // Firestore 최신값 기준으로 처리 (누적 오차 방지 핵심)
+      final freshUser = await _db.getUser(authUser!.uid);
+      if (freshUser == null) return;
+      userData = freshUser;
 
-    int newXp = userData!.xp - goal.xp;
-    int newLevel = userData!.level;
-    int newXpToNext = userData!.xpToNext;
+      final goal = goals.firstWhere((g) => g.id == goalId);
+      if (!goal.done) return;
 
-    while (newXp < 0 && newLevel > 1) {
-      newLevel--;
-      newXpToNext = (newXpToNext / 1.3).round();
-      newXp += newXpToNext;
+      await _db.updateGoal(authUser!.uid, goalId, {
+        'done': false, 'progress': 0, 'completedAt': null,
+      });
+
+      int newXp = userData!.xp - goal.xp;
+      int newLevel = userData!.level;
+      int newXpToNext = userData!.xpToNext;
+
+      while (newXp < 0 && newLevel > 1) {
+        newLevel--;
+        newXpToNext = (newXpToNext / 1.3).round();
+        newXp += newXpToNext;
+      }
+      newXp = newXp.clamp(0, 999999);
+
+      await _db.updateUser(authUser!.uid, {
+        'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext,
+      });
+      userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
+      showToast('목표 완료를 취소했어요');
+      await loadGoals();
+      notifyListeners();
+    } finally {
+      _processingGoals.remove(goalId);
     }
-    newXp = newXp.clamp(0, 999999);
-
-    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
-    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
-    showToast('목표 완료를 취소했어요');
-    await loadGoals();
-    notifyListeners();
   }
 
   Future<void> removeGoal(String goalId) async {
@@ -329,7 +360,9 @@ class AppProvider extends ChangeNotifier {
       'xp': newXp, 'level': newLevel,
       'xpToNext': newXpToNext, 'reviveItem': newRevive,
     });
-    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, reviveItem: newRevive);
+    userData = userData!.copyWith(
+      xp: newXp, level: newLevel, xpToNext: newXpToNext, reviveItem: newRevive,
+    );
     if (newLevel > prevLevel) levelUpTo = newLevel;
     showToast('보상을 수령했어요!');
     await loadMailbox();
@@ -370,7 +403,6 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── 로그아웃: 스택 전부 비우고 LoginScreen으로 ──
   Future<void> signOut() async {
     await _auth.signOut();
     authUser = null;
@@ -411,7 +443,9 @@ class AppProvider extends ChangeNotifier {
       'xpToNext': newXpToNext, 'totalFocusMin': newTotalFocus,
     });
     await _db.updateTodayFocus(authUser!.uid, minutes);
-    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalFocusMin: newTotalFocus);
+    userData = userData!.copyWith(
+      xp: newXp, level: newLevel, xpToNext: newXpToNext, totalFocusMin: newTotalFocus,
+    );
     if (newLevel > prevLevel) levelUpTo = newLevel;
     notifyListeners();
   }

@@ -14,6 +14,7 @@ class _InAppWebViewState extends State<InAppWebView> {
   late final WebViewController _ctrl;
   bool _loading = true;
 
+  // 약관,개인정보 처리방침 등 변경사항 실시간 반영을 위한 캐시 비활성화
   @override
   void initState() {
     super.initState();
@@ -23,7 +24,14 @@ class _InAppWebViewState extends State<InAppWebView> {
         onPageStarted: (_) => setState(() => _loading = true),
         onPageFinished: (_) => setState(() => _loading = false),
       ))
-      ..loadRequest(Uri.parse(widget.url));
+      // 캐시 무시하고 항상 최신 버전 로드
+      ..loadRequest(
+        Uri.parse(widget.url),
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      );
   }
 
   @override
