@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
+import '../../services/notification_service.dart';
 import 'in_app_web_view.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -15,7 +17,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _logoutModal = false;
   bool _withdrawModal = false;
   bool _cancelModal = false;
-  Map<String, bool> _notif = {'goal': true, 'streak': true, 'mail': true};
+  Map<String, bool> _notif = {'goal': false, 'streak': false, 'mail': false};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifPrefs();
+  }
+
+  // SharedPreferences에서 알림 설정 불러오기
+  Future<void> _loadNotifPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _notif = {
+        'goal': prefs.getBool('notif_goal') ?? false,
+        'streak': prefs.getBool('notif_streak') ?? false,
+        'mail': prefs.getBool('notif_mail') ?? false,
+      };
+    });
+  }
+
+  // 알림 토글 처리
+  Future<void> _toggleNotif(String key) async {
+    final newVal = !_notif[key]!;
+
+    // 켜는 경우 권한 요청
+    if (newVal) {
+      final granted = await NotificationService.requestPermission();
+      if (!granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('알림 권한이 필요해요. 설정에서 허용해주세요.')),
+          );
+        }
+        return;
+      }
+    }
+
+    // 상태 저장
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notif_$key', newVal);
+    setState(() => _notif[key] = newVal);
+
+    // 실제 알림 스케줄링/취소
+    final app = context.read<AppProvider>();
+    if (key == 'goal') {
+      if (newVal) {
+        await NotificationService.scheduleDailyGoalReminder();
+      } else {
+        await NotificationService.cancelNotification(1);
+      }
+    } else if (key == 'streak') {
+      if (newVal) {
+        await NotificationService.scheduleStreakRiskReminder(
+            app.userData?.streak ?? 0);
+      } else {
+        await NotificationService.cancelNotification(2);
+      }
+    } else if (key == 'mail') {
+      // 우편함 알림은 Firebase Messaging으로 처리 (토픽 구독)
+      // 현재는 상태 저장만
+      if (!newVal) {
+        await NotificationService.cancelNotification(3);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,17 +146,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       label: '목표 리마인더',
                       sub: '매일 아침 9시 — 오늘의 목표 확인',
                       value: _notif['goal']!,
-                      onChange: () => setState(() => _notif['goal'] = !_notif['goal']!)),
+                      onChange: () => _toggleNotif('goal')),
                   _ToggleItem(
                       label: '스트릭 위기 알림',
                       sub: '매일 저녁 8시 — 스트릭이 끊길 위기일 때',
                       value: _notif['streak']!,
-                      onChange: () => setState(() => _notif['streak'] = !_notif['streak']!)),
+                      onChange: () => _toggleNotif('streak')),
                   _ToggleItem(
                       label: '우편함 알림',
                       sub: '새 보상이 도착하면 즉시 알림',
                       value: _notif['mail']!,
-                      onChange: () => setState(() => _notif['mail'] = !_notif['mail']!)),
+                      onChange: () => _toggleNotif('mail')),
                 ]),
 
                 _Section(title: '개인정보', children: [
@@ -121,7 +187,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ]),
 
                 _Section(title: '앱 정보', children: [
-                  const _InfoItem(label: '버전', value: '1.2.2'),
+                  const _InfoItem(label: '버전', value: '1.2.3'),
                   const _InfoItem(label: '빌드', value: '2026.04.23'),
                 ]),
 

@@ -8,6 +8,7 @@ import '../screens/goals/goals_screen.dart';
 import '../screens/focus/focus_screen.dart';
 import '../screens/ranking/ranking_screen.dart';
 import '../screens/my/my_screen.dart';
+import '../services/firestore_service.dart';
 
 final mainNavKey = GlobalKey<_MainNavState>();
 
@@ -25,7 +26,21 @@ class _MainNavState extends State<MainNav> {
     HomeScreen(), GoalsScreen(), FocusScreen(), RankingScreen(), MyScreen(),
   ];
 
-  void switchTab(int index) => setState(() => _currentIndex = index);
+  void switchTab(int index) {
+    setState(() => _currentIndex = index);
+
+    // 랭킹 탭(3번)으로 이동할 때 캐릭터 동기화
+    if (index == 3) {
+      final app = context.read<AppProvider>();
+      if (app.userData != null && app.authUser != null) {
+        FirestoreService().updatePublicProfile(app.authUser!.uid, {
+          'name': app.userData!.name,
+          'level': app.userData!.level,
+          'character': app.userData!.character.toMap(),
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +90,23 @@ class _MainNavState extends State<MainNav> {
                 _NavItem(icon: Icons.home_rounded, label: '홈', index: 0, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
                 _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
                 _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
-                _NavItem(icon: Icons.leaderboard_rounded, label: '랭킹', index: 3, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(
+                  icon: Icons.leaderboard_rounded,
+                  label: '랭킹',
+                  index: 3,
+                  current: _currentIndex,
+                  onTap: (i) {
+                    setState(() => _currentIndex = i);
+                    final app = context.read<AppProvider>();
+                    if (app.userData != null && app.authUser != null) {
+                      FirestoreService().updatePublicProfile(app.authUser!.uid, {
+                        'name': app.userData!.name,
+                        'level': app.userData!.level,
+                        'character': app.userData!.character.toMap(),
+                      });
+                    }
+                  },
+                ),
                 _NavItem(icon: Icons.person_rounded, label: '마이', index: 4, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i), badge: app.unreadMailCount),
               ]),
             ),

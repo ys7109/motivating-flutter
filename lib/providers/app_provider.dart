@@ -12,7 +12,7 @@ import '../services/firestore_service.dart';
 class AppProvider extends ChangeNotifier {
   final AuthService _auth = AuthService();
   final FirestoreService _db = FirestoreService();
-  final Set<String> _processingGoals = {}; // 중복 처리 방지
+  final Set<String> _processingGoals = {};
 
   static final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -231,11 +231,10 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> completeGoal(String goalId) async {
     if (authUser == null || userData == null) return;
-    if (_processingGoals.contains(goalId)) return; // 중복 방지
+    if (_processingGoals.contains(goalId)) return;
     _processingGoals.add(goalId);
 
     try {
-      // Firestore 최신값 기준으로 처리
       final freshUser = await _db.getUser(authUser!.uid);
       if (freshUser == null) return;
       userData = freshUser;
@@ -262,7 +261,17 @@ class AppProvider extends ChangeNotifier {
         'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext,
       });
       userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
-      if (newLevel > prevLevel) levelUpTo = newLevel;
+
+      if (newLevel > prevLevel) {
+        levelUpTo = newLevel;
+        // 레벨업 시 랭킹에도 반영
+        await _db.updatePublicProfile(authUser!.uid, {
+          'level': newLevel,
+          'name': userData!.name,
+          'character': userData!.character.toMap(),
+        });
+      }
+
       showToast('🎉 목표 완료! +${goal.xp} XP 획득');
       await loadGoals();
       notifyListeners();
@@ -275,11 +284,10 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> uncompleteGoal(String goalId) async {
     if (authUser == null || userData == null) return;
-    if (_processingGoals.contains(goalId)) return; // 중복 방지
+    if (_processingGoals.contains(goalId)) return;
     _processingGoals.add(goalId);
 
     try {
-      // Firestore 최신값 기준으로 처리 (누적 오차 방지 핵심)
       final freshUser = await _db.getUser(authUser!.uid);
       if (freshUser == null) return;
       userData = freshUser;
@@ -385,6 +393,14 @@ class AppProvider extends ChangeNotifier {
       frame: updates['frame'] ?? current.frame,
     );
     await _db.updateUser(authUser!.uid, {'character': newChar.toMap()});
+
+    // 랭킹에 캐릭터 + 이름 + 레벨 즉시 반영
+    await _db.updatePublicProfile(authUser!.uid, {
+      'character': newChar.toMap(),
+      'name': userData!.name,
+      'level': userData!.level,
+    });
+
     userData = userData!.copyWith(character: newChar);
     notifyListeners();
   }
@@ -392,6 +408,10 @@ class AppProvider extends ChangeNotifier {
   Future<void> updateName(String name) async {
     if (authUser == null) return;
     await _db.updateUser(authUser!.uid, {'name': name});
+
+    // 랭킹에 이름도 즉시 반영
+    await _db.updatePublicProfile(authUser!.uid, {'name': name});
+
     userData = userData!.copyWith(name: name);
     notifyListeners();
   }

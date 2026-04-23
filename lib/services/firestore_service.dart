@@ -153,6 +153,11 @@ class FirestoreService {
   Future<void> updateTodayFocus(String uid, int minutes) async {
     final today = DateTime.now().toIso8601String().substring(0, 10);
     final ref = _db.collection('rankings').doc(uid);
+
+    // 유저 정보 (이름, 레벨, 캐릭터) 함께 저장
+    final userSnap = await _db.collection('users').doc(uid).get();
+    final userData = userSnap.data() ?? {};
+
     final snap = await ref.get();
     if (snap.exists) {
       final data = snap.data()!;
@@ -168,6 +173,10 @@ class FirestoreService {
         'sessionCount': sessionCount,
         'lastFocusDate': today,
         'updatedAt': FieldValue.serverTimestamp(),
+        // 캐릭터/이름/레벨 최신값으로 갱신
+        'name': userData['name'] ?? '모험가',
+        'level': userData['level'] ?? 1,
+        'character': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       });
     }
   }
