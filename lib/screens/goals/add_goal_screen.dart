@@ -28,24 +28,19 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
   bool _titleError = false;
   bool _saving = false;
 
-  // 반복
-  String _repeatType = 'none'; // none | daily | weekly | monthly
-  int _repeatDay = 1;   // weekly: 0~6
-  int _repeatDate = 1;  // monthly: 1~31
+  String _repeatType = 'none';
+  int _repeatDay = 1;
+  int _repeatDate = 1;
   String _startDate = '';
   String _endDate = '';
 
-  // 알림
   bool _alarmEnabled = false;
   String _alarmAmPm = '오전';
   int _alarmHour = 9;
   int _alarmMin = 0;
   bool _showAlarmPicker = false;
 
-  // 단일 날짜 (반복 없을 때)
   late String _scheduledDate;
-
-  // 날짜 피커
   bool _showDatePicker = false;
   bool _showStartPicker = false;
   bool _showEndPicker = false;
@@ -60,7 +55,6 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
     final today = DateTime.now();
     _scheduledDate = widget.initialDate ??
         '${today.year}-${today.month.toString().padLeft(2,'0')}-${today.day.toString().padLeft(2,'0')}';
-
     _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
         .animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut));
@@ -105,7 +99,6 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
           'scheduledDate': _scheduledDate,
         });
       } else {
-        // 반복 목표 생성
         if (_startDate.isEmpty || _endDate.isEmpty) {
           app.showToast('시작일과 종료일을 설정해주세요.');
           setState(() => _saving = false);
@@ -141,13 +134,11 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
     final start = _parseDate(_startDate);
     final end = _parseDate(_endDate);
     var cur = start;
-
     while (!cur.isAfter(end)) {
       bool match = false;
       if (_repeatType == 'daily') match = true;
       else if (_repeatType == 'weekly') match = cur.weekday % 7 == _repeatDay;
       else if (_repeatType == 'monthly') match = cur.day == _repeatDate;
-
       if (match) dates.add(_formatDate(cur));
       cur = cur.add(const Duration(days: 1));
     }
@@ -171,7 +162,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
     };
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bgColor,
       body: FadeTransition(
         opacity: _fadeAnim,
         child: SlideTransition(
@@ -181,7 +172,6 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
               children: [
                 Column(
                   children: [
-                    // 헤더
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                       child: Row(
@@ -189,15 +179,15 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                         children: [
                           GestureDetector(
                             onTap: () => Navigator.pop(context),
-                            child: const Icon(Icons.close, color: AppTheme.textSecondary),
+                            child: Icon(Icons.close, color: context.textSecondary),
                           ),
-                          const Text('목표 추가', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                          Text('목표 추가', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: context.textPrimary)),
                           GestureDetector(
                             onTap: _saving ? null : _submit,
                             child: _saving
-                                ? const SizedBox(width: 20, height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary))
-                                : const Text('저장', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.primary)),
+                                ? SizedBox(width: 20, height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: context.primaryColor))
+                                : Text('저장', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.primaryColor)),
                           ),
                         ],
                       ),
@@ -211,24 +201,25 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // 제목
-                            const Text('목표 제목', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                            Text('목표 제목', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
                             const SizedBox(height: 8),
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               decoration: BoxDecoration(
-                                border: Border.all(color: _titleError ? AppTheme.danger : AppTheme.border, width: _titleError ? 1.5 : 1),
+                                color: context.surfaceColor,
+                                border: Border.all(color: _titleError ? AppTheme.danger : context.borderColor, width: _titleError ? 1.5 : 1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: TextField(
                                 controller: _titleCtrl,
                                 maxLength: 50,
-                                style: const TextStyle(fontSize: 15),
-                                decoration: const InputDecoration(
+                                style: TextStyle(fontSize: 15, color: context.textPrimary),
+                                decoration: InputDecoration(
                                   hintText: '예: 매일 아침 30분 독서',
-                                  hintStyle: TextStyle(color: AppTheme.textSecondary),
+                                  hintStyle: TextStyle(color: context.textSecondary),
                                   counterText: '',
                                   border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                 ),
                                 onChanged: (_) { if (_titleError) setState(() => _titleError = false); },
                               ),
@@ -236,31 +227,35 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                             Align(
                               alignment: Alignment.centerRight,
                               child: Text('${_titleCtrl.text.length}/50',
-                                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                                  style: TextStyle(fontSize: 11, color: context.textSecondary)),
                             ),
                             const SizedBox(height: 20),
 
                             // 설명
-                            const Text('상세 설명 (선택)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                            Text('상세 설명 (선택)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
                             const SizedBox(height: 8),
                             Container(
-                              decoration: BoxDecoration(border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(12)),
+                              decoration: BoxDecoration(
+                                color: context.surfaceColor,
+                                border: Border.all(color: context.borderColor),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               child: TextField(
                                 controller: _descCtrl,
                                 maxLines: 3,
-                                style: const TextStyle(fontSize: 14),
-                                decoration: const InputDecoration(
+                                style: TextStyle(fontSize: 14, color: context.textPrimary),
+                                decoration: InputDecoration(
                                   hintText: '구체적인 계획이나 메모를 남겨보세요',
-                                  hintStyle: TextStyle(color: AppTheme.textSecondary),
+                                  hintStyle: TextStyle(color: context.textSecondary),
                                   border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 20),
 
                             // 목표 유형
-                            const Text('목표 유형', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                            Text('목표 유형', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
                             const SizedBox(height: 10),
                             Row(
                               children: ['short', 'mid', 'long'].map((t) {
@@ -275,14 +270,14 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                       margin: const EdgeInsets.only(right: 8),
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                       decoration: BoxDecoration(
-                                        color: isSelected ? color.withOpacity(0.1) : const Color(0xFFF9F9F9),
+                                        color: isSelected ? color.withOpacity(0.1) : context.subtleBg,
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: isSelected ? color : AppTheme.border, width: isSelected ? 1.5 : 1),
+                                        border: Border.all(color: isSelected ? color : context.borderColor, width: isSelected ? 1.5 : 1),
                                       ),
                                       child: Column(children: [
-                                        Text(cfg['label'] as String, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isSelected ? color : AppTheme.textPrimary)),
+                                        Text(cfg['label'] as String, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isSelected ? color : context.textPrimary)),
                                         const SizedBox(height: 2),
-                                        Text(cfg['sub'] as String, style: TextStyle(fontSize: 10, color: isSelected ? color : AppTheme.textSecondary)),
+                                        Text(cfg['sub'] as String, style: TextStyle(fontSize: 10, color: isSelected ? color : context.textSecondary)),
                                       ]),
                                     ),
                                   ),
@@ -291,8 +286,8 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                             ),
                             const SizedBox(height: 20),
 
-                            // 난이도 (XP)
-                            const Text('난이도 (획득 XP)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                            // 난이도
+                            Text('난이도 (획득 XP)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
                             const SizedBox(height: 10),
                             Row(
                               children: List.generate(3, (i) {
@@ -306,14 +301,16 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                       margin: const EdgeInsets.only(right: 8),
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                       decoration: BoxDecoration(
-                                        color: isSelected ? AppTheme.primary : Colors.white,
+                                        color: isSelected ? context.primaryColor : context.surfaceColor,
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: isSelected ? AppTheme.primary : AppTheme.border, width: isSelected ? 2 : 1),
+                                        border: Border.all(color: isSelected ? context.primaryColor : context.borderColor, width: isSelected ? 2 : 1),
                                       ),
                                       child: Column(children: [
-                                        Text(_xpLabel[i], style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isSelected ? Colors.white : AppTheme.textPrimary)),
+                                        Text(_xpLabel[i], style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                            color: isSelected ? (context.isDark ? Colors.black : Colors.white) : context.textPrimary)),
                                         const SizedBox(height: 2),
-                                        Text('+$xpVal XP', style: TextStyle(fontSize: 12, color: isSelected ? Colors.white70 : AppTheme.textSecondary)),
+                                        Text('+$xpVal XP', style: TextStyle(fontSize: 12,
+                                            color: isSelected ? (context.isDark ? Colors.black54 : Colors.white70) : context.textSecondary)),
                                       ]),
                                     ),
                                   ),
@@ -323,7 +320,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                             const SizedBox(height: 20),
 
                             // 반복 설정
-                            const Text('반복 설정', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                            Text('반복 설정', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
                             const SizedBox(height: 10),
                             Wrap(
                               spacing: 8, runSpacing: 8,
@@ -340,16 +337,16 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                     duration: const Duration(milliseconds: 150),
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                                     decoration: BoxDecoration(
-                                      color: isSelected ? AppTheme.primary : const Color(0xFFF0F0F0),
+                                      color: isSelected ? context.primaryColor : context.subtleBg,
                                       borderRadius: BorderRadius.circular(99),
                                     ),
-                                    child: Text(t[1], style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : const Color(0xFF616161))),
+                                    child: Text(t[1], style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
+                                        color: isSelected ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary)),
                                   ),
                                 );
                               }).toList(),
                             ),
 
-                            // 반복 옵션
                             AnimatedSize(
                               duration: const Duration(milliseconds: 250),
                               curve: Curves.easeOut,
@@ -357,11 +354,10 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                 padding: const EdgeInsets.only(top: 14),
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(color: const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(14)),
+                                  decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(14)),
                                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                    // weekly: 요일 버튼
                                     if (_repeatType == 'weekly') ...[
-                                      const Text('반복 요일', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                                      Text('반복 요일', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                                       const SizedBox(height: 8),
                                       Row(
                                         children: List.generate(7, (i) {
@@ -375,9 +371,10 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                                 height: 36,
                                                 decoration: BoxDecoration(
                                                   shape: BoxShape.circle,
-                                                  color: isSelected ? AppTheme.primary : const Color(0xFFE0E0E0),
+                                                  color: isSelected ? context.primaryColor : context.borderColor,
                                                 ),
-                                                child: Center(child: Text(_weekDays[i], style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : const Color(0xFF616161)))),
+                                                child: Center(child: Text(_weekDays[i], style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
+                                                    color: isSelected ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary))),
                                               ),
                                             ),
                                           );
@@ -386,9 +383,8 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                       const SizedBox(height: 14),
                                     ],
 
-                                    // monthly: 날짜 그리드
                                     if (_repeatType == 'monthly') ...[
-                                      const Text('반복 날짜', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                                      Text('반복 날짜', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                                       const SizedBox(height: 8),
                                       Wrap(
                                         spacing: 6, runSpacing: 6,
@@ -402,45 +398,45 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                               width: 36, height: 36,
                                               decoration: BoxDecoration(
                                                 borderRadius: BorderRadius.circular(8),
-                                                color: isSelected ? AppTheme.primary : const Color(0xFFE0E0E0),
+                                                color: isSelected ? context.primaryColor : context.borderColor,
                                               ),
-                                              child: Center(child: Text('$d', style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : const Color(0xFF616161)))),
+                                              child: Center(child: Text('$d', style: TextStyle(fontSize: 12,
+                                                  color: isSelected ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary))),
                                             ),
                                           );
                                         }),
                                       ),
                                       const SizedBox(height: 6),
-                                      const Text('* 해당 날짜가 없는 달은 마지막 날에 생성됩니다',
-                                          style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                                      Text('* 해당 날짜가 없는 달은 마지막 날에 생성됩니다',
+                                          style: TextStyle(fontSize: 11, color: context.textSecondary)),
                                       const SizedBox(height: 14),
                                     ],
 
-                                    // 시작일 ~ 종료일
                                     Row(children: [
                                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                        const Text('시작일', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                                        Text('시작일', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                                         const SizedBox(height: 6),
                                         GestureDetector(
                                           onTap: () => setState(() => _showStartPicker = true),
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(10)),
+                                            decoration: BoxDecoration(color: context.surfaceColor, border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(10)),
                                             child: Text(_startDate.isEmpty ? '날짜 선택' : _startDate,
-                                                style: TextStyle(fontSize: 13, color: _startDate.isEmpty ? AppTheme.textSecondary : AppTheme.textPrimary)),
+                                                style: TextStyle(fontSize: 13, color: _startDate.isEmpty ? context.textSecondary : context.textPrimary)),
                                           ),
                                         ),
                                       ])),
                                       const SizedBox(width: 8),
                                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                        const Text('종료일', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                                        Text('종료일', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                                         const SizedBox(height: 6),
                                         GestureDetector(
                                           onTap: () => setState(() => _showEndPicker = true),
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(10)),
+                                            decoration: BoxDecoration(color: context.surfaceColor, border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(10)),
                                             child: Text(_endDate.isEmpty ? '날짜 선택' : _endDate,
-                                                style: TextStyle(fontSize: 13, color: _endDate.isEmpty ? AppTheme.textSecondary : AppTheme.textPrimary)),
+                                                style: TextStyle(fontSize: 13, color: _endDate.isEmpty ? context.textSecondary : context.textPrimary)),
                                           ),
                                         ),
                                       ])),
@@ -448,7 +444,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                     if (_startDate.isNotEmpty && _endDate.isNotEmpty) ...[
                                       const SizedBox(height: 8),
                                       Text('📅 $_startDate ~ $_endDate 기간 내 생성',
-                                          style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                                          style: TextStyle(fontSize: 11, color: context.textSecondary)),
                                     ],
                                   ]),
                                 ),
@@ -456,9 +452,9 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                             ),
                             const SizedBox(height: 20),
 
-                            // 단일 날짜 (반복 없을 때)
+                            // 단일 날짜
                             if (_repeatType == 'none') ...[
-                              const Text('날짜', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                              Text('날짜', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
                               const SizedBox(height: 8),
                               GestureDetector(
                                 onTap: () => setState(() => _showDatePicker = true),
@@ -466,30 +462,30 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF9F9F9),
+                                    color: context.subtleBg,
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppTheme.border),
+                                    border: Border.all(color: context.borderColor),
                                   ),
                                   child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                     Text(_scheduledDate.replaceAll('-', '.'),
-                                        style: const TextStyle(fontSize: 15, color: AppTheme.textPrimary)),
-                                    const Icon(Icons.calendar_today_outlined, size: 18, color: AppTheme.textSecondary),
+                                        style: TextStyle(fontSize: 15, color: context.textPrimary)),
+                                    Icon(Icons.calendar_today_outlined, size: 18, color: context.textSecondary),
                                   ]),
                                 ),
                               ),
                               const SizedBox(height: 20),
                             ],
 
-                            // 알림 설정
+                            // 알림
                             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              const Text('목표 알림', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                              Text('목표 알림', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
                               GestureDetector(
                                 onTap: () => setState(() => _alarmEnabled = !_alarmEnabled),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   width: 44, height: 26,
                                   decoration: BoxDecoration(
-                                    color: _alarmEnabled ? AppTheme.primary : const Color(0xFFE0E0E0),
+                                    color: _alarmEnabled ? context.primaryColor : context.borderColor,
                                     borderRadius: BorderRadius.circular(99),
                                   ),
                                   child: AnimatedAlign(
@@ -510,12 +506,12 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(vertical: 14),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF9F9F9),
-                                    border: Border.all(color: AppTheme.border),
+                                    color: context.subtleBg,
+                                    border: Border.all(color: context.borderColor),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Center(child: Text('🔔 $_alarmDisplay',
-                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w300, color: AppTheme.textPrimary))),
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w300, color: context.textPrimary))),
                                 ),
                               ),
                             ],
@@ -524,23 +520,23 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                             // XP 미리보기
                             Container(
                               padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                              decoration: BoxDecoration(color: const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(12)),
+                              decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
                               child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  const Text('달성 시 획득 XP', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                                  Text('달성 시 획득 XP', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                                   const SizedBox(height: 2),
-                                  Text('+$_xp XP', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
+                                  Text('+$_xp XP', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: context.textPrimary)),
                                   if (_repeatType != 'none') ...[
                                     const SizedBox(height: 4),
                                     Text(
                                       '🔄 ${_repeatType == 'daily' ? '매일' : _repeatType == 'weekly' ? '매주 ${_weekDays[_repeatDay]}요일' : '매달 ${_repeatDate}일'}'
                                       '${_startDate.isNotEmpty && _endDate.isNotEmpty ? ' ($_startDate~$_endDate)' : ''}',
-                                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                                      style: TextStyle(fontSize: 11, color: context.textSecondary),
                                     ),
                                   ],
                                   if (_alarmEnabled)
                                     Text('🔔 $_alarmDisplay 알림',
-                                        style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                                        style: TextStyle(fontSize: 11, color: context.textSecondary)),
                                 ]),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -566,12 +562,14 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(vertical: 15),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.primary,
+                                  color: context.primaryColor,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: Center(child: _saving
                                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                    : const Text('목표 추가하기', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
+                                    : Text('목표 추가하기', style: TextStyle(
+                                        color: context.isDark ? Colors.black : Colors.white,
+                                        fontSize: 16, fontWeight: FontWeight.w600))),
                               ),
                             ),
                             const SizedBox(height: 40),
@@ -582,37 +580,29 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                   ],
                 ),
 
-                // 날짜 피커 모달들
                 if (_showDatePicker)
                   _DrumDatePicker(
-                    title: '날짜 선택',
-                    value: _scheduledDate,
+                    title: '날짜 선택', value: _scheduledDate,
                     onConfirm: (date) => setState(() { _scheduledDate = date; _showDatePicker = false; }),
                     onClose: () => setState(() => _showDatePicker = false),
                   ),
                 if (_showStartPicker)
                   _DrumDatePicker(
-                    title: '시작일',
-                    value: _startDate.isEmpty ? _scheduledDate : _startDate,
+                    title: '시작일', value: _startDate.isEmpty ? _scheduledDate : _startDate,
                     onConfirm: (date) => setState(() { _startDate = date; _showStartPicker = false; }),
                     onClose: () => setState(() => _showStartPicker = false),
                   ),
                 if (_showEndPicker)
                   _DrumDatePicker(
-                    title: '종료일',
-                    value: _endDate.isEmpty ? _scheduledDate : _endDate,
+                    title: '종료일', value: _endDate.isEmpty ? _scheduledDate : _endDate,
                     onConfirm: (date) => setState(() { _endDate = date; _showEndPicker = false; }),
                     onClose: () => setState(() => _showEndPicker = false),
                   ),
                 if (_showAlarmPicker)
                   _AlarmPicker(
-                    amPm: _alarmAmPm,
-                    hour: _alarmHour,
-                    min: _alarmMin,
+                    amPm: _alarmAmPm, hour: _alarmHour, min: _alarmMin,
                     onConfirm: (amPm, hour, min) => setState(() {
-                      _alarmAmPm = amPm;
-                      _alarmHour = hour;
-                      _alarmMin = min;
+                      _alarmAmPm = amPm; _alarmHour = hour; _alarmMin = min;
                       _showAlarmPicker = false;
                     }),
                     onClose: () => setState(() => _showAlarmPicker = false),
@@ -626,7 +616,6 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
   }
 }
 
-// ── 드럼 날짜 피커 ────────────────────────────────────────
 class _DrumDatePicker extends StatefulWidget {
   final String title, value;
   final ValueChanged<String> onConfirm;
@@ -649,13 +638,8 @@ class _DrumDatePickerState extends State<_DrumDatePicker> {
     try {
       final p = widget.value.split('-');
       init = DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
-    } catch (_) {
-      init = today;
-    }
-    _year = init.year;
-    _month = init.month;
-    _day = init.day;
-
+    } catch (_) { init = today; }
+    _year = init.year; _month = init.month; _day = init.day;
     final yearList = List.generate(5, (i) => today.year + i);
     _yearCtrl = FixedExtentScrollController(initialItem: yearList.indexOf(_year).clamp(0, 4));
     _monthCtrl = FixedExtentScrollController(initialItem: _month - 1);
@@ -664,9 +648,7 @@ class _DrumDatePickerState extends State<_DrumDatePicker> {
 
   @override
   void dispose() {
-    _yearCtrl.dispose();
-    _monthCtrl.dispose();
-    _dayCtrl.dispose();
+    _yearCtrl.dispose(); _monthCtrl.dispose(); _dayCtrl.dispose();
     super.dispose();
   }
 
@@ -674,8 +656,7 @@ class _DrumDatePickerState extends State<_DrumDatePicker> {
 
   void _confirm() {
     final d = _day.clamp(1, _maxDay);
-    final dateStr = '$_year-${_month.toString().padLeft(2,'0')}-${d.toString().padLeft(2,'0')}';
-    widget.onConfirm(dateStr);
+    widget.onConfirm('$_year-${_month.toString().padLeft(2,'0')}-${d.toString().padLeft(2,'0')}');
   }
 
   @override
@@ -696,37 +677,22 @@ class _DrumDatePickerState extends State<_DrumDatePicker> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-              decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              decoration: BoxDecoration(color: context.modalBg, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text(widget.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  GestureDetector(onTap: widget.onClose, child: const Text('×', style: TextStyle(fontSize: 24, color: AppTheme.textSecondary))),
+                  Text(widget.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                  GestureDetector(onTap: widget.onClose, child: Text('×', style: TextStyle(fontSize: 24, color: context.textSecondary))),
                 ]),
                 const SizedBox(height: 16),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  _DrumColumn(
-                    controller: _yearCtrl,
-                    items: years,
-                    width: 90,
-                    onSelected: (i) => setState(() => _year = today.year + i),
-                  ),
+                  _DrumColumn(controller: _yearCtrl, items: years, width: 90,
+                      onSelected: (i) => setState(() => _year = today.year + i)),
                   const SizedBox(width: 8),
-                  _DrumColumn(
-                    controller: _monthCtrl,
-                    items: months,
-                    width: 72,
-                    onSelected: (i) => setState(() {
-                      _month = i + 1;
-                      if (_day > _maxDay) _day = _maxDay;
-                    }),
-                  ),
+                  _DrumColumn(controller: _monthCtrl, items: months, width: 72,
+                      onSelected: (i) => setState(() { _month = i + 1; if (_day > _maxDay) _day = _maxDay; })),
                   const SizedBox(width: 8),
-                  _DrumColumn(
-                    controller: _dayCtrl,
-                    items: days,
-                    width: 72,
-                    onSelected: (i) => setState(() => _day = i + 1),
-                  ),
+                  _DrumColumn(controller: _dayCtrl, items: days, width: 72,
+                      onSelected: (i) => setState(() => _day = i + 1)),
                 ]),
                 const SizedBox(height: 20),
                 GestureDetector(
@@ -734,8 +700,10 @@ class _DrumDatePickerState extends State<_DrumDatePicker> {
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(14)),
-                    child: const Center(child: Text('확인', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600))),
+                    decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(14)),
+                    child: Center(child: Text('확인', style: TextStyle(
+                        color: context.isDark ? Colors.black : Colors.white,
+                        fontSize: 15, fontWeight: FontWeight.w600))),
                   ),
                 ),
               ]),
@@ -747,7 +715,6 @@ class _DrumDatePickerState extends State<_DrumDatePicker> {
   }
 }
 
-// ── 드럼 컬럼 ─────────────────────────────────────────────
 class _DrumColumn extends StatelessWidget {
   final FixedExtentScrollController controller;
   final List<String> items;
@@ -759,24 +726,22 @@ class _DrumColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const itemH = 52.0;
+    final bgColor = context.modalBg;
+    final transparent = bgColor.withOpacity(0);
     return SizedBox(
-      width: width,
-      height: itemH * 3,
+      width: width, height: itemH * 3,
       child: Stack(children: [
-        // 상단 그라데이션
         Positioned(top: 0, left: 0, right: 0, height: itemH,
-          child: Container(decoration: const BoxDecoration(
+          child: Container(decoration: BoxDecoration(
             gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                colors: [Colors.white, Color(0x00FFFFFF)])))),
-        // 선택 영역 라인
+                colors: [bgColor, transparent])))),
         Positioned(top: itemH, left: 4, right: 4, height: itemH,
-          child: Container(decoration: const BoxDecoration(
-            border: Border.symmetric(horizontal: BorderSide(color: Color(0xFFD0D0D0)))))),
-        // 하단 그라데이션
+          child: Container(decoration: BoxDecoration(
+            border: Border.symmetric(horizontal: BorderSide(color: context.borderColor))))),
         Positioned(bottom: 0, left: 0, right: 0, height: itemH,
-          child: Container(decoration: const BoxDecoration(
+          child: Container(decoration: BoxDecoration(
             gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
-                colors: [Colors.white, Color(0x00FFFFFF)])))),
+                colors: [bgColor, transparent])))),
         ListWheelScrollView.useDelegate(
           controller: controller,
           itemExtent: itemH,
@@ -789,12 +754,11 @@ class _DrumColumn extends StatelessWidget {
               if (index < 0 || index >= items.length) return null;
               final isSelected = controller.selectedItem == index;
               return Center(
-                child: Text(items[index],
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
-                      color: isSelected ? AppTheme.textPrimary : const Color(0xFFC0C0C0),
-                    )),
+                child: Text(items[index], style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
+                  color: isSelected ? context.textPrimary : context.textSecondary,
+                )),
               );
             },
             childCount: items.length,
@@ -805,7 +769,6 @@ class _DrumColumn extends StatelessWidget {
   }
 }
 
-// ── 알람 피커 ─────────────────────────────────────────────
 class _AlarmPicker extends StatefulWidget {
   final String amPm;
   final int hour, min;
@@ -825,9 +788,7 @@ class _AlarmPickerState extends State<_AlarmPicker> {
   @override
   void initState() {
     super.initState();
-    _amPm = widget.amPm;
-    _hour = widget.hour;
-    _min = widget.min;
+    _amPm = widget.amPm; _hour = widget.hour; _min = widget.min;
     _amPmCtrl = FixedExtentScrollController(initialItem: _amPm == '오전' ? 0 : 1);
     _hourCtrl = FixedExtentScrollController(initialItem: _hour - 1);
     _minCtrl = FixedExtentScrollController(initialItem: _min ~/ 5);
@@ -835,9 +796,7 @@ class _AlarmPickerState extends State<_AlarmPicker> {
 
   @override
   void dispose() {
-    _amPmCtrl.dispose();
-    _hourCtrl.dispose();
-    _minCtrl.dispose();
+    _amPmCtrl.dispose(); _hourCtrl.dispose(); _minCtrl.dispose();
     super.dispose();
   }
 
@@ -858,11 +817,11 @@ class _AlarmPickerState extends State<_AlarmPicker> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-              decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              decoration: BoxDecoration(color: context.modalBg, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  const Text('알림 시간', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  GestureDetector(onTap: widget.onClose, child: const Text('×', style: TextStyle(fontSize: 24, color: AppTheme.textSecondary))),
+                  Text('알림 시간', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                  GestureDetector(onTap: widget.onClose, child: Text('×', style: TextStyle(fontSize: 24, color: context.textSecondary))),
                 ]),
                 const SizedBox(height: 16),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -871,7 +830,7 @@ class _AlarmPickerState extends State<_AlarmPicker> {
                   const SizedBox(width: 8),
                   _DrumColumn(controller: _hourCtrl, items: hourItems, width: 60,
                       onSelected: (i) => setState(() => _hour = i + 1)),
-                  const Padding(padding: EdgeInsets.only(bottom: 4), child: Text(':', style: TextStyle(fontSize: 24, color: AppTheme.textSecondary))),
+                  Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(':', style: TextStyle(fontSize: 24, color: context.textSecondary))),
                   _DrumColumn(controller: _minCtrl, items: minItems, width: 60,
                       onSelected: (i) => setState(() => _min = i * 5)),
                 ]),
@@ -881,8 +840,10 @@ class _AlarmPickerState extends State<_AlarmPicker> {
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(14)),
-                    child: const Center(child: Text('확인', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600))),
+                    decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(14)),
+                    child: Center(child: Text('확인', style: TextStyle(
+                        color: context.isDark ? Colors.black : Colors.white,
+                        fontSize: 15, fontWeight: FontWeight.w600))),
                   ),
                 ),
               ]),

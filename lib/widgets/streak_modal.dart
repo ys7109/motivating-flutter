@@ -4,7 +4,7 @@ import '../utils/theme.dart';
 import '../providers/app_provider.dart';
 
 class StreakModal extends StatefulWidget {
-  final String type; // 'milestone' | 'broken'
+  final String type;
   final VoidCallback onClose;
   const StreakModal({super.key, required this.type, required this.onClose});
 
@@ -12,8 +12,7 @@ class StreakModal extends StatefulWidget {
   State<StreakModal> createState() => _StreakModalState();
 }
 
-class _StreakModalState extends State<StreakModal>
-    with SingleTickerProviderStateMixin {
+class _StreakModalState extends State<StreakModal> with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _scaleAnim;
   bool _watchingAd = false;
@@ -23,9 +22,7 @@ class _StreakModalState extends State<StreakModal>
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 350));
     _scaleAnim = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (mounted) _ctrl.forward();
-    });
+    Future.delayed(const Duration(milliseconds: 50), () { if (mounted) _ctrl.forward(); });
   }
 
   @override
@@ -80,30 +77,29 @@ class _MilestoneContent extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(color: context.modalBg, borderRadius: BorderRadius.circular(24)),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('🏅', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 4),
-        const Text('스트릭 달성!', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+        Text('스트릭 달성!', style: TextStyle(fontSize: 13, color: context.textSecondary)),
         const SizedBox(height: 6),
-        Text('$streak일 연속 접속', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
+        Text('$streak일 연속 접속', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: context.textPrimary)),
         const SizedBox(height: 8),
         Text('${milestone['label']} 달성으로\n+${milestone['xp']} XP를 획득합니다!',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.6)),
+            textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: context.textSecondary, height: 1.6)),
 
         if (milestone['badge'] == true) ...[
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            decoration: BoxDecoration(color: const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
-              Container(width: 40, height: 40, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.primary),
+              Container(width: 40, height: 40, decoration: BoxDecoration(shape: BoxShape.circle, color: context.primaryColor),
                   child: Center(child: Text(badgeEmoji, style: const TextStyle(fontSize: 20)))),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('새 뱃지 해금!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                Text(badgeName, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                Text('새 뱃지 해금!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                Text(badgeName, style: TextStyle(fontSize: 12, color: context.textSecondary)),
               ]),
             ]),
           ),
@@ -118,9 +114,9 @@ class _MilestoneContent extends StatelessWidget {
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(14)),
-            child: Center(child: Text('+${milestone['xp']} XP 획득하기 🎉',
-                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600))),
+            decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(14)),
+            child: Center(child: Text('+${milestone['xp']} XP 획득하기 🎉', style: TextStyle(
+                color: context.isDark ? Colors.black : Colors.white, fontSize: 15, fontWeight: FontWeight.w600))),
           ),
         ),
       ]),
@@ -144,49 +140,41 @@ class _BrokenContent extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(color: context.modalBg, borderRadius: BorderRadius.circular(24)),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('😢', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 8),
-        const Text('스트릭이 끊겼어요', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+        Text('스트릭이 끊겼어요', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: context.textPrimary)),
         const SizedBox(height: 8),
         Text('$prevStreak일 스트릭이 끊겼어요.\n복구하거나 새로 시작할 수 있어요.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.6)),
+            textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: context.textSecondary, height: 1.6)),
         const SizedBox(height: 16),
 
         Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          decoration: BoxDecoration(color: const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('끊긴 스트릭', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-            Text('🔥 $prevStreak일', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            Text('끊긴 스트릭', style: TextStyle(fontSize: 13, color: context.textSecondary)),
+            Text('🔥 $prevStreak일', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: context.textPrimary)),
           ]),
         ),
         const SizedBox(height: 16),
 
-        _ReviveBtn(
-          emoji: '🛡️', title: '부활 아이템 사용',
-          sub: hasRevive ? '보유 ${reviveItem}개' : '아이템 없음',
-          badge: '무료', disabled: !hasRevive,
-          onTap: () async { await app.reviveStreakByItem(); onClose(); },
-        ),
+        _ReviveBtn(emoji: '🛡️', title: '부활 아이템 사용',
+          sub: hasRevive ? '보유 ${reviveItem}개' : '아이템 없음', badge: '무료', disabled: !hasRevive,
+          onTap: () async { await app.reviveStreakByItem(); onClose(); }),
         const SizedBox(height: 10),
-        _ReviveBtn(
-          emoji: '📺',
+        _ReviveBtn(emoji: '📺',
           title: watchingAd ? '광고 시청 중...' : '광고 시청으로 복구',
-          sub: '15~30초 광고 시청', badge: '무료',
-          disabled: watchingAd,
-          onTap: onWatchAd,
-        ),
+          sub: '15~30초 광고 시청', badge: '무료', disabled: watchingAd, onTap: onWatchAd),
         const SizedBox(height: 10),
         GestureDetector(
           onTap: () async { await app.resetStreak(); onClose(); },
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 13),
-            decoration: BoxDecoration(border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(12)),
-            child: const Center(child: Text('그냥 초기화하기', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary))),
+            decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)),
+            child: Center(child: Text('그냥 초기화하기', style: TextStyle(fontSize: 14, color: context.textSecondary))),
           ),
         ),
       ]),
@@ -209,8 +197,8 @@ class _ReviveBtn extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
           decoration: BoxDecoration(
-            color: disabled ? const Color(0xFFF9F9F9) : Colors.white,
-            border: Border.all(color: AppTheme.border),
+            color: disabled ? context.subtleBg : context.surfaceColor,
+            border: Border.all(color: context.borderColor),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -219,12 +207,11 @@ class _ReviveBtn extends StatelessWidget {
               const SizedBox(width: 10),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,
-                    color: disabled ? AppTheme.textSecondary : AppTheme.textPrimary)),
-                Text(sub, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                    color: disabled ? context.textSecondary : context.textPrimary)),
+                Text(sub, style: TextStyle(fontSize: 12, color: context.textSecondary)),
               ]),
             ]),
-            if (!disabled)
-              Text(badge, style: const TextStyle(fontSize: 12, color: Color(0xFF1b8a5a), fontWeight: FontWeight.w500)),
+            if (!disabled) const Text('무료', style: TextStyle(fontSize: 12, color: Color(0xFF1b8a5a), fontWeight: FontWeight.w500)),
           ]),
         ),
       ),
@@ -254,8 +241,8 @@ class _StreakFlames extends StatelessWidget {
         Container(
           width: 32, height: 32,
           margin: const EdgeInsets.symmetric(horizontal: 3),
-          decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFF9F9F9), border: Border.all(color: AppTheme.border)),
-          child: Center(child: Text('+${streak - 7}', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary))),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: context.subtleBg, border: Border.all(color: context.borderColor)),
+          child: Center(child: Text('+${streak - 7}', style: TextStyle(fontSize: 11, color: context.textSecondary))),
         ),
     ]);
   }

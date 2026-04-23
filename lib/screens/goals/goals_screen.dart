@@ -71,7 +71,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final activeCount = goals.where((g) => !g.done).length;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: context.bgColor,
       body: Stack(
         children: [
           SafeArea(
@@ -86,18 +86,20 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          const Text('목표', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                          Text('목표', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: context.textPrimary)),
                           const SizedBox(height: 4),
                           Text('진행 중 ${activeCount}개 · 완료 ${doneCount}개',
-                              style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                              style: TextStyle(fontSize: 13, color: context.textSecondary)),
                         ]),
                         TapScale(
                           onTap: () => Navigator.push(context,
                               SlideUpRoute(page: AddGoalScreen(initialDate: _selectedDate))),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(99)),
-                            child: const Text('+ 추가', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                            decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
+                            child: Text('+ 추가', style: TextStyle(
+                                color: context.isDark ? Colors.black : Colors.white,
+                                fontSize: 13, fontWeight: FontWeight.w600)),
                           ),
                         ),
                       ],
@@ -111,9 +113,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.surface,
+                        color: context.surfaceColor,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.border, width: 0.5),
+                        border: Border.all(color: context.borderColor, width: 0.5),
                       ),
                       child: Column(children: [
                         Row(
@@ -124,18 +126,18 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                 if (_viewMonth == 1) { _viewYear--; _viewMonth = 12; }
                                 else _viewMonth--;
                               }),
-                              icon: const Icon(Icons.chevron_left, color: AppTheme.textSecondary),
+                              icon: Icon(Icons.chevron_left, color: context.textSecondary),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                             ),
                             Text('$_viewYear년 $_viewMonth월',
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
                             IconButton(
                               onPressed: () => setState(() {
                                 if (_viewMonth == 12) { _viewYear++; _viewMonth = 1; }
                                 else _viewMonth++;
                               }),
-                              icon: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                              icon: Icon(Icons.chevron_right, color: context.textSecondary),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                             ),
@@ -148,7 +150,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                               child: Text(_weekDays[i],
                                   style: TextStyle(
                                     fontSize: 11, fontWeight: FontWeight.w500,
-                                    color: i == 0 ? AppTheme.danger : i == 6 ? const Color(0xFF3949ab) : AppTheme.textSecondary,
+                                    color: i == 0 ? AppTheme.danger : i == 6 ? const Color(0xFF3949ab) : context.textSecondary,
                                   )),
                             ),
                           )),
@@ -181,18 +183,19 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                     width: 30, height: 30,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: isSelected ? AppTheme.primary : Colors.transparent,
+                                      color: isSelected ? context.primaryColor : Colors.transparent,
                                     ),
                                     child: Center(
                                       child: Text('$day',
                                           style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
-                                            color: isSelected ? Colors.white
-                                                : isToday ? AppTheme.primary
+                                            color: isSelected
+                                                ? (context.isDark ? Colors.black : Colors.white)
+                                                : isToday ? context.primaryColor
                                                 : dow == 0 ? AppTheme.danger
                                                 : dow == 6 ? const Color(0xFF3949ab)
-                                                : AppTheme.textPrimary,
+                                                : context.textPrimary,
                                           )),
                                     ),
                                   ),
@@ -203,7 +206,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                       margin: const EdgeInsets.only(top: 2),
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        color: isSelected ? Colors.white
+                                        color: isSelected
+                                            ? (context.isDark ? Colors.black : Colors.white)
                                             : allDone ? const Color(0xFF1b8a5a)
                                             : const Color(0xFFf9a825),
                                       ),
@@ -225,7 +229,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       children: [
                         Text(
                           _selectedDate == _todayStr ? '오늘 목표' : _selectedDate.replaceAll('-', '.'),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textPrimary),
                         ),
                         Row(
                           children: [['all', '전체'], ['active', '진행'], ['done', '완료']].map((f) =>
@@ -236,13 +240,15 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                 margin: const EdgeInsets.only(left: 6),
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: _filter == f[0] ? AppTheme.primary : Colors.transparent,
-                                  border: Border.all(color: _filter == f[0] ? AppTheme.primary : AppTheme.border),
+                                  color: _filter == f[0] ? context.primaryColor : Colors.transparent,
+                                  border: Border.all(color: _filter == f[0] ? context.primaryColor : context.borderColor),
                                   borderRadius: BorderRadius.circular(99),
                                 ),
                                 child: Text(f[1], style: TextStyle(
                                     fontSize: 11,
-                                    color: _filter == f[0] ? Colors.white : AppTheme.textSecondary)),
+                                    color: _filter == f[0]
+                                        ? (context.isDark ? Colors.black : Colors.white)
+                                        : context.textSecondary)),
                               ),
                             )
                           ).toList(),
@@ -259,16 +265,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         child: Column(children: [
                           const Text('📅', style: TextStyle(fontSize: 32)),
                           const SizedBox(height: 8),
-                          const Text('이 날의 목표가 없어요',
-                              style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+                          Text('이 날의 목표가 없어요',
+                              style: TextStyle(fontSize: 14, color: context.textSecondary)),
                           const SizedBox(height: 12),
                           TapScale(
                             onTap: () => Navigator.push(context,
                                 SlideUpRoute(page: AddGoalScreen(initialDate: _selectedDate))),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                              decoration: BoxDecoration(border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(99)),
-                              child: const Text('+ 목표 추가', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                              decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(99)),
+                              child: Text('+ 목표 추가', style: TextStyle(fontSize: 13, color: context.textSecondary)),
                             ),
                           ),
                         ]),
@@ -362,9 +368,9 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: context.surfaceColor,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.border, width: 0.5),
+          border: Border.all(color: context.borderColor, width: 0.5),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,10 +391,13 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                   margin: const EdgeInsets.only(top: 1),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: g.done ? AppTheme.primary : Colors.transparent,
-                    border: g.done ? null : Border.all(color: AppTheme.border, width: 1.5),
+                    color: g.done ? context.primaryColor : Colors.transparent,
+                    border: g.done ? null : Border.all(color: context.borderColor, width: 1.5),
                   ),
-                  child: g.done ? const Icon(Icons.check, color: Colors.white, size: 13) : null,
+                  child: g.done
+                      ? Icon(Icons.check,
+                          color: context.isDark ? Colors.black : Colors.white, size: 13)
+                      : null,
                 ),
               ),
             ),
@@ -412,7 +421,7 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                           duration: const Duration(milliseconds: 200),
                           style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w500,
-                            color: g.done ? AppTheme.textSecondary : AppTheme.textPrimary,
+                            color: g.done ? context.textSecondary : context.textPrimary,
                             decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none,
                           ),
                           child: Text(g.title),
@@ -423,7 +432,7 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                       const SizedBox(height: 4),
                       Text(
                         '🔄 ${g.repeat!.type == 'daily' ? '매일' : g.repeat!.type == 'weekly' ? '매주 ${_weekDays[g.repeat!.day ?? 0]}요일' : '매달 ${g.repeat!.date}일'}',
-                        style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                        style: TextStyle(fontSize: 11, color: context.textSecondary),
                       ),
                     ],
                     AnimatedSize(
@@ -431,7 +440,7 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                       child: _expanded && g.desc.isNotEmpty
                           ? Padding(
                               padding: const EdgeInsets.only(top: 6),
-                              child: Text(g.desc, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.6)),
+                              child: Text(g.desc, style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.6)),
                             )
                           : const SizedBox(),
                     ),
@@ -447,14 +456,14 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                             builder: (_, value, __) => LinearProgressIndicator(
                               value: value,
                               minHeight: 4,
-                              backgroundColor: const Color(0xFFE0E0E0),
-                              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                              backgroundColor: context.borderColor,
+                              valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor),
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text('${g.progress}%', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                      Text('${g.progress}%', style: TextStyle(fontSize: 11, color: context.textSecondary)),
                     ]),
                   ],
                 ),
@@ -469,7 +478,7 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                   duration: const Duration(milliseconds: 200),
                   style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w500,
-                    color: g.done ? const Color(0xFF1b8a5a) : AppTheme.textSecondary,
+                    color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary,
                   ),
                   child: Text('+${g.xp} XP'),
                 ),
@@ -480,14 +489,14 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                       onTap: widget.onUncomplete,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('취소', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                        decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(6)),
+                        child: Text('취소', style: TextStyle(fontSize: 11, color: context.textSecondary)),
                       ),
                     ),
                   const SizedBox(width: 6),
                   TapScale(
                     onTap: widget.onDelete,
-                    child: const Text('×', style: TextStyle(fontSize: 18, color: AppTheme.border)),
+                    child: Text('×', style: TextStyle(fontSize: 18, color: context.borderColor)),
                   ),
                 ]),
               ],
@@ -513,28 +522,28 @@ class _DeleteModal extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: context.modalBg, borderRadius: BorderRadius.circular(20)),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('반복 목표 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text('반복 목표 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
                 const SizedBox(height: 8),
-                const Text('반복 목표를 모두 함께 삭제하시겠습니까?',
-                    style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.6)),
+                Text('반복 목표를 모두 함께 삭제하시겠습니까?',
+                    style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.6)),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(10)),
                   child: Text('삭제되는 목표: ${repeatInfo['undone']}개',
-                      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                      style: TextStyle(fontSize: 12, color: context.textSecondary)),
                 ),
                 const SizedBox(height: 16),
                 _ModalBtn(label: '모두 삭제', color: AppTheme.danger, textColor: Colors.white, onTap: onDeleteAll),
                 const SizedBox(height: 8),
                 _ModalBtn(label: '하나만 삭제', onTap: onDeleteOne),
                 const SizedBox(height: 8),
-                _ModalBtn(label: '취소', textColor: AppTheme.textSecondary, onTap: onCancel),
+                _ModalBtn(label: '취소', onTap: onCancel),
               ],
             ),
           ),
@@ -559,12 +568,12 @@ class _ModalBtn extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 13),
         decoration: BoxDecoration(
           color: color ?? Colors.transparent,
-          border: color == null ? Border.all(color: AppTheme.border) : null,
+          border: color == null ? Border.all(color: context.borderColor) : null,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Center(child: Text(label,
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500,
-                color: textColor ?? AppTheme.textPrimary))),
+                color: textColor ?? context.textPrimary))),
       ),
     );
   }

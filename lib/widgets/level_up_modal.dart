@@ -49,16 +49,10 @@ class _LevelUpModalState extends State<LevelUpModal> with TickerProviderStateMix
     });
   }
 
-  void _close() {
-    _scaleCtrl.reverse().then((_) { if (mounted) widget.onClose(); });
-  }
+  void _close() { _scaleCtrl.reverse().then((_) { if (mounted) widget.onClose(); }); }
 
   @override
-  void dispose() {
-    _scaleCtrl.dispose();
-    _particleCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _scaleCtrl.dispose(); _particleCtrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -71,14 +65,12 @@ class _LevelUpModalState extends State<LevelUpModal> with TickerProviderStateMix
           return Container(
             color: Colors.black.withOpacity(0.6 * _scaleCtrl.value),
             child: Stack(children: [
-              // 파티클
               ..._particles.map((p) {
                 final t = _particleCtrl.value;
                 final x = p.x + p.vx * t;
                 final y = 1.0 + p.vy * t + 0.5 * 0.3 * t * t;
                 return Positioned(
-                  left: x * size.width,
-                  top: y * size.height,
+                  left: x * size.width, top: y * size.height,
                   child: Opacity(
                     opacity: (1 - t * 0.8).clamp(0.0, 1.0),
                     child: Transform.rotate(
@@ -86,41 +78,37 @@ class _LevelUpModalState extends State<LevelUpModal> with TickerProviderStateMix
                       child: Container(
                         width: p.size,
                         height: p.isCircle ? p.size : p.size * 0.6,
-                        decoration: BoxDecoration(
-                          color: p.color,
-                          borderRadius: BorderRadius.circular(p.isCircle ? p.size : 2),
-                        ),
+                        decoration: BoxDecoration(color: p.color, borderRadius: BorderRadius.circular(p.isCircle ? p.size : 2)),
                       ),
                     ),
                   ),
                 );
               }),
-              // 카드
               Center(
                 child: ScaleTransition(
                   scale: _scaleAnim,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.modalBg,
                       borderRadius: BorderRadius.circular(28),
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 64)],
                     ),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       const Text('⭐', style: TextStyle(fontSize: 56)),
                       const SizedBox(height: 8),
-                      const Text('LEVEL UP!', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary, fontWeight: FontWeight.w500, letterSpacing: 0.08)),
+                      Text('LEVEL UP!', style: TextStyle(fontSize: 14, color: context.textSecondary, fontWeight: FontWeight.w500, letterSpacing: 0.08)),
                       const SizedBox(height: 4),
                       ShaderMask(
                         shaderCallback: (b) => const LinearGradient(colors: [Color(0xFFe040fb), Color(0xFFf48fb1)]).createShader(b),
                         child: Text('${widget.level}', style: const TextStyle(fontSize: 64, fontWeight: FontWeight.w700, color: Colors.white)),
                       ),
                       const SizedBox(height: 8),
-                      Text('레벨 ${widget.level} 달성!', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('레벨 ${widget.level} 달성!', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
                       const SizedBox(height: 4),
-                      const Text('계속 성장하고 있어요 🔥', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                      Text('계속 성장하고 있어요 🔥', style: TextStyle(fontSize: 13, color: context.textSecondary)),
                       const SizedBox(height: 20),
-                      const Text('탭하여 닫기', style: TextStyle(fontSize: 11, color: Color(0xFFBDBDBD))),
+                      Text('탭하여 닫기', style: TextStyle(fontSize: 11, color: context.textSecondary)),
                     ]),
                   ),
                 ),

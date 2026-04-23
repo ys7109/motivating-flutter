@@ -13,7 +13,6 @@ final mainNavKey = GlobalKey<_MainNavState>();
 
 class MainNav extends StatefulWidget {
   const MainNav({super.key});
-
   @override
   State<MainNav> createState() => _MainNavState();
 }
@@ -23,16 +22,10 @@ class _MainNavState extends State<MainNav> {
   DateTime? _lastBackPressed;
 
   final List<Widget> _screens = const [
-    HomeScreen(),
-    GoalsScreen(),
-    FocusScreen(),
-    RankingScreen(),
-    MyScreen(),
+    HomeScreen(), GoalsScreen(), FocusScreen(), RankingScreen(), MyScreen(),
   ];
 
-  void switchTab(int index) {
-    setState(() => _currentIndex = index);
-  }
+  void switchTab(int index) => setState(() => _currentIndex = index);
 
   @override
   Widget build(BuildContext context) {
@@ -41,29 +34,21 @@ class _MainNavState extends State<MainNav> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
-        if (_currentIndex != 0) {
-          // 홈 탭이 아니면 홈으로
-          setState(() => _currentIndex = 0);
-          return;
-        }
-        // 홈 탭에서 뒤로가기 두 번 누르면 종료
+        if (_currentIndex != 0) { setState(() => _currentIndex = 0); return; }
         final now = DateTime.now();
-        if (_lastBackPressed == null ||
-            now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
+        if (_lastBackPressed == null || now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
           _lastBackPressed = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('한 번 더 누르면 종료됩니다'),
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('한 번 더 누르면 종료됩니다'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ));
           return;
         }
         SystemNavigator.pop();
       },
       child: Scaffold(
-        backgroundColor: AppTheme.background,
+        backgroundColor: context.bgColor,
         body: Stack(
           children: [
             IndexedStack(index: _currentIndex, children: _screens),
@@ -72,33 +57,27 @@ class _MainNavState extends State<MainNav> {
                 bottom: 90, left: 24, right: 24,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                      color: const Color(0xFF323232),
-                      borderRadius: BorderRadius.circular(12)),
-                  child: Text(app.toast!,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      textAlign: TextAlign.center),
+                  decoration: BoxDecoration(color: const Color(0xFF323232), borderRadius: BorderRadius.circular(12)),
+                  child: Text(app.toast!, style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.center),
                 ),
               ),
           ],
         ),
         bottomNavigationBar: Container(
-          decoration: const BoxDecoration(
-            color: AppTheme.surface,
-            border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            border: Border(top: BorderSide(color: context.borderColor, width: 0.5)),
           ),
           child: SafeArea(
             child: SizedBox(
               height: 56,
-              child: Row(
-                children: [
-                  _NavItem(icon: Icons.home_rounded, label: '홈', index: 0, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
-                  _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
-                  _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
-                  _NavItem(icon: Icons.leaderboard_rounded, label: '랭킹', index: 3, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
-                  _NavItem(icon: Icons.person_rounded, label: '마이', index: 4, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i), badge: app.unreadMailCount),
-                ],
-              ),
+              child: Row(children: [
+                _NavItem(icon: Icons.home_rounded, label: '홈', index: 0, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.leaderboard_rounded, label: '랭킹', index: 3, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
+                _NavItem(icon: Icons.person_rounded, label: '마이', index: 4, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i), badge: app.unreadMailCount),
+              ]),
             ),
           ),
         ),
@@ -114,14 +93,7 @@ class _NavItem extends StatelessWidget {
   final ValueChanged<int> onTap;
   final int badge;
 
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.index,
-    required this.current,
-    required this.onTap,
-    this.badge = 0,
-  });
+  const _NavItem({required this.icon, required this.label, required this.index, required this.current, required this.onTap, this.badge = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -130,38 +102,22 @@ class _NavItem extends StatelessWidget {
       child: GestureDetector(
         onTap: () => onTap(index),
         behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(clipBehavior: Clip.none, children: [
-              Icon(icon, size: 24,
-                  color: isActive ? AppTheme.primary : const Color(0xFFBDBDBD)),
-              if (badge > 0)
-                Positioned(
-                  top: -4, right: -6,
-                  child: Container(
-                    width: 14, height: 14,
-                    decoration: const BoxDecoration(
-                        color: AppTheme.danger, shape: BoxShape.circle),
-                    child: Center(
-                      child: Text(badge > 9 ? '9+' : '$badge',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ),
-            ]),
-            const SizedBox(height: 3),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 10,
-                    color: isActive ? AppTheme.primary : const Color(0xFFBDBDBD),
-                    fontWeight:
-                        isActive ? FontWeight.w600 : FontWeight.normal)),
-          ],
-        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Stack(clipBehavior: Clip.none, children: [
+            Icon(icon, size: 24, color: isActive ? context.primaryColor : const Color(0xFFBDBDBD)),
+            if (badge > 0)
+              Positioned(top: -4, right: -6, child: Container(
+                width: 14, height: 14,
+                decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
+                child: Center(child: Text(badge > 9 ? '9+' : '$badge',
+                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
+              )),
+          ]),
+          const SizedBox(height: 3),
+          Text(label, style: TextStyle(fontSize: 10,
+              color: isActive ? context.primaryColor : const Color(0xFFBDBDBD),
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
+        ]),
       ),
     );
   }
