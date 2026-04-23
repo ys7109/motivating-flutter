@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // 기존 앱 라이트 테마 컬러
+  // 라이트 테마
   static const Color primary = Color(0xFF0a0a0a);
   static const Color primaryLight = Color(0xFF424242);
   static const Color background = Color(0xFFF5F5F5);
@@ -15,6 +15,16 @@ class AppTheme {
   static const Color tagLong = Color(0xFFE91E63);
   static const Color danger = Color(0xFFE24B4A);
   static const Color border = Color(0xFFE0E0E0);
+
+  // 다크 테마
+  static const Color darkPrimary = Color(0xFFFFFFFF);
+  static const Color darkBackground = Color(0xFF000000);
+  static const Color darkSurface = Color(0xFF1C1C1E);
+  static const Color darkCardBg = Color(0xFF1C1C1E);
+  static const Color darkTextPrimary = Color(0xFFFFFFFF);
+  static const Color darkTextSecondary = Color(0xFF8E8E93);
+  static const Color darkBorder = Color(0xFF2C2C2E);
+  static const Color darkDanger = Color(0xFFFF453A);
 
   static ThemeData get light => ThemeData(
         brightness: Brightness.light,
@@ -35,14 +45,6 @@ class AppTheme {
           elevation: 0,
         ),
       );
-
-  // 다크 테마 (나중에 테마 선택 기능용)
-  static const Color darkPrimary = Color(0xFF7C4DFF);
-  static const Color darkBackground = Color(0xFF1A1A2E);
-  static const Color darkSurface = Color(0xFF242442);
-  static const Color darkCardBg = Color(0xFF2D2D50);
-  static const Color darkTextPrimary = Color(0xFFFFFFFF);
-  static const Color darkTextSecondary = Color(0xFFAAAAAA);
 
   static ThemeData get dark => ThemeData(
         brightness: Brightness.dark,

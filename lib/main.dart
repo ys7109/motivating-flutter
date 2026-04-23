@@ -25,22 +25,24 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => AppProvider()..init(),
-      child: MaterialApp(
-        title: 'Motivating',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: ThemeMode.light,
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [
-          Locale('ko', 'KR'),
-          Locale('en', 'US'),
-        ],
-        home: const RootScreen(),
+      child: Consumer<AppProvider>(
+        builder: (_, app, __) => MaterialApp(
+          title: 'Motivating',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: app.themeMode,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('ko', 'KR'),
+            Locale('en', 'US'),
+          ],
+          home: const RootScreen(),
+        ),
       ),
     );
   }
@@ -62,22 +64,18 @@ class RootScreen extends StatelessWidget {
       );
     }
 
-    // 로그인 안 된 상태
     if (app.authUser == null || app.userData == null) {
       return const LoginScreen();
     }
 
-    // 탈퇴 예정
     if (app.userData!.withdrawScheduledAt != null) {
       return const WithdrawPendingScreen();
     }
 
-    // 온보딩 미완료
     if (!app.userData!.onboardingDone) {
       return const OnboardingScreen();
     }
 
-    // 메인
     return MainNav(key: mainNavKey);
   }
 }

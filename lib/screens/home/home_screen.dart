@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import '../../widgets/level_up_modal.dart';
 import '../../widgets/attendance_modal.dart';
 import '../../widgets/streak_modal.dart';
+import '../../widgets/tap_scale.dart';
+import '../../utils/transitions.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -216,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: GestureDetector(
                       onTap: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const AddGoalScreen())),
+                          SlideUpRoute(page: const AddGoalScreen())),
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 13),
@@ -375,79 +377,161 @@ class _StreakMilestone extends StatelessWidget {
   }
 }
 
-class _GoalItem extends StatelessWidget {
+class _GoalItem extends StatefulWidget {
   final dynamic goal;
   final VoidCallback onComplete;
   const _GoalItem({required this.goal, required this.onComplete});
 
   @override
-  Widget build(BuildContext context) {
-    final tagColor = goal.type == 'short' ? const Color(0xFF1b8a5a)
-        : goal.type == 'mid' ? const Color(0xFFf9a825)
-        : const Color(0xFF3949ab);
-    final tagLabel = goal.type == 'short' ? '단기' : goal.type == 'mid' ? '중기' : '장기';
+  State<_GoalItem> createState() => _GoalItemState();
+}
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.border, width: 0.5),
-      ),
-      child: Row(children: [
-        GestureDetector(
-          onTap: goal.done ? null : onComplete,
-          child: Container(
-            width: 24, height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: goal.done ? AppTheme.primary : Colors.transparent,
-              border: goal.done ? null : Border.all(color: AppTheme.border, width: 1.5),
-            ),
-            child: goal.done ? const Icon(Icons.check, color: Colors.white, size: 13) : null,
+class _GoalItemState extends State<_GoalItem>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _checkCtrl;
+  late Animation<double> _checkAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 300));
+    _checkAnim = CurvedAnimation(parent: _checkCtrl, curve: Curves.elasticOut);
+    if (widget.goal.done) _checkCtrl.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(_GoalItem old) {
+    super.didUpdateWidget(old);
+    if (!old.goal.done && widget.goal.done) {
+      _checkCtrl.forward();
+    } else if (old.goal.done && !widget.goal.done) {
+      _checkCtrl.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _checkCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tagColor = widget.goal.type == 'short'
+        ? const Color(0xFF1b8a5a)
+        : widget.goal.type == 'mid'
+            ? const Color(0xFFf9a825)
+            : const Color(0xFF3949ab);
+    final tagLabel = widget.goal.type == 'short'
+        ? '단기'
+        : widget.goal.type == 'mid'
+            ? '중기'
+            : '장기';
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: widget.goal.done ? 0.6 : 1.0,
+      child: TapScale(
+        onTap: widget.goal.done ? null : widget.onComplete,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.border, width: 0.5),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(
-              child: Text(goal.title,
-                  style: TextStyle(
-                    color: goal.done ? AppTheme.textSecondary : AppTheme.textPrimary,
-                    fontSize: 14, fontWeight: FontWeight.w500,
-                    decoration: goal.done ? TextDecoration.lineThrough : null,
-                  )),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
-              child: Text(tagLabel, style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(99),
-                child: LinearProgressIndicator(
-                  value: (goal.progress ?? 0) / 100,
-                  minHeight: 4,
-                  backgroundColor: const Color(0xFFE0E0E0),
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
-                ),
+          child: Row(children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: 24, height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.goal.done ? AppTheme.primary : Colors.transparent,
+                border: widget.goal.done
+                    ? null
+                    : Border.all(color: AppTheme.border, width: 1.5),
               ),
+              child: widget.goal.done
+                  ? const Icon(Icons.check, color: Colors.white, size: 13)
+                  : null,
             ),
-            const SizedBox(width: 8),
-            Text('${goal.progress ?? 0}%', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      style: TextStyle(
+                        color: widget.goal.done
+                            ? AppTheme.textSecondary
+                            : AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        decoration: widget.goal.done
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                      ),
+                      child: Text(widget.goal.title),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: tagColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Text(tagLabel,
+                        style: TextStyle(
+                            color: tagColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(99),
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                            begin: 0,
+                            end: (widget.goal.progress ?? 0) / 100),
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeOut,
+                        builder: (_, value, __) => LinearProgressIndicator(
+                          value: value,
+                          minHeight: 4,
+                          backgroundColor: const Color(0xFFE0E0E0),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppTheme.primary),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('${widget.goal.progress ?? 0}%',
+                      style: const TextStyle(
+                          color: AppTheme.textSecondary, fontSize: 11)),
+                ]),
+              ]),
+            ),
+            const SizedBox(width: 10),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                color: widget.goal.done
+                    ? const Color(0xFF1b8a5a)
+                    : AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              child: Text('+${widget.goal.xp} XP'),
+            ),
           ]),
-        ])),
-        const SizedBox(width: 10),
-        Text('+${goal.xp} XP',
-            style: TextStyle(
-                color: goal.done ? const Color(0xFF1b8a5a) : AppTheme.textSecondary,
-                fontSize: 12, fontWeight: FontWeight.w500)),
-      ]),
+        ),
+      ),
     );
   }
 }

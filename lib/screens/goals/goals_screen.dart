@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
+import '../../utils/transitions.dart';
 import '../../providers/app_provider.dart';
 import '../../models/goal_model.dart';
+import '../../widgets/tap_scale.dart';
 import 'add_goal_screen.dart';
 
 const _weekDays = ['일', '월', '화', '수', '목', '금', '토'];
@@ -78,7 +80,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 헤더
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                     child: Row(
@@ -90,10 +91,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           Text('진행 중 ${activeCount}개 · 완료 ${doneCount}개',
                               style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
                         ]),
-                        _PrimaryBtn(
-                          label: '+ 추가',
+                        TapScale(
                           onTap: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => AddGoalScreen(initialDate: _selectedDate))),
+                              SlideUpRoute(page: AddGoalScreen(initialDate: _selectedDate))),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(99)),
+                            child: const Text('+ 추가', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                          ),
                         ),
                       ],
                     ),
@@ -110,110 +115,109 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppTheme.border, width: 0.5),
                       ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              IconButton(
-                                onPressed: () => setState(() {
-                                  if (_viewMonth == 1) { _viewYear--; _viewMonth = 12; }
-                                  else _viewMonth--;
-                                }),
-                                icon: const Icon(Icons.chevron_left, color: AppTheme.textSecondary),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                              ),
-                              Text('$_viewYear년 $_viewMonth월',
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-                              IconButton(
-                                onPressed: () => setState(() {
-                                  if (_viewMonth == 12) { _viewYear++; _viewMonth = 1; }
-                                  else _viewMonth++;
-                                }),
-                                icon: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: List.generate(7, (i) => Expanded(
-                              child: Center(
-                                child: Text(_weekDays[i],
-                                    style: TextStyle(
-                                      fontSize: 11, fontWeight: FontWeight.w500,
-                                      color: i == 0 ? AppTheme.danger : i == 6 ? const Color(0xFF3949ab) : AppTheme.textSecondary,
-                                    )),
-                              ),
-                            )),
-                          ),
-                          const SizedBox(height: 6),
-                          GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 7,
-                            childAspectRatio: 1,
-                            children: calDays.asMap().entries.map((e) {
-                              final idx = e.key;
-                              final day = e.value;
-                              if (day == null) return const SizedBox();
-                              final dateStr = _toDateStr(_viewYear, _viewMonth, day);
-                              final isToday = dateStr == _todayStr;
-                              final isSelected = dateStr == _selectedDate;
-                              final dayGoals = _goalsForDate(goals, dateStr);
-                              final hasGoals = dayGoals.isNotEmpty;
-                              final allDone = hasGoals && dayGoals.every((g) => g.done);
-                              final dow = idx % 7;
+                      child: Column(children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              onPressed: () => setState(() {
+                                if (_viewMonth == 1) { _viewYear--; _viewMonth = 12; }
+                                else _viewMonth--;
+                              }),
+                              icon: const Icon(Icons.chevron_left, color: AppTheme.textSecondary),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                            Text('$_viewYear년 $_viewMonth월',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                            IconButton(
+                              onPressed: () => setState(() {
+                                if (_viewMonth == 12) { _viewYear++; _viewMonth = 1; }
+                                else _viewMonth++;
+                              }),
+                              icon: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: List.generate(7, (i) => Expanded(
+                            child: Center(
+                              child: Text(_weekDays[i],
+                                  style: TextStyle(
+                                    fontSize: 11, fontWeight: FontWeight.w500,
+                                    color: i == 0 ? AppTheme.danger : i == 6 ? const Color(0xFF3949ab) : AppTheme.textSecondary,
+                                  )),
+                            ),
+                          )),
+                        ),
+                        const SizedBox(height: 6),
+                        GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 7,
+                          childAspectRatio: 1,
+                          children: calDays.asMap().entries.map((e) {
+                            final idx = e.key;
+                            final day = e.value;
+                            if (day == null) return const SizedBox();
+                            final dateStr = _toDateStr(_viewYear, _viewMonth, day);
+                            final isToday = dateStr == _todayStr;
+                            final isSelected = dateStr == _selectedDate;
+                            final dayGoals = _goalsForDate(goals, dateStr);
+                            final hasGoals = dayGoals.isNotEmpty;
+                            final allDone = hasGoals && dayGoals.every((g) => g.done);
+                            final dow = idx % 7;
 
-                              return GestureDetector(
-                                onTap: () => setState(() => _selectedDate = dateStr),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 30, height: 30,
+                            return GestureDetector(
+                              onTap: () => setState(() => _selectedDate = dateStr),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    width: 30, height: 30,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isSelected ? AppTheme.primary : Colors.transparent,
+                                    ),
+                                    child: Center(
+                                      child: Text('$day',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
+                                            color: isSelected ? Colors.white
+                                                : isToday ? AppTheme.primary
+                                                : dow == 0 ? AppTheme.danger
+                                                : dow == 6 ? const Color(0xFF3949ab)
+                                                : AppTheme.textPrimary,
+                                          )),
+                                    ),
+                                  ),
+                                  if (hasGoals)
+                                    AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      width: 4, height: 4,
+                                      margin: const EdgeInsets.only(top: 2),
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        color: isSelected ? AppTheme.primary : Colors.transparent,
-                                      ),
-                                      child: Center(
-                                        child: Text('$day',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
-                                              color: isSelected ? Colors.white
-                                                  : isToday ? AppTheme.primary
-                                                  : dow == 0 ? AppTheme.danger
-                                                  : dow == 6 ? const Color(0xFF3949ab)
-                                                  : AppTheme.textPrimary,
-                                            )),
+                                        color: isSelected ? Colors.white
+                                            : allDone ? const Color(0xFF1b8a5a)
+                                            : const Color(0xFFf9a825),
                                       ),
                                     ),
-                                    if (hasGoals)
-                                      Container(
-                                        width: 4, height: 4,
-                                        margin: const EdgeInsets.only(top: 2),
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: isSelected ? Colors.white
-                                              : allDone ? const Color(0xFF1b8a5a)
-                                              : const Color(0xFFf9a825),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ]),
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  // 선택 날짜 목표
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
@@ -225,21 +229,22 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         ),
                         Row(
                           children: [['all', '전체'], ['active', '진행'], ['done', '완료']].map((f) =>
-                              GestureDetector(
-                                onTap: () => setState(() => _filter = f[0]),
-                                child: Container(
-                                  margin: const EdgeInsets.only(left: 6),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: _filter == f[0] ? AppTheme.primary : Colors.transparent,
-                                    border: Border.all(color: _filter == f[0] ? AppTheme.primary : AppTheme.border),
-                                    borderRadius: BorderRadius.circular(99),
-                                  ),
-                                  child: Text(f[1], style: TextStyle(
-                                      fontSize: 11,
-                                      color: _filter == f[0] ? Colors.white : AppTheme.textSecondary)),
+                            GestureDetector(
+                              onTap: () => setState(() => _filter = f[0]),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                margin: const EdgeInsets.only(left: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: _filter == f[0] ? AppTheme.primary : Colors.transparent,
+                                  border: Border.all(color: _filter == f[0] ? AppTheme.primary : AppTheme.border),
+                                  borderRadius: BorderRadius.circular(99),
                                 ),
-                              )
+                                child: Text(f[1], style: TextStyle(
+                                    fontSize: 11,
+                                    color: _filter == f[0] ? Colors.white : AppTheme.textSecondary)),
+                              ),
+                            )
                           ).toList(),
                         ),
                       ],
@@ -257,10 +262,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           const Text('이 날의 목표가 없어요',
                               style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
                           const SizedBox(height: 12),
-                          _OutlineBtn(
-                            label: '+ 목표 추가',
+                          TapScale(
                             onTap: () => Navigator.push(context,
-                                MaterialPageRoute(builder: (_) => AddGoalScreen(initialDate: _selectedDate))),
+                                SlideUpRoute(page: AddGoalScreen(initialDate: _selectedDate))),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                              decoration: BoxDecoration(border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(99)),
+                              child: const Text('+ 목표 추가', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                            ),
                           ),
                         ]),
                       ),
@@ -313,8 +322,31 @@ class _GoalCard extends StatefulWidget {
   State<_GoalCard> createState() => _GoalCardState();
 }
 
-class _GoalCardState extends State<_GoalCard> {
+class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixin {
   bool _expanded = false;
+  late AnimationController _checkCtrl;
+  late Animation<double> _checkScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _checkScale = CurvedAnimation(parent: _checkCtrl, curve: Curves.elasticOut);
+    if (widget.goal.done) _checkCtrl.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(_GoalCard old) {
+    super.didUpdateWidget(old);
+    if (!old.goal.done && widget.goal.done) _checkCtrl.forward();
+    else if (old.goal.done && !widget.goal.done) _checkCtrl.reverse();
+  }
+
+  @override
+  void dispose() {
+    _checkCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -324,117 +356,144 @@ class _GoalCardState extends State<_GoalCard> {
         : const Color(0xFF3949ab);
     final tagLabel = g.type == 'short' ? '단기' : g.type == 'mid' ? '중기' : '장기';
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.border, width: 0.5),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: () {
-              if (!g.done && widget.selectedDate.compareTo(widget.todayStr) > 0) {
-                widget.showToast('도달하지 않은 날짜의 목표는 완료 처리할 수 없어요.');
-                return;
-              }
-              g.done ? widget.onUncomplete() : widget.onComplete();
-            },
-            child: Container(
-              width: 24, height: 24, margin: const EdgeInsets.only(top: 1),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: g.done ? AppTheme.primary : Colors.transparent,
-                border: g.done ? null : Border.all(color: AppTheme.border, width: 1.5),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: g.done ? 0.65 : 1.0,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.border, width: 0.5),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TapScale(
+              onTap: () {
+                if (!g.done && widget.selectedDate.compareTo(widget.todayStr) > 0) {
+                  widget.showToast('도달하지 않은 날짜의 목표는 완료 처리할 수 없어요.');
+                  return;
+                }
+                g.done ? widget.onUncomplete() : widget.onComplete();
+              },
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.8, end: 1.0).animate(_checkScale),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 24, height: 24,
+                  margin: const EdgeInsets.only(top: 1),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: g.done ? AppTheme.primary : Colors.transparent,
+                    border: g.done ? null : Border.all(color: AppTheme.border, width: 1.5),
+                  ),
+                  child: g.done ? const Icon(Icons.check, color: Colors.white, size: 13) : null,
+                ),
               ),
-              child: g.done ? const Icon(Icons.check, color: Colors.white, size: 13) : null,
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
-                      child: Text(tagLabel, style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(g.title,
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
+                        child: Text(tagLabel, style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
                           style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w500,
                             color: g.done ? AppTheme.textSecondary : AppTheme.textPrimary,
-                            decoration: g.done ? TextDecoration.lineThrough : null,
-                          )),
-                    ),
-                  ]),
-                  if (g.repeat != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      '🔄 ${g.repeat!.type == 'daily' ? '매일' : g.repeat!.type == 'weekly' ? '매주 ${_weekDays[g.repeat!.day ?? 0]}요일' : '매달 ${g.repeat!.date}일'}',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-                    ),
-                  ],
-                  if (_expanded && g.desc.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(g.desc, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.6)),
-                  ],
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: LinearProgressIndicator(
-                          value: (g.progress) / 100,
-                          minHeight: 4,
-                          backgroundColor: const Color(0xFFE0E0E0),
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                            decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none,
+                          ),
+                          child: Text(g.title),
                         ),
                       ),
+                    ]),
+                    if (g.repeat != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '🔄 ${g.repeat!.type == 'daily' ? '매일' : g.repeat!.type == 'weekly' ? '매주 ${_weekDays[g.repeat!.day ?? 0]}요일' : '매달 ${g.repeat!.date}일'}',
+                        style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                      ),
+                    ],
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      child: _expanded && g.desc.isNotEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(g.desc, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.6)),
+                            )
+                          : const SizedBox(),
                     ),
-                    const SizedBox(width: 8),
-                    Text('${g.progress}%', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                  ]),
-                ],
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(99),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(begin: 0, end: g.progress / 100),
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.easeOut,
+                            builder: (_, value, __) => LinearProgressIndicator(
+                              value: value,
+                              minHeight: 4,
+                              backgroundColor: const Color(0xFFE0E0E0),
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('${g.progress}%', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                    ]),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
 
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('+${g.xp} XP',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                      color: g.done ? const Color(0xFF1b8a5a) : AppTheme.textSecondary)),
-              const SizedBox(height: 8),
-              Row(children: [
-                if (g.done)
-                  GestureDetector(
-                    onTap: widget.onUncomplete,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(6)),
-                      child: const Text('취소', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                    ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w500,
+                    color: g.done ? const Color(0xFF1b8a5a) : AppTheme.textSecondary,
                   ),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: widget.onDelete,
-                  child: const Text('×', style: TextStyle(fontSize: 18, color: AppTheme.border)),
+                  child: Text('+${g.xp} XP'),
                 ),
-              ]),
-            ],
-          ),
-        ],
+                const SizedBox(height: 8),
+                Row(children: [
+                  if (g.done)
+                    TapScale(
+                      onTap: widget.onUncomplete,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('취소', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                      ),
+                    ),
+                  const SizedBox(width: 6),
+                  TapScale(
+                    onTap: widget.onDelete,
+                    child: const Text('×', style: TextStyle(fontSize: 18, color: AppTheme.border)),
+                  ),
+                ]),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -493,7 +552,7 @@ class _ModalBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return TapScale(
       onTap: onTap,
       child: Container(
         width: double.infinity,
@@ -506,42 +565,6 @@ class _ModalBtn extends StatelessWidget {
         child: Center(child: Text(label,
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500,
                 color: textColor ?? AppTheme.textPrimary))),
-      ),
-    );
-  }
-}
-
-class _PrimaryBtn extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _PrimaryBtn({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(99)),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-      ),
-    );
-  }
-}
-
-class _OutlineBtn extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _OutlineBtn({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        decoration: BoxDecoration(border: Border.all(color: AppTheme.border), borderRadius: BorderRadius.circular(99)),
-        child: Text(label, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
       ),
     );
   }

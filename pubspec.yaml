@@ -30,9 +30,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_svg: ^2.0.10+1
   intl: ^0.20.2
-  shared_preferences: ^2.3.2
+  shared_preferences: ^2.5.5
   url_launcher: ^6.3.0
   flutter_local_notifications: ^17.2.2
+  timezone: ^0.9.4
   webview_flutter: ^4.13.1
 
 dev_dependencies:
@@ -45,6 +46,3 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-
-flutter_local_notifications: ^17.2.2
-timezone: ^0.9.4
