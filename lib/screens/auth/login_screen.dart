@@ -155,25 +155,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  // 게스트
-                  GestureDetector(
-                    onTap: _loading != null
-                        ? null
-                        : () => _handle(() async { await auth.signInAnonymously(); }, 'guest'),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Center(
-                        child: _loading == 'guest'
-                            ? SizedBox(
-                                width: 16, height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: context.textSecondary))
-                            : Text('게스트로 시작 (저장 안됨)',
-                                style: TextStyle(color: context.textSecondary, fontSize: 13)),
-                      ),
-                    ),
-                  ),
+                  // 게스트 로그인 -> 기능 미구현으로 인한 비활성화
+                  // GestureDetector(
+                  //   onTap: _loading != null
+                  //       ? null
+                  //       : () => _handle(() async { await auth.signInAnonymously(); }, 'guest'),
+                  //   child: Container(
+                  //     width: double.infinity,
+                  //     padding: const EdgeInsets.symmetric(vertical: 10),
+                  //     child: Center(
+                  //       child: _loading == 'guest'
+                  //           ? SizedBox(
+                  //               width: 16, height: 16,
+                  //               child: CircularProgressIndicator(
+                  //                   strokeWidth: 2, color: context.textSecondary))
+                  //           : Text('게스트로 시작 (저장 안됨)',
+                  //               style: TextStyle(color: context.textSecondary, fontSize: 13)),
+                  //     ),
+                  //   ),
+                  // ),
 
                   const SizedBox(height: 16),
                   Text(
