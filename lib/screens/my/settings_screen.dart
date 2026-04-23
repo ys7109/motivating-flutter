@@ -132,8 +132,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ]),
 
                 _Section(title: '앱 정보', children: [
-                  const _InfoItem(label: '버전', value: '1.0.0'),
-                  const _InfoItem(label: '빌드', value: '2026.04.22'),
+                  const _InfoItem(label: '버전', value: '1.2.0'),
+                  const _InfoItem(label: '빌드', value: '2026.04.23'),
                 ]),
 
                 _Section(title: '계정', children: [
@@ -327,8 +327,7 @@ class _ToggleItem extends StatelessWidget {
           Text(label,
               style: const TextStyle(fontSize: 15, color: AppTheme.textPrimary)),
           Text(sub,
-              style: const TextStyle(
-                  fontSize: 12, color: AppTheme.textSecondary)),
+              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
         ]),
         GestureDetector(
           onTap: onChange,
@@ -393,8 +392,7 @@ class _InfoItem extends StatelessWidget {
         Text(label,
             style: const TextStyle(fontSize: 15, color: AppTheme.textPrimary)),
         Text(value,
-            style: const TextStyle(
-                fontSize: 14, color: AppTheme.textSecondary)),
+            style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
       ]),
     );
   }
@@ -437,8 +435,7 @@ class _ConfirmModal extends StatelessWidget {
                     child: GestureDetector(
                         onTap: onCancel,
                         child: Container(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 13),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
                             decoration: BoxDecoration(
                                 color: const Color(0xFFF0F0F0),
                                 borderRadius: BorderRadius.circular(12)),
@@ -452,8 +449,7 @@ class _ConfirmModal extends StatelessWidget {
                     child: GestureDetector(
                         onTap: onConfirm,
                         child: Container(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 13),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
                             decoration: BoxDecoration(
                                 color: AppTheme.primary,
                                 borderRadius: BorderRadius.circular(12)),
@@ -512,8 +508,7 @@ class _WithdrawModal extends StatelessWidget {
                     child: GestureDetector(
                         onTap: onCancel,
                         child: Container(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 13),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
                             decoration: BoxDecoration(
                                 color: const Color(0xFFF0F0F0),
                                 borderRadius: BorderRadius.circular(12)),
@@ -527,8 +522,7 @@ class _WithdrawModal extends StatelessWidget {
                     child: GestureDetector(
                         onTap: onConfirm,
                         child: Container(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 13),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
                             decoration: BoxDecoration(
                                 color: AppTheme.danger,
                                 borderRadius: BorderRadius.circular(12)),

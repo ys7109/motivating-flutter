@@ -113,6 +113,12 @@ lib/
 - `lib/firebase_options.dart`
 - `android/app/google-services.json`
 
+## 📝 버전 히스토리
+
+- **v1.2.0** - 다크 테마, 파일 분리, 타이머 개선, 애니메이션
+- **v1.1.0** - 카카오 로그인, 모달, 푸시 알림, 목표 추가 완성
+- **v1.0.0** - 초기 Flutter 앱 구현
+
 ## 📄 라이선스
 
 Private - All rights reserved
