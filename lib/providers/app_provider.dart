@@ -8,7 +8,6 @@ import '../models/goal_model.dart';
 import '../models/mail_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/notification_service.dart';
 
 class AppProvider extends ChangeNotifier {
@@ -101,9 +100,7 @@ class AppProvider extends ChangeNotifier {
   Future<void> setThemeMode(ThemeMode mode) async {
     themeMode = mode;
     final prefs = await SharedPreferences.getInstance();
-    final key = mode == ThemeMode.light ? 'light'
-        : mode == ThemeMode.dark ? 'dark'
-        : 'system';
+    final key = mode == ThemeMode.light ? 'light' : mode == ThemeMode.dark ? 'dark' : 'system';
     await prefs.setString('themeMode', key);
     notifyListeners();
   }
@@ -137,67 +134,40 @@ class AppProvider extends ChangeNotifier {
     if (userData == null || authUser == null) return;
     final today = DateTime.now().toIso8601String().substring(0, 10);
 
-    // 오늘 이미 접속한 경우 → 스트릭 위기 알림 취소
     if (userData!.lastAttendDate == today) {
       final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool('notif_streak') ?? false) {
-        await NotificationService.cancelNotification(2);
-      }
+      if (prefs.getBool('notif_streak') ?? false) await NotificationService.cancelNotification(2);
       return;
     }
 
-    final yesterday = DateTime.now().subtract(const Duration(days: 1))
-        .toIso8601String().substring(0, 10);
+    final yesterday = DateTime.now().subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
 
-    if (userData!.lastAttendDate.isNotEmpty &&
-        userData!.lastAttendDate != yesterday &&
-        userData!.streak > 0) {
+    if (userData!.lastAttendDate.isNotEmpty && userData!.lastAttendDate != yesterday && userData!.streak > 0) {
       brokenStreakPrev = userData!.streak;
-      await _db.updateUser(authUser!.uid, {
-        'lastAttendDate': today, 'streak': 1,
-      });
+      await _db.updateUser(authUser!.uid, {'lastAttendDate': today, 'streak': 1});
       userData = userData!.copyWith(lastAttendDate: today, streak: 1);
       streakModalType = 'broken';
-
-      // 오늘 접속 확인 → 스트릭 알림 취소
       final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool('notif_streak') ?? false) {
-        await NotificationService.cancelNotification(2);
-      }
+      if (prefs.getBool('notif_streak') ?? false) await NotificationService.cancelNotification(2);
       notifyListeners();
       return;
     }
 
-    int newStreak = userData!.lastAttendDate == yesterday
-        ? userData!.streak + 1 : 1;
-    int newMaxStreak = newStreak > userData!.maxStreak
-        ? newStreak : userData!.maxStreak;
+    int newStreak = userData!.lastAttendDate == yesterday ? userData!.streak + 1 : 1;
+    int newMaxStreak = newStreak > userData!.maxStreak ? newStreak : userData!.maxStreak;
 
-    await _db.updateUser(authUser!.uid, {
-      'lastAttendDate': today,
-      'streak': newStreak,
-      'maxStreak': newMaxStreak,
-    });
+    await _db.updateUser(authUser!.uid, {'lastAttendDate': today, 'streak': newStreak, 'maxStreak': newMaxStreak});
     await _db.sendAttendanceMail(authUser!.uid, newStreak);
-
-    userData = userData!.copyWith(
-      lastAttendDate: today,
-      streak: newStreak,
-      maxStreak: newMaxStreak,
-    );
+    userData = userData!.copyWith(lastAttendDate: today, streak: newStreak, maxStreak: newMaxStreak);
     await loadMailbox();
 
-    // 오늘 접속 완료 → 스트릭 알림 취소 + 내일용 재스케줄
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('notif_streak') ?? false) {
       await NotificationService.cancelNotification(2);
       await NotificationService.scheduleStreakRiskReminder(newStreak);
     }
 
-    final milestone = _milestones.firstWhere(
-      (m) => m['days'] == newStreak,
-      orElse: () => <String, Object>{},
-    );
+    final milestone = _milestones.firstWhere((m) => m['days'] == newStreak, orElse: () => <String, Object>{});
     if (milestone.isNotEmpty) {
       currentMilestone = milestone.map((k, v) => MapEntry(k, v));
       streakModalType = 'milestone';
@@ -217,10 +187,7 @@ class AppProvider extends ChangeNotifier {
     int newXp = userData!.xp + xpGain;
     int newLevel = userData!.level;
     int newXpToNext = userData!.xpToNext;
-    while (newXp >= newXpToNext) {
-      newXp -= newXpToNext; newLevel++;
-      newXpToNext = (newXpToNext * 1.3).round();
-    }
+    while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.3).round(); }
     await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
     userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
     if (newLevel > prevLevel) levelUpTo = newLevel;
@@ -271,31 +238,42 @@ class AppProvider extends ChangeNotifier {
       });
 
       final prevLevel = userData!.level;
-      int newXp = userData!.xp + goal.xp;
-      int newLevel = userData!.level;
-      int newXpToNext = userData!.xpToNext;
+      final isRepeat = goal.repeatId != null;
 
-      while (newXp >= newXpToNext) {
-        newXp -= newXpToNext; newLevel++;
-        newXpToNext = (newXpToNext * 1.3).round();
+      // 반복 목표: repeatXp 지급. 단일 목표: xp 지급
+      int xpGain = isRepeat ? goal.repeatXp : goal.xp;
+      String toastMsg = '🎉 목표 완료! +$xpGain XP 획득';
+
+      // 반복 목표 전체 완료 여부 확인
+      if (isRepeat) {
+        final repeatGoals = goals.where((g) => g.repeatId == goal.repeatId).toList();
+        // 현재 완료된 것 + 방금 완료한 것
+        final doneCount = repeatGoals.where((g) => g.done).length + 1;
+        final totalCount = repeatGoals.length;
+
+        if (doneCount >= totalCount) {
+          // 전체 완료 → xp 보너스 추가 지급
+          xpGain += goal.xp;
+          toastMsg = '🏆 모든 반복 목표 완료! +${goal.repeatXp + goal.xp} XP 획득';
+        }
       }
 
-      await _db.updateUser(authUser!.uid, {
-        'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext,
-      });
+      int newXp = userData!.xp + xpGain;
+      int newLevel = userData!.level;
+      int newXpToNext = userData!.xpToNext;
+      while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.3).round(); }
+
+      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
       userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
 
       if (newLevel > prevLevel) {
         levelUpTo = newLevel;
-        // 레벨업 시 랭킹에도 반영
         await _db.updatePublicProfile(authUser!.uid, {
-          'level': newLevel,
-          'name': userData!.name,
-          'character': userData!.character.toMap(),
+          'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap(),
         });
       }
 
-      showToast('🎉 목표 완료! +${goal.xp} XP 획득');
+      showToast(toastMsg);
       await loadGoals();
       notifyListeners();
     } finally {
@@ -318,24 +296,27 @@ class AppProvider extends ChangeNotifier {
       final goal = goals.firstWhere((g) => g.id == goalId);
       if (!goal.done) return;
 
-      await _db.updateGoal(authUser!.uid, goalId, {
-        'done': false, 'progress': 0, 'completedAt': null,
-      });
+      await _db.updateGoal(authUser!.uid, goalId, {'done': false, 'progress': 0, 'completedAt': null});
 
-      int newXp = userData!.xp - goal.xp;
+      final isRepeat = goal.repeatId != null;
+
+      // 반복 목표였는데 전체 완료 상태였는지 확인 (보너스 XP 차감 필요)
+      int xpDeduct = isRepeat ? goal.repeatXp : goal.xp;
+      if (isRepeat) {
+        final repeatGoals = goals.where((g) => g.repeatId == goal.repeatId).toList();
+        final doneCount = repeatGoals.where((g) => g.done).length;
+        final totalCount = repeatGoals.length;
+        // 현재 전체 완료 상태였다면 보너스 xp도 차감
+        if (doneCount >= totalCount) xpDeduct += goal.xp;
+      }
+
+      int newXp = userData!.xp - xpDeduct;
       int newLevel = userData!.level;
       int newXpToNext = userData!.xpToNext;
-
-      while (newXp < 0 && newLevel > 1) {
-        newLevel--;
-        newXpToNext = (newXpToNext / 1.3).round();
-        newXp += newXpToNext;
-      }
+      while (newXp < 0 && newLevel > 1) { newLevel--; newXpToNext = (newXpToNext / 1.3).round(); newXp += newXpToNext; }
       newXp = newXp.clamp(0, 999999);
 
-      await _db.updateUser(authUser!.uid, {
-        'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext,
-      });
+      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
       userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
       showToast('목표 완료를 취소했어요');
       await loadGoals();
@@ -373,7 +354,6 @@ class AppProvider extends ChangeNotifier {
     if (authUser == null || userData == null) return;
     final mail = mailbox.firstWhere((m) => m.id == mailId);
     if (mail.claimed) return;
-
     await _db.claimMail(authUser!.uid, mailId);
 
     final prevLevel = userData!.level;
@@ -381,19 +361,10 @@ class AppProvider extends ChangeNotifier {
     int newRevive = userData!.reviveItem + mail.reward.reviveItem;
     int newLevel = userData!.level;
     int newXpToNext = userData!.xpToNext;
+    while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.3).round(); }
 
-    while (newXp >= newXpToNext) {
-      newXp -= newXpToNext; newLevel++;
-      newXpToNext = (newXpToNext * 1.3).round();
-    }
-
-    await _db.updateUser(authUser!.uid, {
-      'xp': newXp, 'level': newLevel,
-      'xpToNext': newXpToNext, 'reviveItem': newRevive,
-    });
-    userData = userData!.copyWith(
-      xp: newXp, level: newLevel, xpToNext: newXpToNext, reviveItem: newRevive,
-    );
+    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'reviveItem': newRevive});
+    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, reviveItem: newRevive);
     if (newLevel > prevLevel) levelUpTo = newLevel;
     showToast('보상을 수령했어요!');
     await loadMailbox();
@@ -416,14 +387,7 @@ class AppProvider extends ChangeNotifier {
       frame: updates['frame'] ?? current.frame,
     );
     await _db.updateUser(authUser!.uid, {'character': newChar.toMap()});
-
-    // 랭킹에 캐릭터 + 이름 + 레벨 즉시 반영
-    await _db.updatePublicProfile(authUser!.uid, {
-      'character': newChar.toMap(),
-      'name': userData!.name,
-      'level': userData!.level,
-    });
-
+    await _db.updatePublicProfile(authUser!.uid, {'character': newChar.toMap(), 'name': userData!.name, 'level': userData!.level});
     userData = userData!.copyWith(character: newChar);
     notifyListeners();
   }
@@ -431,10 +395,7 @@ class AppProvider extends ChangeNotifier {
   Future<void> updateName(String name) async {
     if (authUser == null) return;
     await _db.updateUser(authUser!.uid, {'name': name});
-
-    // 랭킹에 이름도 즉시 반영
     await _db.updatePublicProfile(authUser!.uid, {'name': name});
-
     userData = userData!.copyWith(name: name);
     notifyListeners();
   }
@@ -448,10 +409,7 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> signOut() async {
     await _auth.signOut();
-    authUser = null;
-    userData = null;
-    goals = [];
-    mailbox = [];
+    authUser = null; userData = null; goals = []; mailbox = [];
     notifyListeners();
     navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
   }
@@ -459,10 +417,7 @@ class AppProvider extends ChangeNotifier {
   void showToast(String message) {
     toast = message;
     notifyListeners();
-    Future.delayed(const Duration(seconds: 2), () {
-      toast = null;
-      notifyListeners();
-    });
+    Future.delayed(const Duration(seconds: 2), () { toast = null; notifyListeners(); });
   }
 
   Future<void> saveFocusSession(int minutes) async {
@@ -475,20 +430,11 @@ class AppProvider extends ChangeNotifier {
     int newLevel = userData!.level;
     int newXpToNext = userData!.xpToNext;
     int newTotalFocus = userData!.totalFocusMin + minutes;
+    while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.3).round(); }
 
-    while (newXp >= newXpToNext) {
-      newXp -= newXpToNext; newLevel++;
-      newXpToNext = (newXpToNext * 1.3).round();
-    }
-
-    await _db.updateUser(authUser!.uid, {
-      'xp': newXp, 'level': newLevel,
-      'xpToNext': newXpToNext, 'totalFocusMin': newTotalFocus,
-    });
+    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalFocusMin': newTotalFocus});
     await _db.updateTodayFocus(authUser!.uid, minutes);
-    userData = userData!.copyWith(
-      xp: newXp, level: newLevel, xpToNext: newXpToNext, totalFocusMin: newTotalFocus,
-    );
+    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalFocusMin: newTotalFocus);
     if (newLevel > prevLevel) levelUpTo = newLevel;
     notifyListeners();
   }

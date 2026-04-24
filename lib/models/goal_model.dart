@@ -5,7 +5,8 @@ class GoalModel {
   final String title;
   final String desc;
   final String type; // short | mid | long
-  final int xp;
+  final int xp; // 단일 완료 XP (반복 없음) or 전체 완료 보너스 XP
+  final int repeatXp; // 반복 1회 완료 시 지급 XP
   final int progress;
   final bool done;
   final String? scheduledDate;
@@ -20,6 +21,7 @@ class GoalModel {
     required this.desc,
     required this.type,
     required this.xp,
+    required this.repeatXp,
     required this.progress,
     required this.done,
     this.scheduledDate,
@@ -35,26 +37,23 @@ class GoalModel {
       title: map['title'] ?? '',
       desc: map['desc'] ?? '',
       type: map['type'] ?? 'short',
-      xp: map['xp'] ?? 50,
+      xp: map['xp'] ?? 100,
+      repeatXp: map['repeatXp'] ?? 100,
       progress: map['progress'] ?? 0,
       done: map['done'] ?? false,
       scheduledDate: map['scheduledDate'],
       repeat: map['repeat'] != null ? RepeatModel.fromMap(map['repeat']) : null,
       repeatId: map['repeatId'],
-      createdAt: map['createdAt'] != null
-          ? (map['createdAt'] as Timestamp).toDate()
-          : null,
-      completedAt: map['completedAt'] != null
-          ? (map['completedAt'] as Timestamp).toDate()
-          : null,
+      createdAt: map['createdAt'] != null ? (map['createdAt'] as Timestamp).toDate() : null,
+      completedAt: map['completedAt'] != null ? (map['completedAt'] as Timestamp).toDate() : null,
     );
   }
 }
 
 class RepeatModel {
   final String type; // daily | weekly | monthly
-  final int? day;    // weekly: 0~6
-  final int? date;   // monthly: 1~31
+  final int? day; // weekly: 0~6
+  final int? date; // monthly: 1~31
 
   RepeatModel({required this.type, this.day, this.date});
 

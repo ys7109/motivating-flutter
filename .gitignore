@@ -47,3 +47,6 @@ app.*.map.json
 # Firebase - API 키 보안
 google-services.json
 lib/firebase_options.dart
+
+# 제미나이 API 키 보안
+lib/config.dart
