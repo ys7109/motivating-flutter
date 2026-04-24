@@ -8,6 +8,8 @@ import '../models/goal_model.dart';
 import '../models/mail_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart';
 
 class AppProvider extends ChangeNotifier {
   final AuthService _auth = AuthService();
@@ -134,7 +136,15 @@ class AppProvider extends ChangeNotifier {
   Future<void> checkAttendance() async {
     if (userData == null || authUser == null) return;
     final today = DateTime.now().toIso8601String().substring(0, 10);
-    if (userData!.lastAttendDate == today) return;
+
+    // 오늘 이미 접속한 경우 → 스트릭 위기 알림 취소
+    if (userData!.lastAttendDate == today) {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('notif_streak') ?? false) {
+        await NotificationService.cancelNotification(2);
+      }
+      return;
+    }
 
     final yesterday = DateTime.now().subtract(const Duration(days: 1))
         .toIso8601String().substring(0, 10);
@@ -148,6 +158,12 @@ class AppProvider extends ChangeNotifier {
       });
       userData = userData!.copyWith(lastAttendDate: today, streak: 1);
       streakModalType = 'broken';
+
+      // 오늘 접속 확인 → 스트릭 알림 취소
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('notif_streak') ?? false) {
+        await NotificationService.cancelNotification(2);
+      }
       notifyListeners();
       return;
     }
@@ -170,6 +186,13 @@ class AppProvider extends ChangeNotifier {
       maxStreak: newMaxStreak,
     );
     await loadMailbox();
+
+    // 오늘 접속 완료 → 스트릭 알림 취소 + 내일용 재스케줄
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('notif_streak') ?? false) {
+      await NotificationService.cancelNotification(2);
+      await NotificationService.scheduleStreakRiskReminder(newStreak);
+    }
 
     final milestone = _milestones.firstWhere(
       (m) => m['days'] == newStreak,

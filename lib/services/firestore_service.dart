@@ -173,10 +173,23 @@ class FirestoreService {
         'sessionCount': sessionCount,
         'lastFocusDate': today,
         'updatedAt': FieldValue.serverTimestamp(),
-        // 캐릭터/이름/레벨 최신값으로 갱신
         'name': userData['name'] ?? '모험가',
         'level': userData['level'] ?? 1,
         'character': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
+      });
+    } else {
+      // 카카오 등 신규 유저 - 랭킹 문서 최초 생성
+      await ref.set({
+        'uid': uid,
+        'name': userData['name'] ?? '모험가',
+        'level': userData['level'] ?? 1,
+        'character': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
+        'todayFocusMin': minutes,
+        'totalFocusMin': minutes,
+        'avgFocusMin': minutes,
+        'sessionCount': 1,
+        'lastFocusDate': today,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
     }
   }

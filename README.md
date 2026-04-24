@@ -12,20 +12,21 @@
 - ⚡ **XP & 레벨업** - 목표 달성 시 경험치 획득 및 레벨업
 - 🔒 **집중 모드** - 타이머 기반 집중 세션 (화면 꺼짐 유지, 부드러운 링 애니메이션)
 - 🔥 **스트릭** - 연속 출석 보상 시스템 (마일스톤/끊김 모달)
-- 🏆 **랭킹** - 집중 시간 기반 글로벌 랭킹
+- 🏆 **랭킹** - 집중 시간 기반 글로벌 랭킹 (캐릭터 아바타 표시)
 - 🎨 **캐릭터 커스터마이징** - 스킨/뱃지/프레임 해금
 - 📬 **우편함** - 출석 보상 및 관리자 우편
 - 📅 **캘린더** - 날짜별 목표 관리
 - 🔄 **반복 목표** - 매일/매주/매달 반복 설정
 - 🌙 **테마** - 시스템/라이트/다크 모드 선택
+- 🔔 **푸시 알림** - 목표 리마인더, 스트릭 위기 알림
 
 ## 🛠 기술 스택
 
 - **Framework**: Flutter 3.x
 - **Language**: Dart 3.x
-- **Backend**: Firebase (Auth, Firestore, Cloud Functions)
+- **Backend**: Firebase (Auth, Firestore, Cloud Functions, Hosting)
 - **State Management**: Provider
-- **로그인**: Google, 카카오 (WebView), 게스트
+- **로그인**: Google, 카카오 (WebView)
 
 ## 📦 주요 패키지
 
@@ -49,6 +50,7 @@ flutter_localizations
 - Flutter SDK
 - Android Studio
 - Firebase 프로젝트 (`motivating-5a036`)
+- Firebase CLI (`npm install -g firebase-tools`)
 
 ### 설치
 
@@ -78,6 +80,12 @@ flutter run
 flutter build apk --release
 ```
 
+### 웹 호스팅 배포 (약관/개인정보)
+
+```bash
+firebase deploy --only hosting
+```
+
 ## 📁 프로젝트 구조
 
 ```
@@ -89,7 +97,7 @@ lib/
 │   ├── goal_model.dart
 │   └── mail_model.dart
 ├── services/
-│   ├── auth_service.dart        # Google/카카오/게스트 로그인
+│   ├── auth_service.dart        # Google/카카오 로그인
 │   ├── firestore_service.dart
 │   └── notification_service.dart
 ├── providers/
@@ -118,6 +126,11 @@ lib/
 └── utils/
     ├── theme.dart               # 라이트/다크 테마 + AppColors extension
     └── transitions.dart
+
+web_hosting/                     # Firebase Hosting
+├── index.html
+├── privacy.html                 # 개인정보 처리방침
+└── terms.html                   # 이용약관
 ```
 
 ## 🔐 환경 변수
@@ -128,10 +141,11 @@ lib/
 
 ## 📝 버전 히스토리
 
-- **v1.2.3** - 약관/개인정보 Firebase Hosting 배포, 로그인 약관 링크, 랭킹 캐릭터 아바타, XP 버그 수정
-- **v1.2.2** - 앱 아이콘 추가, 게스트 로그인 비활성화
-- **v1.2.1** - 로그아웃/탈퇴 후 로그인 화면으로 이동하지 않는 버그 수정, 홈 목표 완료 취소, 다크모드 버그 수정, 공식 Google/카카오 아이콘 적용, 부활 아이템 기능 임시 비활성화(my_screen.dart 115-146줄)
-- **v1.2.0** - 다크 테마 전체 적용, 파일 분리 (settings/mailbox/in_app_web_view), 타이머 개선, 토스트 알림, 애니메이션
+- **v1.2.4** - 푸시 알림 실제 구현 (목표 리마인더/스트릭 위기), 카카오 유저 랭킹 등록 버그 수정
+- **v1.2.3** - 약관/개인정보 Firebase Hosting 배포, 로그인 약관 링크, 랭킹 캐릭터 아바타 실시간 반영, XP 버그 수정, 탈퇴 화면 다크모드
+- **v1.2.2** - 앱 아이콘 교체, 게스트 로그인 임시 비활성화
+- **v1.2.1** - 로그아웃 자동이동, 홈 목표취소, 다크모드 버그수정, Google/카카오 아이콘 개선
+- **v1.2.0** - 다크 테마 전체 적용, 파일 분리, 타이머 개선, 토스트 알림, 애니메이션
 - **v1.1.0** - 카카오 로그인, 모달, 푸시 알림, 목표 추가 완성
 - **v1.0.0** - 초기 Flutter 앱 구현
 
