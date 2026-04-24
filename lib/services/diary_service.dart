@@ -8,7 +8,7 @@ class DiaryService {
   Future<List<DiaryModel>> getMyDiaries(String uid) async {
     final snap = await _db.collection('diaries')
         .where('uid', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
+        // .orderBy('createdAt', descending: true) 문제 해결을 위한 임시 주석처리
         .get();
     return snap.docs.map((d) => DiaryModel.fromMap(d.id, d.data())).toList();
   }
@@ -26,7 +26,7 @@ class DiaryService {
       final snap = await _db.collection('diaries')
           .where('uid', whereIn: chunk)
           .where('visibility', whereIn: ['friends', 'public'])
-          .orderBy('createdAt', descending: true)
+        //   .orderBy('createdAt', descending: true) 문제 해결을 위한 임시 주석처리
           .get();
       for (final d in snap.docs) {
         final likedByMe = await _isLiked(myUid, d.id);
@@ -41,7 +41,7 @@ class DiaryService {
   Future<List<DiaryModel>> getPublicDiaries(String myUid, {DocumentSnapshot? lastDoc}) async {
     Query query = _db.collection('diaries')
         .where('visibility', isEqualTo: 'public')
-        .orderBy('createdAt', descending: true)
+        // .orderBy('createdAt', descending: true) 문제 해결을 위한 임시 주석처리
         .limit(20);
     if (lastDoc != null) query = query.startAfterDocument(lastDoc);
     final snap = await query.get();
