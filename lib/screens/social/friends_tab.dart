@@ -53,6 +53,7 @@ class _FriendsTabState extends State<FriendsTab> {
   }
 
   Future<void> _search(String query) async {
+    debugPrint('_search 호출: $query');
     if (query.trim().isEmpty) { setState(() => _searchResults = []); return; }
     final uid = context.read<AppProvider>().authUser!.uid;
     final results = await _friendService.searchUsers(query.trim(), uid);
@@ -116,16 +117,18 @@ class _FriendsTabState extends State<FriendsTab> {
           Container(
             decoration: BoxDecoration(color: context.surfaceColor, border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)),
             child: TextField(
-              controller: _searchCtrl,
-              style: TextStyle(fontSize: 14, color: context.textPrimary),
-              decoration: InputDecoration(
-                hintText: '닉네임으로 친구 검색',
-                hintStyle: TextStyle(color: context.textSecondary),
-                prefixIcon: Icon(Icons.search, color: context.textSecondary, size: 20),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
-              onChanged: _search,
+                controller: _searchCtrl,
+                style: TextStyle(fontSize: 14, color: context.textPrimary),
+                textInputAction: TextInputAction.search,
+                onChanged: _search,
+                onSubmitted: _search,
+                decoration: InputDecoration(
+                    hintText: '닉네임으로 친구 검색',
+                    hintStyle: TextStyle(color: context.textSecondary),
+                    prefixIcon: Icon(Icons.search, color: context.textSecondary, size: 20),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
             ),
           ),
 

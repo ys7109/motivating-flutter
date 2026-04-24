@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/friend_model.dart';
+import 'package:flutter/foundation.dart';
 
 class FriendService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -83,16 +84,17 @@ class FriendService {
 
   // 닉네임으로 유저 검색
   Future<List<Map<String, dynamic>>> searchUsers(String name, String myUid) async {
+    debugPrint('검색어: $name');
     final snap = await _db.collection('users')
-        .where('name', isGreaterThanOrEqualTo: name)
-        .where('name', isLessThan: '${name}z')
+        .where('name', isEqualTo: name)
         .limit(20)
         .get();
+    debugPrint('검색 결과 수: ${snap.docs.length}');  // ← 이게 없었던 것 같아요
     return snap.docs
         .where((d) => d.id != myUid)
         .map((d) => {'uid': d.id, ...d.data()})
         .toList();
-  }
+    }
 
   // 특정 유저와의 친구 관계 상태 확인
   Future<String?> getFriendshipStatus(String myUid, String otherUid) async {
