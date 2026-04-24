@@ -6,9 +6,10 @@ import '../providers/app_provider.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/goals/goals_screen.dart';
 import '../screens/focus/focus_screen.dart';
-import '../screens/ranking/ranking_screen.dart';
+import '../screens/social/social_screen.dart';
 import '../screens/my/my_screen.dart';
 import '../services/firestore_service.dart';
+import '../services/friend_service.dart';
 
 final mainNavKey = GlobalKey<_MainNavState>();
 
@@ -23,23 +24,43 @@ class _MainNavState extends State<MainNav> {
   DateTime? _lastBackPressed;
 
   final List<Widget> _screens = const [
-    HomeScreen(), GoalsScreen(), FocusScreen(), RankingScreen(), MyScreen(),
+    HomeScreen(), GoalsScreen(), FocusScreen(), SocialScreen(), MyScreen(),
   ];
 
   void switchTab(int index) {
     setState(() => _currentIndex = index);
+    if (index == 3) _syncProfile();
+  }
 
-    // 랭킹 탭(3번)으로 이동할 때 캐릭터 동기화
-    if (index == 3) {
-      final app = context.read<AppProvider>();
-      if (app.userData != null && app.authUser != null) {
-        FirestoreService().updatePublicProfile(app.authUser!.uid, {
-          'name': app.userData!.name,
-          'level': app.userData!.level,
-          'character': app.userData!.character.toMap(),
-        });
-      }
+  Future<void> _syncProfile() async {
+    final app = context.read<AppProvider>();
+    if (app.userData != null && app.authUser != null) {
+      await FirestoreService().updatePublicProfile(app.authUser!.uid, {
+        'name': app.userData!.name,
+        'level': app.userData!.level,
+        'character': app.userData!.character.toMap(),
+      });
+      // 온라인 presence 업데이트
+      await FriendService().setOnline(app.authUser!.uid);
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // 앱 시작 시 온라인 상태 설정
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final app = context.read<AppProvider>();
+      if (app.authUser != null) FriendService().setOnline(app.authUser!.uid);
+    });
+  }
+
+  @override
+  void dispose() {
+    // 앱 종료 시 오프라인 상태 설정
+    final app = context.read<AppProvider>();
+    if (app.authUser != null) FriendService().setOffline(app.authUser!.uid);
+    super.dispose();
   }
 
   @override
@@ -60,24 +81,24 @@ class _MainNavState extends State<MainNav> {
           ));
           return;
         }
+        // 앱 종료 전 오프라인 처리
+        if (app.authUser != null) await FriendService().setOffline(app.authUser!.uid);
         SystemNavigator.pop();
       },
       child: Scaffold(
         backgroundColor: context.bgColor,
-        body: Stack(
-          children: [
-            IndexedStack(index: _currentIndex, children: _screens),
-            if (app.toast != null)
-              Positioned(
-                bottom: 90, left: 24, right: 24,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(color: const Color(0xFF323232), borderRadius: BorderRadius.circular(12)),
-                  child: Text(app.toast!, style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.center),
-                ),
+        body: Stack(children: [
+          IndexedStack(index: _currentIndex, children: _screens),
+          if (app.toast != null)
+            Positioned(
+              bottom: 90, left: 24, right: 24,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(color: const Color(0xFF323232), borderRadius: BorderRadius.circular(12)),
+                child: Text(app.toast!, style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.center),
               ),
-          ],
-        ),
+            ),
+        ]),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             color: context.surfaceColor,
@@ -91,21 +112,11 @@ class _MainNavState extends State<MainNav> {
                 _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
                 _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
                 _NavItem(
-                  icon: Icons.leaderboard_rounded,
-                  label: '랭킹',
+                  icon: Icons.people_rounded,
+                  label: '소셜',
                   index: 3,
                   current: _currentIndex,
-                  onTap: (i) {
-                    setState(() => _currentIndex = i);
-                    final app = context.read<AppProvider>();
-                    if (app.userData != null && app.authUser != null) {
-                      FirestoreService().updatePublicProfile(app.authUser!.uid, {
-                        'name': app.userData!.name,
-                        'level': app.userData!.level,
-                        'character': app.userData!.character.toMap(),
-                      });
-                    }
-                  },
+                  onTap: (i) { setState(() => _currentIndex = i); _syncProfile(); },
                 ),
                 _NavItem(icon: Icons.person_rounded, label: '마이', index: 4, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i), badge: app.unreadMailCount),
               ]),

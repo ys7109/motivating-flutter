@@ -4,7 +4,7 @@ import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../widgets/main_nav.dart';
 import '../goals/add_goal_screen.dart';
-import '../../widgets/level_up_modal.dart';
+import '../../widgets/level_up_modal.dart' hide mainNavKey;
 import '../../widgets/attendance_modal.dart';
 import '../../widgets/streak_modal.dart';
 import '../../widgets/tap_scale.dart';

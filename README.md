@@ -4,13 +4,13 @@
  
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.3.0-green)]()
+[![Version](https://img.shields.io/badge/version-1.4.0-green)]()
  
 ---
  
 ## 📱 스크린샷
  
-| 홈 | 목표 추가 | 랭킹 | 집중 타이머 |
+| 홈 | 목표 추가 | 소셜 | 집중 타이머 |
 |---|---|---|---|
 | - | - | - | - |
  
@@ -24,28 +24,31 @@
 - 시작일~종료일 기반 자동 목표 유형 분류 (단기/중기/장기)
 - **XP 획득 방법 선택**: 기본 설정(기간별 고정 XP) 또는 AI 분석(Gemini API)
 - **반복 목표 XP 시스템**: 1회 완료 시 단기 기준 XP 지급 + 전체 완료 시 보너스 XP 추가 지급
+- 반복 목표 배치 저장으로 대량 생성 속도 개선
 - 단일 목표는 별도 "단일" 뱃지로 표시
 ### 🤖 AI XP 분석
 - Gemini 2.5 Flash API 기반 목표 난이도 자동 분석
-- 목표 제목과 기간을 분석해 적절한 XP 자동 책정
+- 목표 제목과 기간을 분석해 XP 자동 책정 (전체 완료 보너스 + 1회 완료 XP 동시 책정)
 - thinking 비활성화(`thinkingBudget: 0`)로 비용 최소화
+### 👥 소셜
+- **친구 탭**: 닉네임 검색 또는 랭킹에서 친구 추가, 실시간 접속 상태 표시, 친구 랭킹
+- **피드 탭**: 친구의 목표 달성 활동 피드
+- **다이어리 탭**: 내 다이어리 / 친구 공개 / 전체 공개 다이어리, 좋아요 기능
+- **랭킹 탭**: 전체 집중 시간 랭킹, 프로필에서 친구 추가
 ### 🔥 스트릭 시스템
 - 연속 출석 일수 추적
 - 7/14/30/60/100/365일 마일스톤 보상
 - 스트릭 복구 아이템 및 광고 시청 복구
-### 🏆 랭킹
-- 실시간 집중 시간 기반 전체 랭킹
-- 캐릭터 아바타 실시간 동기화
 ### ⏱ 집중 타이머
 - 포모도로 스타일 집중 세션
 - 백그라운드/화면 꺼짐 상태에서도 정확한 타이머
-- 집중 시간 누적 통계
+- 집중 시간 누적 통계 및 랭킹 반영
 ### 📬 우편함
 - 출석/마일스톤 보상 수령
 - XP 및 부활 아이템 지급
 ### 🎨 캐릭터 커스터마이징
 - 스킨/뱃지/프레임 선택
-- 변경 시 랭킹에 즉시 반영
+- 변경 시 랭킹·소셜에 즉시 반영
 ---
  
 ## 🏗 기술 스택
@@ -65,30 +68,40 @@
  
 ```
 lib/
-├── config.dart                    # API 키 (gitignore)
+├── config.dart                        # API 키 (gitignore)
 ├── main.dart
 ├── models/
 │   ├── user_model.dart
-│   ├── goal_model.dart            # xp + repeatXp 필드
-│   └── mail_model.dart
+│   ├── goal_model.dart                # xp + repeatXp 필드
+│   ├── mail_model.dart
+│   ├── friend_model.dart              # 친구 모델
+│   └── diary_model.dart               # 다이어리 모델
 ├── services/
 │   ├── auth_service.dart
-│   ├── firestore_service.dart
-│   └── notification_service.dart
+│   ├── firestore_service.dart         # 배치 저장 지원
+│   ├── notification_service.dart
+│   ├── friend_service.dart            # 친구 관계 + presence
+│   └── diary_service.dart             # 다이어리 CRUD + 좋아요
 ├── providers/
-│   └── app_provider.dart          # 반복 목표 XP 로직
+│   └── app_provider.dart              # 반복 목표 XP 로직
 ├── screens/
 │   ├── auth/login_screen.dart
 │   ├── home/home_screen.dart
 │   ├── goals/
-│   │   ├── add_goal_screen.dart   # XP 모드 선택, 날짜 기반 타입 자동 계산, 다중 선택
+│   │   ├── add_goal_screen.dart       # XP 모드 선택, 날짜 기반 타입 자동 계산
 │   │   └── goal_pickers.dart
 │   ├── focus/focus_screen.dart
-│   ├── ranking/ranking_screen.dart
+│   ├── social/                        # 소셜 탭 (친구/피드/다이어리/랭킹)
+│   │   ├── social_screen.dart
+│   │   ├── friends_tab.dart
+│   │   ├── feed_tab.dart
+│   │   ├── diary_tab.dart
+│   │   ├── ranking_tab.dart
+│   │   └── character_avatar.dart
 │   └── my/ (settings/mailbox/in_app_web_view)
-└── utils/
-    ├── theme.dart
-    └── transitions.dart
+└── widgets/
+    ├── main_nav.dart                  # 소셜 탭으로 교체
+    └── level_up_modal.dart
  
 web_hosting/
 ├── privacy.html
@@ -111,10 +124,10 @@ web_hosting/
 - **1회 완료 시**: 100 XP (항상 단기 기준)
 - **전체 완료 시**: 책정 XP 추가 지급 (단기 100 / 중기 300 / 장기 600)
 - AI 분석 시 1회 완료 XP도 AI가 난이도에 맞게 책정
-### AI 분석 (Gemini)
-- 목표 제목 + 기간 기반 자동 분석
-- 전체 완료 보너스 XP + 1회 완료 XP 동시 책정
-- thinking 비활성화로 비용 최소화
+### 레벨업 시스템
+- 시작 xpToNext: 100 XP
+- 레벨업마다 ×1.15 배율로 증가
+- 부드러운 성장 곡선으로 꾸준한 레벨업 가능
 ---
  
 ## 🚀 설치 및 실행
@@ -140,9 +153,32 @@ class Config {
  
 2. `google-services.json` → `android/app/` 경로에 배치
 3. Firebase Console에서 SHA-1 등록
+### Firestore 컬렉션 구조
+```
+users/{uid}/goals/          # 목표
+users/{uid}/mailbox/        # 우편함
+users/{uid}/focusSessions/  # 집중 세션
+rankings/{uid}              # 랭킹
+friendships/{uid_a}_{uid_b} # 친구 관계
+presence/{uid}              # 실시간 접속 상태
+diaries/{diaryId}           # 다이어리
+```
+ 
 ---
  
 ## 📋 버전 히스토리
+ 
+### v1.4.0 (2026.04.24)
+- ✨ 소셜 탭 추가 (친구 / 피드 / 다이어리 / 랭킹)
+- ✨ 친구 기능 (닉네임 검색, 랭킹에서 추가, 요청/수락/거절/삭제)
+- ✨ 실시간 접속 상태 표시 (presence 시스템)
+- ✨ 친구 랭킹 (전체 랭킹 중 친구 등수)
+- ✨ 피드 탭 (친구의 목표 달성 활동)
+- ✨ 다이어리 기능 (작성/수정/삭제, 비공개/친구/전체 공개)
+- ✨ 다이어리 좋아요 기능
+- ✨ 반복 목표 배치 저장 (속도 개선, 500건 자동 분할)
+- ✨ 레벨업 배율 ×1.3 → ×1.15 (레벨업 쉽게 개선)
+- 🔧 하단 탭 랭킹 → 소셜로 교체
  
 ### v1.3.0 (2026.04.24)
 - ✨ XP 획득 방법 선택 UI (기본 설정 / AI 분석)

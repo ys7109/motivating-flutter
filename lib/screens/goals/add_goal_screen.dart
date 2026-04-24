@@ -240,14 +240,13 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
           if (_repeatType == 'weekly') 'days': _repeatDays.toList()..sort(),
           if (_repeatType == 'monthly') 'dates': _repeatDates.toList()..sort(),
         };
-        for (final date in _generateDates()) {
-          await app.firestoreService.addGoal(uid, {
-            'title': _titleCtrl.text.trim(), 'desc': _descCtrl.text.trim(),
-            'type': type, 'xp': effectiveXp, 'repeatXp': effectiveRepeatXp,
-            'scheduledDate': date, 'repeatId': repeatId,
-            'repeat': repeatData,
-          });
-        }
+        final goalList = _generateDates().map((date) => {
+          'title': _titleCtrl.text.trim(), 'desc': _descCtrl.text.trim(),
+          'type': type, 'xp': effectiveXp, 'repeatXp': effectiveRepeatXp,
+          'scheduledDate': date, 'repeatId': repeatId,
+          'repeat': repeatData,
+        }).toList();
+        await app.firestoreService.addGoalsBatch(uid, goalList);
       }
       await app.loadGoals();
       if (mounted) Navigator.pop(context);
@@ -297,7 +296,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     final isRepeat = _repeatType != 'none';
     final type = _currentType;
-    final tColor = !isRepeat ? context.primaryColor : _typeColor(type);
+    final tColor = _typeColor(type);
     final manualXp = isRepeat ? _fixedXp[type]! : _singleXp;
     final displayXp = _xpMode == 'manual' ? manualXp : (_aiDone ? _xp : manualXp);
     final displayRepeatXp = _xpMode == 'manual' ? _repeatXpFixed : (_aiDone ? _repeatXp : _repeatXpFixed);
@@ -564,9 +563,9 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                 border: Border.all(color: _xpMode == 'manual' ? context.primaryColor : context.borderColor, width: _xpMode == 'manual' ? 1.5 : 1),
                               ),
                               child: Column(children: [
-                                Icon(Icons.tune, size: 18, color: _xpMode == 'manual' ? context.primaryColor : context.textSecondary),
+                                Icon(Icons.edit_outlined, size: 18, color: _xpMode == 'manual' ? context.primaryColor : context.textSecondary),
                                 const SizedBox(height: 4),
-                                Text('기본 설정', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _xpMode == 'manual' ? context.primaryColor : context.textPrimary)),
+                                Text('직접 입력', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _xpMode == 'manual' ? context.primaryColor : context.textPrimary)),
                                 const SizedBox(height: 2),
                                 Text('기간별 고정 XP', style: TextStyle(fontSize: 10, color: context.textSecondary)),
                               ]),
@@ -615,7 +614,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                                 const SizedBox(height: 6),
                                 Text(
                                   isRepeat
-                                      ? '1회 완료 시마다 +$_repeatXpFixed XP · 모든 목표 완료 시 +$displayXp XP 추가 지급'
+                                      ? '1회 완료 시 +$_repeatXpFixed XP · 모든 목표 완료 시 +$displayXp XP 추가 지급'
                                       : '단일 목표 고정 XP',
                                   style: TextStyle(fontSize: 11, color: context.textSecondary),
                                 ),
@@ -730,7 +729,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                             decoration: BoxDecoration(color: tColor.withOpacity(0.1), borderRadius: BorderRadius.circular(99), border: Border.all(color: tColor)),
-                            child: Text(!isRepeat ? '단일' : _typeLabel(type), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tColor)),
+                            child: Text(_typeLabel(type), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tColor)),
                           ),
                         ]),
                       ),
