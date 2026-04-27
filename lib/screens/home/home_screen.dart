@@ -49,7 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 24),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // 헤더
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -175,16 +174,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
               else
                 ...todayGoals.take(3).map((g) {
-                  // 반복 목표 회차 계산
                   int? currentCount;
                   int? totalCount;
-                  bool isLastRound = false;
+                  bool willAllDone = false;
+
                   if (g.repeatId != null) {
                     final repeatGoals = app.goals.where((r) => r.repeatId == g.repeatId).toList()
                       ..sort((a, b) => (a.scheduledDate ?? '').compareTo(b.scheduledDate ?? ''));
                     totalCount = repeatGoals.length;
                     currentCount = repeatGoals.indexWhere((r) => r.id == g.id) + 1;
-                    isLastRound = currentCount == totalCount;
+                    // 이 목표 외 나머지가 모두 완료면 → 이 목표 완료 시 전체 완료
+                    willAllDone = repeatGoals.where((r) => r.id != g.id).every((r) => r.done);
                   }
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
@@ -192,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       goal: g,
                       currentCount: currentCount,
                       totalCount: totalCount,
-                      isLastRound: isLastRound,
+                      willAllDone: willAllDone,
                       onComplete: () => app.completeGoal(g.id),
                       onUncomplete: () => app.uncompleteGoal(g.id),
                     ),
@@ -316,13 +316,13 @@ class _GoalItem extends StatefulWidget {
   final dynamic goal;
   final int? currentCount;
   final int? totalCount;
-  final bool isLastRound;
+  final bool willAllDone;
   final VoidCallback onComplete, onUncomplete;
   const _GoalItem({
     required this.goal,
     this.currentCount,
     this.totalCount,
-    this.isLastRound = false,
+    this.willAllDone = false,
     required this.onComplete,
     required this.onUncomplete,
   });
@@ -357,11 +357,13 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
     final g = widget.goal;
     final tagColor = g.type == 'short' ? const Color(0xFF1b8a5a) : g.type == 'mid' ? const Color(0xFFf9a825) : const Color(0xFF3949ab);
     final tagLabel = g.type == 'short' ? '단기' : g.type == 'mid' ? '중기' : '장기';
-
-    // XP 표시: 마지막 회차면 repeatXp + xp, 아니면 repeatXp, 단일이면 xp
     final isRepeat = g.repeatId != null;
+
+    // 이 목표 완료 시 전체 완료 → repeatXp + xp
+    // 아니면 → repeatXp
+    // 단일 → xp
     final displayXp = isRepeat
-        ? (widget.isLastRound ? g.repeatXp + g.xp : g.repeatXp)
+        ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp)
         : g.xp;
 
     return AnimatedOpacity(
@@ -390,9 +392,12 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
                   Expanded(
                     child: AnimatedDefaultTextStyle(
                       duration: const Duration(milliseconds: 200),
-                      style: TextStyle(color: g.done ? context.textSecondary : context.textPrimary, fontSize: 14, fontWeight: FontWeight.w500, decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none),
+                      style: TextStyle(
+                        color: g.done ? context.textSecondary : context.textPrimary,
+                        fontSize: 14, fontWeight: FontWeight.w500,
+                        decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none,
+                      ),
                       child: Text(
-                        // 반복 목표면 회차 표시
                         isRepeat && widget.currentCount != null && widget.totalCount != null
                             ? '${g.title} (${widget.currentCount} / ${widget.totalCount})'
                             : g.title,
@@ -415,7 +420,11 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
                         tween: Tween<double>(begin: 0, end: (g.progress ?? 0) / 100),
                         duration: const Duration(milliseconds: 600),
                         curve: Curves.easeOut,
-                        builder: (_, value, __) => LinearProgressIndicator(value: value, minHeight: 4, backgroundColor: context.borderColor, valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor)),
+                        builder: (_, value, __) => LinearProgressIndicator(
+                          value: value, minHeight: 4,
+                          backgroundColor: context.borderColor,
+                          valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor),
+                        ),
                       ),
                     ),
                   ),
@@ -428,7 +437,10 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 200),
-                style: TextStyle(color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary, fontSize: 12, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary,
+                  fontSize: 12, fontWeight: FontWeight.w500,
+                ),
                 child: Text('+$displayXp XP'),
               ),
               if (g.done) ...[

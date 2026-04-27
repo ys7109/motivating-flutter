@@ -146,7 +146,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ]),
 
               _Section(title: '앱 정보', children: [
-                const _InfoItem(label: '버전', value: '1.4.1'),
+                const _InfoItem(label: '버전', value: '1.5.0'),
                 const _InfoItem(label: '빌드', value: '2026.04.27'),
               ]),
 

@@ -54,6 +54,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
     }
   }
 
+  // 이 목표를 완료하면 전체가 완료되는지 여부 계산 (회차 무관)
+  bool _willAllDone(GoalModel g, List<GoalModel> allGoals) {
+    if (g.repeatId == null) return false;
+    final repeatGoals = allGoals.where((r) => r.repeatId == g.repeatId).toList();
+    // 이 목표 제외한 나머지가 모두 완료인지 확인
+    return repeatGoals.where((r) => r.id != g.id).every((r) => r.done);
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
@@ -122,7 +130,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       ))),
                     ))),
                     const SizedBox(height: 6),
-                    // 3번 수정: dot 자리를 항상 고정 크기로 확보
                     GridView.count(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -146,30 +153,24 @@ class _GoalsScreenState extends State<GoalsScreen> {
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               width: 30, height: 30,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isSelected ? context.primaryColor : Colors.transparent,
-                              ),
+                              decoration: BoxDecoration(shape: BoxShape.circle, color: isSelected ? context.primaryColor : Colors.transparent),
                               child: Center(child: Text('$day', style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
-                                color: isSelected
-                                    ? (context.isDark ? Colors.black : Colors.white)
+                                color: isSelected ? (context.isDark ? Colors.black : Colors.white)
                                     : isToday ? context.primaryColor
                                     : dow == 0 ? AppTheme.danger
                                     : dow == 6 ? const Color(0xFF3949ab)
                                     : context.textPrimary,
                               ))),
                             ),
-                            // dot 자리 항상 고정 (목표 있으면 dot, 없으면 투명)
                             Container(
                               width: 4, height: 4,
                               margin: const EdgeInsets.only(top: 3),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: hasGoals
-                                    ? (isSelected
-                                        ? (context.isDark ? Colors.black : Colors.white)
+                                    ? (isSelected ? (context.isDark ? Colors.black : Colors.white)
                                         : allDone ? const Color(0xFF1b8a5a) : const Color(0xFFf9a825))
                                     : Colors.transparent,
                               ),
@@ -231,6 +232,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                   child: _GoalCard(
                     goal: g,
+                    willAllDone: _willAllDone(g, goals),
                     onComplete: () => app.completeGoal(g.id),
                     onUncomplete: () => app.uncompleteGoal(g.id),
                     onDelete: () => _handleDeleteRequest(g, app),
@@ -257,10 +259,20 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
 class _GoalCard extends StatefulWidget {
   final GoalModel goal;
+  final bool willAllDone;
   final VoidCallback onComplete, onUncomplete, onDelete;
   final String selectedDate, todayStr;
   final void Function(String) showToast;
-  const _GoalCard({required this.goal, required this.onComplete, required this.onUncomplete, required this.onDelete, required this.selectedDate, required this.todayStr, required this.showToast});
+  const _GoalCard({
+    required this.goal,
+    required this.willAllDone,
+    required this.onComplete,
+    required this.onUncomplete,
+    required this.onDelete,
+    required this.selectedDate,
+    required this.todayStr,
+    required this.showToast,
+  });
   @override
   State<_GoalCard> createState() => _GoalCardState();
 }
@@ -294,7 +306,13 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
     final tagColor = g.type == 'short' ? const Color(0xFF1b8a5a) : g.type == 'mid' ? const Color(0xFFf9a825) : const Color(0xFF3949ab);
     final tagLabel = g.type == 'short' ? '단기' : g.type == 'mid' ? '중기' : '장기';
     final isRepeat = g.repeatId != null;
-    final displayXp = isRepeat ? g.repeatXp : g.xp;
+
+    // 이 목표 완료 시 전체 완료 → repeatXp + xp
+    // 아니면 → repeatXp
+    // 단일 → xp
+    final displayXp = isRepeat
+        ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp)
+        : g.xp;
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 300),
@@ -330,7 +348,7 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
-                    child: Text(tagLabel, style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
+                    child: Text(isRepeat ? '반복' : tagLabel, style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
