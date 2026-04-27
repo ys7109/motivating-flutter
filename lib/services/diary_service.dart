@@ -8,15 +8,15 @@ class DiaryService {
   Future<List<DiaryModel>> getMyDiaries(String uid) async {
     final snap = await _db.collection('diaries')
         .where('uid', isEqualTo: uid)
-        // .orderBy('createdAt', descending: true) 문제 해결을 위한 임시 주석처리
         .get();
-    return snap.docs.map((d) => DiaryModel.fromMap(d.id, d.data())).toList();
+    final results = snap.docs.map((d) => DiaryModel.fromMap(d.id, d.data())).toList();
+    results.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+    return results;
   }
 
-  // 친구 공개 다이어리 (친구 uid 목록 기반)
+  // 친구 공개 다이어리
   Future<List<DiaryModel>> getFriendDiaries(String myUid, List<String> friendUids) async {
     if (friendUids.isEmpty) return [];
-    // Firestore whereIn 최대 30개 제한
     final chunks = <List<String>>[];
     for (int i = 0; i < friendUids.length; i += 30) {
       chunks.add(friendUids.sublist(i, (i + 30).clamp(0, friendUids.length)));
@@ -26,7 +26,6 @@ class DiaryService {
       final snap = await _db.collection('diaries')
           .where('uid', whereIn: chunk)
           .where('visibility', whereIn: ['friends', 'public'])
-        //   .orderBy('createdAt', descending: true) 문제 해결을 위한 임시 주석처리
           .get();
       for (final d in snap.docs) {
         final likedByMe = await _isLiked(myUid, d.id);
@@ -41,7 +40,6 @@ class DiaryService {
   Future<List<DiaryModel>> getPublicDiaries(String myUid, {DocumentSnapshot? lastDoc}) async {
     Query query = _db.collection('diaries')
         .where('visibility', isEqualTo: 'public')
-        // .orderBy('createdAt', descending: true) 문제 해결을 위한 임시 주석처리
         .limit(20);
     if (lastDoc != null) query = query.startAfterDocument(lastDoc);
     final snap = await query.get();
@@ -50,6 +48,7 @@ class DiaryService {
       final likedByMe = await _isLiked(myUid, d.id);
       results.add(DiaryModel.fromMap(d.id, d.data() as Map<String, dynamic>, likedByMe: likedByMe));
     }
+    results.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
     return results;
   }
 
@@ -77,6 +76,26 @@ class DiaryService {
     });
   }
 
+  // 닉네임/캐릭터 변경 시 본인의 모든 다이어리 작성자 정보 일괄 업데이트
+  Future<void> updateAuthorInfo(String uid, String name, Map<String, dynamic> character, int level) async {
+    final snap = await _db.collection('diaries').where('uid', isEqualTo: uid).get();
+    if (snap.docs.isEmpty) return;
+    // 500건 초과 시 자동 분할
+    const maxBatch = 500;
+    for (int i = 0; i < snap.docs.length; i += maxBatch) {
+      final chunk = snap.docs.sublist(i, (i + maxBatch).clamp(0, snap.docs.length));
+      final batch = _db.batch();
+      for (final doc in chunk) {
+        batch.update(doc.reference, {
+          'authorName': name,
+          'authorCharacter': character,
+          'authorLevel': level,
+        });
+      }
+      await batch.commit();
+    }
+  }
+
   // 다이어리 삭제
   Future<void> deleteDiary(String diaryId) async {
     await _db.collection('diaries').doc(diaryId).delete();
@@ -98,7 +117,6 @@ class DiaryService {
     }
   }
 
-  // 좋아요 여부 확인
   Future<bool> _isLiked(String myUid, String diaryId) async {
     final snap = await _db.collection('diaries').doc(diaryId).collection('likes').doc(myUid).get();
     return snap.exists;

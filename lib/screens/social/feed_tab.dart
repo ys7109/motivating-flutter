@@ -9,10 +9,10 @@ import 'character_avatar.dart';
 class FeedTab extends StatefulWidget {
   const FeedTab({super.key});
   @override
-  State<FeedTab> createState() => _FeedTabState();
+  State<FeedTab> createState() => FeedTabState();
 }
 
-class _FeedTabState extends State<FeedTab> {
+class FeedTabState extends State<FeedTab> {
   final _friendService = FriendService();
   List<Map<String, dynamic>> _feeds = [];
   bool _loading = true;
@@ -23,7 +23,11 @@ class _FeedTabState extends State<FeedTab> {
     _load();
   }
 
+  // social_screen에서 외부 호출 가능
+  Future<void> reload() => _load();
+
   Future<void> _load() async {
+    if (!mounted) return;
     final uid = context.read<AppProvider>().authUser!.uid;
     setState(() => _loading = true);
     try {

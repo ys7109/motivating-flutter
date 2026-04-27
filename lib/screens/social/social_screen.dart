@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
+import '../../providers/app_provider.dart';
+import '../../services/firestore_service.dart';
 import 'friends_tab.dart';
 import 'feed_tab.dart';
 import 'diary_tab.dart';
@@ -13,11 +16,30 @@ class SocialScreen extends StatefulWidget {
 
 class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
+  String? _lastCharacterHash;
+
+  final _friendsKey = GlobalKey<FriendsTabState>();
+  final _feedKey = GlobalKey<FeedTabState>();
+  final _diaryKey = GlobalKey<DiaryTabState>();
 
   @override
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 4, vsync: this);
+  }
+
+  Future<void> _syncAndReload() async {
+    final app = context.read<AppProvider>();
+    if (app.userData != null && app.authUser != null) {
+      await FirestoreService().updatePublicProfile(app.authUser!.uid, {
+        'name': app.userData!.name,
+        'level': app.userData!.level,
+        'character': app.userData!.character.toMap(),
+      });
+    }
+    _friendsKey.currentState?.reload();
+    _feedKey.currentState?.reload();
+    _diaryKey.currentState?.reload();
   }
 
   @override
@@ -28,6 +50,21 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    // context.watch로 AppProvider 변경을 감지
+    final app = context.watch<AppProvider>();
+    final userData = app.userData;
+
+    // 캐릭터/이름/레벨 변화 감지 후 reload
+    if (userData != null) {
+      final hash = '${userData.character.skin}_${userData.character.badge}_'
+          '${userData.character.frame}_${userData.name}_${userData.level}';
+      if (_lastCharacterHash != null && _lastCharacterHash != hash) {
+        // build 중에 직접 호출하면 안 되므로 다음 프레임에 실행
+        WidgetsBinding.instance.addPostFrameCallback((_) => _syncAndReload());
+      }
+      _lastCharacterHash = hash;
+    }
+
     return Scaffold(
       backgroundColor: context.bgColor,
       body: SafeArea(
@@ -57,7 +94,12 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
           Expanded(
             child: TabBarView(
               controller: _tabCtrl,
-              children: [FriendsTab(), FeedTab(), DiaryTab(), RankingTab()],
+              children: [
+                FriendsTab(key: _friendsKey),
+                FeedTab(key: _feedKey),
+                DiaryTab(key: _diaryKey),
+                RankingTab(),
+              ],
             ),
           ),
         ]),

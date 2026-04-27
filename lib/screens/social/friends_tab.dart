@@ -8,10 +8,10 @@ import 'character_avatar.dart';
 class FriendsTab extends StatefulWidget {
   const FriendsTab({super.key});
   @override
-  State<FriendsTab> createState() => _FriendsTabState();
+  State<FriendsTab> createState() => FriendsTabState();
 }
 
-class _FriendsTabState extends State<FriendsTab> {
+class FriendsTabState extends State<FriendsTab> {
   final _friendService = FriendService();
   List<Map<String, dynamic>> _friends = [];
   List<Map<String, dynamic>> _requests = [];
@@ -33,7 +33,11 @@ class _FriendsTabState extends State<FriendsTab> {
     super.dispose();
   }
 
+  // social_screen에서 외부 호출 가능
+  Future<void> reload() => _load();
+
   Future<void> _load() async {
+    if (!mounted) return;
     final uid = context.read<AppProvider>().authUser!.uid;
     setState(() => _loading = true);
     try {
@@ -53,7 +57,6 @@ class _FriendsTabState extends State<FriendsTab> {
   }
 
   Future<void> _search(String query) async {
-    debugPrint('_search 호출: $query');
     if (query.trim().isEmpty) { setState(() => _searchResults = []); return; }
     final uid = context.read<AppProvider>().authUser!.uid;
     final results = await _friendService.searchUsers(query.trim(), uid);
@@ -64,7 +67,7 @@ class _FriendsTabState extends State<FriendsTab> {
     final uid = context.read<AppProvider>().authUser!.uid;
     await _friendService.sendRequest(uid, targetUid);
     if (mounted) context.read<AppProvider>().showToast('친구 요청을 보냈어요!');
-    setState(() { _searchResults = []; });
+    setState(() => _searchResults = []);
     _searchCtrl.clear();
   }
 
@@ -113,26 +116,24 @@ class _FriendsTabState extends State<FriendsTab> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         children: [
-          // 친구 검색
           Container(
             decoration: BoxDecoration(color: context.surfaceColor, border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)),
             child: TextField(
-                controller: _searchCtrl,
-                style: TextStyle(fontSize: 14, color: context.textPrimary),
-                textInputAction: TextInputAction.search,
-                onChanged: _search,
-                onSubmitted: _search,
-                decoration: InputDecoration(
-                    hintText: '닉네임으로 친구 검색',
-                    hintStyle: TextStyle(color: context.textSecondary),
-                    prefixIcon: Icon(Icons.search, color: context.textSecondary, size: 20),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
+              controller: _searchCtrl,
+              style: TextStyle(fontSize: 14, color: context.textPrimary),
+              textInputAction: TextInputAction.search,
+              onChanged: _search,
+              onSubmitted: _search,
+              decoration: InputDecoration(
+                hintText: '닉네임으로 친구 검색',
+                hintStyle: TextStyle(color: context.textSecondary),
+                prefixIcon: Icon(Icons.search, color: context.textSecondary, size: 20),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
             ),
           ),
 
-          // 검색 결과
           if (_searchResults.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
@@ -169,7 +170,6 @@ class _FriendsTabState extends State<FriendsTab> {
           ],
           const SizedBox(height: 20),
 
-          // 받은 친구 요청
           if (_requests.isNotEmpty) ...[
             Text('친구 요청 ${_requests.length}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textPrimary)),
             const SizedBox(height: 8),
@@ -210,7 +210,6 @@ class _FriendsTabState extends State<FriendsTab> {
             const SizedBox(height: 12),
           ],
 
-          // 친구 랭킹
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text('친구 랭킹', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textPrimary)),
             Row(children: [['total', '누적'], ['daily', '오늘'], ['average', '평균']].map((t) {
@@ -280,7 +279,6 @@ class _FriendsTabState extends State<FriendsTab> {
             }),
           const SizedBox(height: 20),
 
-          // 친구 목록
           Text('친구 ${_friends.length}명', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textPrimary)),
           const SizedBox(height: 8),
           if (_friends.isEmpty)

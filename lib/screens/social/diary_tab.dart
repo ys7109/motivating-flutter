@@ -10,10 +10,10 @@ import 'character_avatar.dart';
 class DiaryTab extends StatefulWidget {
   const DiaryTab({super.key});
   @override
-  State<DiaryTab> createState() => _DiaryTabState();
+  State<DiaryTab> createState() => DiaryTabState();
 }
 
-class _DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin {
+class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
   final _diaryService = DiaryService();
   final _friendService = FriendService();
@@ -36,7 +36,11 @@ class _DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
+  // social_screen에서 외부 호출 가능
+  Future<void> reload() => _load();
+
   Future<void> _load() async {
+    if (!mounted) return;
     final app = context.read<AppProvider>();
     final uid = app.authUser!.uid;
     setState(() => _loading = true);
@@ -181,7 +185,6 @@ class _DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin
         child: _loading
             ? Center(child: CircularProgressIndicator(color: context.primaryColor))
             : TabBarView(controller: _tabCtrl, children: [
-                // 내 다이어리
                 RefreshIndicator(
                   onRefresh: _load,
                   color: context.primaryColor,
@@ -198,7 +201,6 @@ class _DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin
                           ),
                         ),
                 ),
-                // 친구 다이어리
                 RefreshIndicator(
                   onRefresh: _load,
                   color: context.primaryColor,
@@ -214,7 +216,6 @@ class _DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin
                           ),
                         ),
                 ),
-                // 전체 공개
                 RefreshIndicator(
                   onRefresh: _load,
                   color: context.primaryColor,
