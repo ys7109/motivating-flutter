@@ -14,6 +14,7 @@ class _FocusStatsScreenState extends State<FocusStatsScreen> with SingleTickerPr
   late TabController _tabCtrl;
   List<Map<String, dynamic>> _sessions = [];
   bool _loading = true;
+  DateTime? _accountCreatedAt;
 
   @override
   void initState() {
@@ -23,13 +24,14 @@ class _FocusStatsScreenState extends State<FocusStatsScreen> with SingleTickerPr
   }
 
   @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _tabCtrl.dispose(); super.dispose(); }
 
   Future<void> _loadSessions() async {
-    final uid = context.read<AppProvider>().authUser!.uid;
+    final app = context.read<AppProvider>();
+    final uid = app.authUser!.uid;
+    // 계정 생성일
+    _accountCreatedAt = app.userData?.createdAt;
+
     final snap = await FirebaseFirestore.instance
         .collection('users').doc(uid).collection('focusSessions')
         .orderBy('createdAt', descending: false)
@@ -49,51 +51,75 @@ class _FocusStatsScreenState extends State<FocusStatsScreen> with SingleTickerPr
     final now = DateTime.now();
     return List.generate(7, (i) {
       final date = now.subtract(Duration(days: 6 - i));
-      final dateStr = '${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}';
-      final mins = _sessions.where((s) {
-        final d = s['createdAt'] as DateTime;
-        final ds = '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
-        return ds == dateStr;
-      }).fold<int>(0, (sum, s) => sum + (s['minutes'] as int));
+      final dateStr = _dateStr(date);
+      final mins = _sessions.where((s) => _dateStr(s['createdAt'] as DateTime) == dateStr)
+          .fold<int>(0, (sum, s) => sum + (s['minutes'] as int));
       final weekDays = ['일','월','화','수','목','금','토'];
       return _BarData(label: weekDays[date.weekday % 7], minutes: mins, isToday: i == 6);
     });
   }
 
-  // 주별 데이터 (최근 8주)
+  // 주별 데이터 — 계정 생성일 이후 주차만 표시 (최대 8주)
   List<_BarData> get _weeklyData {
     final now = DateTime.now();
-    return List.generate(8, (i) {
-      final weekStart = now.subtract(Duration(days: now.weekday % 7 + (7 - i) * 7 - 7 * (7 - i)));
-      final start = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday % 7 + (7 - i - 1) * 7));
+    // 이번 주 시작 (일요일 기준)
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final thisWeekStart = todayStart.subtract(Duration(days: now.weekday % 7));
+
+    // 최대 8주 생성 후 계정 생성일 이전 주 제거
+    final weeks = <_BarData>[];
+    for (int i = 7; i >= 0; i--) {
+      final start = thisWeekStart.subtract(Duration(days: 7 * i));
       final end = start.add(const Duration(days: 6));
+
+      // 계정 생성일보다 이전 주는 스킵
+      if (_accountCreatedAt != null) {
+        final createdDay = DateTime(_accountCreatedAt!.year, _accountCreatedAt!.month, _accountCreatedAt!.day);
+        if (end.isBefore(createdDay)) continue;
+      }
+
       final mins = _sessions.where((s) {
         final d = s['createdAt'] as DateTime;
         final dd = DateTime(d.year, d.month, d.day);
         return !dd.isBefore(start) && !dd.isAfter(end);
       }).fold<int>(0, (sum, s) => sum + (s['minutes'] as int));
-      final label = i == 7 ? '이번 주' : '${8 - i}주 전';
-      return _BarData(label: label, minutes: mins, isToday: i == 7);
-    });
+
+      final isThisWeek = i == 0;
+      final label = isThisWeek ? '이번 주' : '${i}주 전';
+      weeks.add(_BarData(label: label, minutes: mins, isToday: isThisWeek));
+    }
+    return weeks;
   }
 
-  // 월별 데이터 (최근 6개월)
+  // 월별 데이터 — 계정 생성월 이후만 표시 (최대 6개월)
   List<_BarData> get _monthlyData {
     final now = DateTime.now();
-    return List.generate(6, (i) {
-      final month = DateTime(now.year, now.month - (5 - i), 1);
+    final months = <_BarData>[];
+    for (int i = 5; i >= 0; i--) {
+      final month = DateTime(now.year, now.month - i, 1);
+
+      // 계정 생성월보다 이전이면 스킵
+      if (_accountCreatedAt != null) {
+        final createdMonth = DateTime(_accountCreatedAt!.year, _accountCreatedAt!.month, 1);
+        if (month.isBefore(createdMonth)) continue;
+      }
+
       final mins = _sessions.where((s) {
         final d = s['createdAt'] as DateTime;
         return d.year == month.year && d.month == month.month;
       }).fold<int>(0, (sum, s) => sum + (s['minutes'] as int));
-      return _BarData(label: '${month.month}월', minutes: mins, isToday: i == 5);
-    });
+
+      months.add(_BarData(label: '${month.month}월', minutes: mins, isToday: i == 0));
+    }
+    return months;
   }
+
+  String _dateStr(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
 
   String _formatMin(int min) {
     if (min == 0) return '0분';
-    final h = min ~/ 60;
-    final m = min % 60;
+    final h = min ~/ 60; final m = min % 60;
     if (h > 0 && m > 0) return '$h시간 $m분';
     if (h > 0) return '$h시간';
     return '$m분';
@@ -111,7 +137,6 @@ class _FocusStatsScreenState extends State<FocusStatsScreen> with SingleTickerPr
       backgroundColor: context.bgColor,
       body: SafeArea(
         child: Column(children: [
-          // 헤더
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             child: Row(children: [
@@ -125,21 +150,12 @@ class _FocusStatsScreenState extends State<FocusStatsScreen> with SingleTickerPr
           ),
           const SizedBox(height: 20),
 
-          // 누적 통계 카드
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(children: [
-              _SummaryCard(
-                label: '누적 집중',
-                value: totalH > 0 ? '$totalH시간 $totalM분' : '$totalM분',
-                icon: '⏱',
-              ),
+              _SummaryCard(label: '누적 집중', value: totalH > 0 ? '$totalH시간 $totalM분' : '$totalM분', icon: '⏱'),
               const SizedBox(width: 10),
-              _SummaryCard(
-                label: '총 세션',
-                value: '${_sessions.length}회',
-                icon: '🎯',
-              ),
+              _SummaryCard(label: '총 세션', value: '${_sessions.length}회', icon: '🎯'),
               const SizedBox(width: 10),
               _SummaryCard(
                 label: '평균 세션',
@@ -151,7 +167,6 @@ class _FocusStatsScreenState extends State<FocusStatsScreen> with SingleTickerPr
           ),
           const SizedBox(height: 20),
 
-          // 탭
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
@@ -172,7 +187,6 @@ class _FocusStatsScreenState extends State<FocusStatsScreen> with SingleTickerPr
           ),
           const SizedBox(height: 16),
 
-          // 차트
           Expanded(
             child: _loading
                 ? Center(child: CircularProgressIndicator(color: context.primaryColor))
@@ -211,7 +225,6 @@ class _BarChart extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(children: [
-        // 합계
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -222,10 +235,8 @@ class _BarChart extends StatelessWidget {
           ]),
         ),
         const SizedBox(height: 16),
-
-        // 바 차트
         Expanded(
-          child: total == 0
+          child: data.isEmpty || total == 0
               ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Text('⏱', style: TextStyle(fontSize: 40)),
                   const SizedBox(height: 12),
@@ -241,41 +252,30 @@ class _BarChart extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 3),
                         child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                          // 값 표시 (0이 아닌 경우만)
                           if (d.minutes > 0)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                formatMin(d.minutes),
-                                style: TextStyle(fontSize: 9, color: context.textSecondary),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              child: Text(formatMin(d.minutes),
+                                  style: TextStyle(fontSize: 9, color: context.textSecondary),
+                                  textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
                             ),
-                          // 바
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 600),
                             curve: Curves.easeOut,
                             height: ratio > 0 ? (200 * ratio).clamp(4.0, 200.0) : 4,
                             decoration: BoxDecoration(
-                              color: d.isToday
-                                  ? context.primaryColor
-                                  : d.minutes > 0
-                                      ? context.primaryColor.withOpacity(0.4)
-                                      : context.borderColor,
+                              color: d.isToday ? context.primaryColor
+                                  : d.minutes > 0 ? context.primaryColor.withOpacity(0.4)
+                                  : context.borderColor,
                               borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                             ),
                           ),
                           const SizedBox(height: 6),
-                          // 레이블
-                          Text(
-                            d.label,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: d.isToday ? context.primaryColor : context.textSecondary,
-                              fontWeight: d.isToday ? FontWeight.w600 : FontWeight.normal,
-                            ),
-                          ),
+                          Text(d.label, style: TextStyle(
+                            fontSize: 11,
+                            color: d.isToday ? context.primaryColor : context.textSecondary,
+                            fontWeight: d.isToday ? FontWeight.w600 : FontWeight.normal,
+                          )),
                         ]),
                       ),
                     );

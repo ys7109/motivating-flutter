@@ -7,7 +7,6 @@ import '../models/mail_model.dart';
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // 유저
   Future<void> ensureUserDoc(User user) async {
     final ref = _db.collection('users').doc(user.uid);
     final snap = await ref.get();
@@ -17,18 +16,16 @@ class FirestoreService {
         'name': user.displayName ?? '새로운 모험가',
         'email': user.email ?? '',
         'photoURL': user.photoURL ?? '',
-        'level': 1,
-        'xp': 0,
-        'xpToNext': 100,
-        'streak': 0,
-        'maxStreak': 0,
-        'lastStreakDate': '',
-        'reviveItem': 0,
-        'streakBadges': {},
-        'totalFocusMin': 0,
+        'level': 1, 'xp': 0, 'xpToNext': 100,
+        'streak': 0, 'maxStreak': 0, 'lastStreakDate': '',
+        'reviveItem': 0, 'streakBadges': {}, 'totalFocusMin': 0,
         'lastAttendDate': '',
         'character': {'skin': 'default', 'badge': 'none', 'frame': 'none'},
         'onboardingDone': false,
+        'achievements': [],
+        'claimedAchievements': [],
+        'equippedAchievement': null,
+        'achievementUnlockedAt': {},
         'createdAt': FieldValue.serverTimestamp(),
         'lastLogin': FieldValue.serverTimestamp(),
       });
@@ -56,32 +53,21 @@ class FirestoreService {
     return snap.docs.map((d) => GoalModel.fromMap(d.id, d.data())).toList();
   }
 
-  // 단일 목표 추가
   Future<void> addGoal(String uid, Map<String, dynamic> goal) async {
     await _db.collection('users').doc(uid).collection('goals').add({
-      ...goal,
-      'progress': 0,
-      'done': false,
+      ...goal, 'progress': 0, 'done': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  // 반복 목표 배치 추가 (500건 초과 시 자동 분할)
   Future<void> addGoalsBatch(String uid, List<Map<String, dynamic>> goals) async {
     const maxBatchSize = 500;
     final colRef = _db.collection('users').doc(uid).collection('goals');
-
     for (int i = 0; i < goals.length; i += maxBatchSize) {
       final chunk = goals.sublist(i, (i + maxBatchSize).clamp(0, goals.length));
       final batch = _db.batch();
       for (final goal in chunk) {
-        final docRef = colRef.doc();
-        batch.set(docRef, {
-          ...goal,
-          'progress': 0,
-          'done': false,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        batch.set(colRef.doc(), {...goal, 'progress': 0, 'done': false, 'createdAt': FieldValue.serverTimestamp()});
       }
       await batch.commit();
     }
@@ -109,8 +95,7 @@ class FirestoreService {
   // 집중 세션
   Future<void> saveFocusSession(String uid, int minutes) async {
     await _db.collection('users').doc(uid).collection('focusSessions').add({
-      'minutes': minutes,
-      'createdAt': FieldValue.serverTimestamp(),
+      'minutes': minutes, 'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -204,5 +189,35 @@ class FirestoreService {
         .orderBy('completedAt', descending: true)
         .get();
     return snap.docs.map((d) => GoalModel.fromMap(d.id, d.data())).toList();
+  }
+
+  // ── 업적 통계 (전체 유저 달성률) ──
+  // achievement_stats/{achievementId} = {count: N, total: N}
+  // 업적 달성 시 해당 카운트 +1
+  Future<void> incrementAchievementStat(String achievementId) async {
+    final ref = _db.collection('achievement_stats').doc(achievementId);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (snap.exists) {
+        tx.update(ref, {'count': FieldValue.increment(1)});
+      } else {
+        tx.set(ref, {'count': 1});
+      }
+    });
+    // total(전체 유저 수)는 별도로 관리하지 않고 rankings 컬렉션 크기로 근사
+  }
+
+  // 전체 유저 달성률 조회 (achievementId → pct)
+  Future<Map<String, double>> getAchievementStats() async {
+    final statsSnap = await _db.collection('achievement_stats').get();
+    final totalSnap = await _db.collection('rankings').count().get();
+    final total = totalSnap.count ?? 1;
+
+    final result = <String, double>{};
+    for (final doc in statsSnap.docs) {
+      final count = (doc.data()['count'] as int?) ?? 0;
+      result[doc.id] = (count / total * 100).clamp(0.0, 100.0);
+    }
+    return result;
   }
 }

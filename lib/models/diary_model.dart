@@ -6,6 +6,7 @@ class DiaryModel {
   final String authorName;
   final Map<String, dynamic> authorCharacter;
   final int authorLevel;
+  final String? authorEquippedAchievement; // 업적 칭호
   final String content;
   final String visibility; // private | friends | public
   final int likeCount;
@@ -19,6 +20,7 @@ class DiaryModel {
     required this.authorName,
     required this.authorCharacter,
     required this.authorLevel,
+    this.authorEquippedAchievement,
     required this.content,
     required this.visibility,
     required this.likeCount,
@@ -34,6 +36,7 @@ class DiaryModel {
       authorName: map['authorName'] ?? '모험가',
       authorCharacter: map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       authorLevel: map['authorLevel'] ?? 1,
+      authorEquippedAchievement: map['authorEquippedAchievement'] as String?,
       content: map['content'] ?? '',
       visibility: map['visibility'] ?? 'private',
       likeCount: map['likeCount'] ?? 0,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -16,11 +17,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService.init();
-  // 권한 요청을 블로킹하지 않고 runApp 먼저 실행
   runApp(const MyApp());
 }
 
-// 앱 첫 화면 로드 후 권한 요청 (블로킹 없음)
 Future<void> _requestNotificationPermissionOnFirstLaunch() async {
   final prefs = await SharedPreferences.getInstance();
   final alreadyAsked = prefs.getBool('notif_permission_asked') ?? false;
@@ -31,7 +30,6 @@ Future<void> _requestNotificationPermissionOnFirstLaunch() async {
   await prefs.setBool('notif_streak', true);
   await prefs.setBool('notif_mail', true);
 
-  // 권한 요청 (UI가 준비된 후)
   final granted = await NotificationService.requestPermission();
   if (granted) {
     await NotificationService.scheduleDailyGoalReminder();
@@ -59,6 +57,16 @@ class MyApp extends StatelessWidget {
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: const [Locale('ko', 'KR'), Locale('en', 'US')],
+          builder: (context, child) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+              systemNavigationBarColor: isDark ? const Color(0xFF1a1a1a) : Colors.white,
+              systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+            ));
+            return child!;
+          },
           home: const RootScreen(),
           navigatorKey: AppProvider.navigatorKey,
         ),
@@ -77,7 +85,6 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
-    // 앱 UI 준비 후 권한 요청 (다음 프레임)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestNotificationPermissionOnFirstLaunch();
     });

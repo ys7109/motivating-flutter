@@ -4,6 +4,7 @@ import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../models/goal_model.dart';
+import '../../models/achievement_definitions.dart';
 import '../../services/friend_service.dart';
 import 'character_avatar.dart';
 
@@ -26,7 +27,7 @@ class _RankingTabState extends State<RankingTab> {
   List<Map<String, dynamic>> _rankings = [];
   bool _loading = true;
   Map<String, dynamic>? _profile;
-  String? _lastCharacterHash;
+  String? _lastHash;
 
   @override
   void initState() {
@@ -41,9 +42,10 @@ class _RankingTabState extends State<RankingTab> {
     final userData = app.userData;
     if (userData == null) return;
     final hash = '${userData.character.skin}_${userData.character.badge}_'
-        '${userData.character.frame}_${userData.name}_${userData.level}';
-    if (_lastCharacterHash != null && _lastCharacterHash != hash) _syncAndLoad();
-    _lastCharacterHash = hash;
+        '${userData.character.frame}_${userData.name}_${userData.level}_'
+        '${userData.equippedAchievement ?? ''}';
+    if (_lastHash != null && _lastHash != hash) _syncAndLoad();
+    _lastHash = hash;
   }
 
   Future<void> _syncAndLoad() async {
@@ -53,6 +55,7 @@ class _RankingTabState extends State<RankingTab> {
         'name': app.userData!.name,
         'level': app.userData!.level,
         'character': app.userData!.character.toMap(),
+        'equippedAchievement': app.userData!.equippedAchievement,
       });
     }
     await _loadRankings();
@@ -129,6 +132,8 @@ class _RankingTabState extends State<RankingTab> {
                             : _tab == 'daily' ? user['todayFocusMin']
                             : user['avgFocusMin'];
                         final medal = user['rank'] == 1 ? '🥇' : user['rank'] == 2 ? '🥈' : user['rank'] == 3 ? '🥉' : null;
+                        final equippedId = user['equippedAchievement'] as String?;
+                        final achievement = equippedId != null ? Achievements.findById(equippedId) : null;
                         return GestureDetector(
                           onTap: () => _openProfile(user),
                           child: Container(
@@ -157,7 +162,13 @@ class _RankingTabState extends State<RankingTab> {
                                     ),
                                   ],
                                 ]),
-                                Text('Lv.${user['level'] ?? 1}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+                                // 업적 칭호 (닉네임 아래, 레벨 위)
+                                if (achievement != null) ...[
+                                  const SizedBox(height: 2),
+                                  _AchievementTitle(achievement: achievement),
+                                  const SizedBox(height: 2),
+                                ],
+                                Text('Lv.${user["level"] ?? 1}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                               ])),
                               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                 Text(_formatMin(focusMin), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
@@ -192,6 +203,26 @@ class _RankingTabState extends State<RankingTab> {
   }
 }
 
+// 칭호 뱃지 위젯 (공통)
+class _AchievementTitle extends StatelessWidget {
+  final Achievement achievement;
+  const _AchievementTitle({required this.achievement});
+  @override
+  Widget build(BuildContext context) {
+    final diffColor = Color(Achievements.difficultyColor[achievement.difficulty]!);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: diffColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: diffColor.withOpacity(0.3)),
+      ),
+      child: Text(achievement.title,
+          style: TextStyle(fontSize: 10, color: diffColor, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
 class _ProfileModal extends StatelessWidget {
   final Map<String, dynamic> profile;
   final VoidCallback onClose;
@@ -203,6 +234,8 @@ class _ProfileModal extends StatelessWidget {
     final goals = profile['completedGoals'] as List<GoalModel>? ?? [];
     final friendStatus = profile['friendStatus'] as String?;
     final isMe = friendStatus == 'me';
+    final equippedId = profile['equippedAchievement'] as String?;
+    final achievement = equippedId != null ? Achievements.findById(equippedId) : null;
 
     return GestureDetector(
       onTap: onClose,
@@ -225,6 +258,10 @@ class _ProfileModal extends StatelessWidget {
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(profile['name'] ?? '모험가', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
                       Text('Lv.${profile['level'] ?? 1}', style: TextStyle(fontSize: 13, color: context.textSecondary)),
+                      if (achievement != null) ...[
+                        const SizedBox(height: 4),
+                        _AchievementTitle(achievement: achievement),
+                      ],
                     ])),
                     if (!isMe) ...[
                       GestureDetector(
@@ -273,8 +310,7 @@ class _ProfileModal extends StatelessWidget {
                           itemBuilder: (_, i) {
                             final g = goals[i];
                             final tagColor = g.type == 'short' ? const Color(0xFF1b8a5a)
-                                : g.type == 'mid' ? const Color(0xFFf9a825)
-                                : const Color(0xFF3949ab);
+                                : g.type == 'mid' ? const Color(0xFFf9a825) : const Color(0xFF3949ab);
                             final tagLabel = g.type == 'short' ? '단기' : g.type == 'mid' ? '중기' : '장기';
                             return Container(
                               padding: const EdgeInsets.all(12),
@@ -306,17 +342,15 @@ class _StatBox extends StatelessWidget {
   final String label, value;
   const _StatBox({required this.label, required this.value});
   @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
-        child: Column(children: [
-          Text(label, style: TextStyle(fontSize: 11, color: context.textSecondary)),
-          const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
-        ]),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        Text(label, style: TextStyle(fontSize: 11, color: context.textSecondary)),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
+      ]),
+    ),
+  );
 }

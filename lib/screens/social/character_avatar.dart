@@ -1,44 +1,78 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../utils/theme.dart';
+import '../../models/achievement_definitions.dart';
 
 const kSkins = [
-  {'id': 'default', 'emoji': '🧑'},
-  {'id': 'warrior', 'emoji': '⚔️'},
-  {'id': 'scholar', 'emoji': '📚'},
+  {'id': 'default',  'emoji': '🧑'},
+  {'id': 'warrior',  'emoji': '⚔️'},
+  {'id': 'scholar',  'emoji': '📚'},
   {'id': 'explorer', 'emoji': '🧭'},
-  {'id': 'legend', 'emoji': '🌟'},
+  {'id': 'legend',   'emoji': '🌟'},
 ];
 const kBadges = [
-  {'id': 'none', 'emoji': ''},
-  {'id': 'flame', 'emoji': '🔥'},
+  {'id': 'none',      'emoji': ''},
+  {'id': 'flame',     'emoji': '🔥'},
   {'id': 'lightning', 'emoji': '⚡'},
-  {'id': 'crown', 'emoji': '👑'},
-  {'id': 'diamond', 'emoji': '💎'},
+  {'id': 'crown',     'emoji': '👑'},
+  {'id': 'diamond',   'emoji': '💎'},
 ];
 const kFrames = [
-  {'id': 'none', 'color': 0x00000000},
-  {'id': 'silver', 'color': 0xFF9e9e9e},
-  {'id': 'gold', 'color': 0xFFf9a825},
+  {'id': 'none',    'color': 0x00000000},
+  {'id': 'silver',  'color': 0xFF9e9e9e},
+  {'id': 'gold',    'color': 0xFFf9a825},
   {'id': 'rainbow', 'color': 0xFFe040fb},
 ];
 
-String skinEmoji(String? skin) =>
-    (kSkins.firstWhere((s) => s['id'] == skin, orElse: () => kSkins[0])['emoji'] as String?) ?? '🧑';
+// 업적 전용 스킨 이모지 맵
+const kAchieveSkins = <String, String>{
+  'goal_first':   '🎯', 'goal_10':      '🏅', 'goal_50':    '🥈',
+  'goal_100':     '🥇', 'repeat_first': '🔄', 'streak_7':   '🔥',
+  'streak_30':    '🌙', 'streak_100':   '💫', 'streak_365': '🌟',
+  'focus_1h':     '⏱',  'focus_10h':    '⚡', 'focus_50h':  '🔮',
+  'focus_100h':   '🧠', 'level_5':      '🌱', 'level_10':   '🌿',
+  'level_20':     '🌳', 'friend_first': '🤝', 'diary_first':'📔',
+  'diary_10':     '📖',
+};
+
+String skinEmoji(String? skin) {
+  if (skin == null) return '🧑';
+  // 업적 스킨 먼저 확인
+  if (kAchieveSkins.containsKey(skin)) return kAchieveSkins[skin]!;
+  return (kSkins.firstWhere((s) => s['id'] == skin, orElse: () => kSkins[0])['emoji'] as String?) ?? '🧑';
+}
 
 String badgeEmoji(String? badge) =>
     (kBadges.firstWhere((b) => b['id'] == badge, orElse: () => kBadges[0])['emoji'] as String?) ?? '';
 
+bool isRainbowFrame(String? frame) => frame == 'rainbow';
+
 Color? frameColor(String? frame) {
-  if (frame == null || frame == 'none') return null;
+  if (frame == null || frame == 'none' || frame == 'rainbow') return null;
   final f = kFrames.firstWhere((f) => f['id'] == frame, orElse: () => kFrames[0]);
   final c = f['color'] as int;
   return c == 0 ? null : Color(c);
 }
 
+const _rainbowColors = [
+  Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFFF00),
+  Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
+];
+
 class CharacterAvatar extends StatelessWidget {
   final Map<String, dynamic>? character;
   final double size;
-  const CharacterAvatar({super.key, this.character, this.size = 40});
+  /// 업적 칭호 ID (있으면 아바타 아래에 칭호 표시)
+  final String? equippedAchievement;
+  final bool showTitle;
+
+  const CharacterAvatar({
+    super.key,
+    this.character,
+    this.size = 40,
+    this.equippedAchievement,
+    this.showTitle = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -46,22 +80,32 @@ class CharacterAvatar extends StatelessWidget {
     final badge = character?['badge'] as String?;
     final frame = character?['frame'] as String?;
     final fc = frameColor(frame);
+    final isRainbow = isRainbowFrame(frame);
     final se = skinEmoji(skin);
     final be = badgeEmoji(badge);
     final innerSize = size * 0.88;
 
-    return Stack(clipBehavior: Clip.none, children: [
-      Container(
-        width: size, height: size,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: fc ?? context.subtleBg),
-        child: Center(
-          child: Container(
-            width: innerSize, height: innerSize,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: context.surfaceColor),
-            child: Center(child: Text(se, style: TextStyle(fontSize: size * 0.42))),
+    final achievement = equippedAchievement != null
+        ? Achievements.findById(equippedAchievement!)
+        : null;
+
+    Widget avatar = Stack(clipBehavior: Clip.none, children: [
+      // 프레임
+      if (isRainbow)
+        _RainbowFrameAvatar(size: size, innerSize: innerSize, skinEmoji: se)
+      else
+        Container(
+          width: size, height: size,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: fc ?? context.subtleBg),
+          child: Center(
+            child: Container(
+              width: innerSize, height: innerSize,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: context.surfaceColor),
+              child: Center(child: Text(se, style: TextStyle(fontSize: size * 0.42))),
+            ),
           ),
         ),
-      ),
+      // 뱃지
       if (be.isNotEmpty)
         Positioned(
           bottom: -2, right: -2,
@@ -75,5 +119,82 @@ class CharacterAvatar extends StatelessWidget {
           ),
         ),
     ]);
+
+    // 칭호 표시 (showTitle=true일 때만)
+    if (showTitle && achievement != null) {
+      final diffColor = Color(Achievements.difficultyColor[achievement.difficulty]!);
+      return Column(mainAxisSize: MainAxisSize.min, children: [
+        avatar,
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: diffColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(99),
+            border: Border.all(color: diffColor.withOpacity(0.3)),
+          ),
+          child: Text(achievement.title,
+              style: TextStyle(fontSize: 9, color: diffColor, fontWeight: FontWeight.w600)),
+        ),
+      ]);
+    }
+
+    return avatar;
   }
+}
+
+// 무지개 프레임 아바타 (애니메이션)
+class _RainbowFrameAvatar extends StatefulWidget {
+  final double size, innerSize;
+  final String skinEmoji;
+  const _RainbowFrameAvatar({required this.size, required this.innerSize, required this.skinEmoji});
+  @override
+  State<_RainbowFrameAvatar> createState() => _RainbowFrameAvatarState();
+}
+class _RainbowFrameAvatarState extends State<_RainbowFrameAvatar> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+    _anim = Tween<double>(begin: 0, end: 1).animate(_ctrl);
+  }
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _anim,
+    builder: (_, __) => CustomPaint(
+      painter: _RainbowPainter(_anim.value, widget.size),
+      child: SizedBox(
+        width: widget.size, height: widget.size,
+        child: Center(
+          child: Container(
+            width: widget.innerSize, height: widget.innerSize,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: context.surfaceColor),
+            child: Center(child: Text(widget.skinEmoji, style: TextStyle(fontSize: widget.size * 0.42))),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+class _RainbowPainter extends CustomPainter {
+  final double progress, size;
+  _RainbowPainter(this.progress, this.size);
+  @override
+  void paint(Canvas canvas, Size s) {
+    final center = Offset(s.width / 2, s.height / 2);
+    final radius = s.width / 2 - 1;
+    final strokeW = size * 0.06;
+    final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = strokeW..strokeCap = StrokeCap.round;
+    for (int i = 0; i < 6; i++) {
+      paint.color = _rainbowColors[i];
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
+          (progress + i / 6) * 2 * pi - pi / 2, pi / 3 - 0.05, false, paint);
+    }
+  }
+  @override
+  bool shouldRepaint(_RainbowPainter old) => old.progress != progress;
 }

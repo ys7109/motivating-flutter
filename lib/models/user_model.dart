@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserModel {
   final String uid;
   final String name;
@@ -16,6 +18,13 @@ class UserModel {
   final CharacterModel character;
   final bool onboardingDone;
   final DateTime? withdrawScheduledAt;
+  final DateTime? createdAt;
+
+  // 업적
+  final Set<String> achievements;         // 달성한 업적 ID 목록
+  final Set<String> claimedAchievements;  // 보상을 수령한 업적 ID 목록
+  final String? equippedAchievement;      // 현재 장착 중인 업적 ID
+  final Map<String, DateTime> achievementUnlockedAt; // 업적 달성 시각
 
   UserModel({
     required this.uid,
@@ -35,9 +44,19 @@ class UserModel {
     required this.character,
     required this.onboardingDone,
     this.withdrawScheduledAt,
+    this.createdAt,
+    this.achievements = const {},
+    this.claimedAchievements = const {},
+    this.equippedAchievement,
+    this.achievementUnlockedAt = const {},
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
+    // achievementUnlockedAt: Map<String, Timestamp> → Map<String, DateTime>
+    final rawUnlocked = map['achievementUnlockedAt'] as Map<String, dynamic>? ?? {};
+    final unlockedAt = rawUnlocked.map((k, v) =>
+        MapEntry(k, v is Timestamp ? v.toDate() : DateTime.now()));
+
     return UserModel(
       uid: map['uid'] ?? '',
       name: map['name'] ?? '새로운 모험가',
@@ -56,8 +75,15 @@ class UserModel {
       character: CharacterModel.fromMap(map['character'] ?? {}),
       onboardingDone: map['onboardingDone'] ?? false,
       withdrawScheduledAt: map['withdrawScheduledAt'] != null
-          ? (map['withdrawScheduledAt'] as dynamic).toDate()
+          ? (map['withdrawScheduledAt'] as Timestamp).toDate()
           : null,
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
+          : null,
+      achievements: Set<String>.from(map['achievements'] ?? []),
+      claimedAchievements: Set<String>.from(map['claimedAchievements'] ?? []),
+      equippedAchievement: map['equippedAchievement'] as String?,
+      achievementUnlockedAt: unlockedAt,
     );
   }
 
@@ -75,6 +101,11 @@ class UserModel {
     CharacterModel? character,
     bool? onboardingDone,
     DateTime? withdrawScheduledAt,
+    DateTime? createdAt,
+    Set<String>? achievements,
+    Set<String>? claimedAchievements,
+    Object? equippedAchievement = _sentinel,
+    Map<String, DateTime>? achievementUnlockedAt,
   }) {
     return UserModel(
       uid: uid,
@@ -94,9 +125,19 @@ class UserModel {
       character: character ?? this.character,
       onboardingDone: onboardingDone ?? this.onboardingDone,
       withdrawScheduledAt: withdrawScheduledAt ?? this.withdrawScheduledAt,
+      createdAt: createdAt ?? this.createdAt,
+      achievements: achievements ?? this.achievements,
+      claimedAchievements: claimedAchievements ?? this.claimedAchievements,
+      equippedAchievement: equippedAchievement == _sentinel
+          ? this.equippedAchievement
+          : equippedAchievement as String?,
+      achievementUnlockedAt: achievementUnlockedAt ?? this.achievementUnlockedAt,
     );
   }
 }
+
+// null을 명시적으로 전달하기 위한 sentinel
+const Object _sentinel = Object();
 
 class CharacterModel {
   final String skin;

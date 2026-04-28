@@ -6,9 +6,7 @@ class DiaryService {
 
   // 내 다이어리 목록
   Future<List<DiaryModel>> getMyDiaries(String uid) async {
-    final snap = await _db.collection('diaries')
-        .where('uid', isEqualTo: uid)
-        .get();
+    final snap = await _db.collection('diaries').where('uid', isEqualTo: uid).get();
     final results = snap.docs.map((d) => DiaryModel.fromMap(d.id, d.data())).toList();
     results.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
     return results;
@@ -52,13 +50,14 @@ class DiaryService {
     return results;
   }
 
-  // 다이어리 작성
+  // 다이어리 작성 — equippedAchievement 포함
   Future<void> addDiary(String uid, Map<String, dynamic> userData, String content, String visibility) async {
     await _db.collection('diaries').add({
       'uid': uid,
       'authorName': userData['name'] ?? '모험가',
       'authorCharacter': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       'authorLevel': userData['level'] ?? 1,
+      'authorEquippedAchievement': userData['equippedAchievement'],
       'content': content,
       'visibility': visibility,
       'likeCount': 0,
@@ -76,11 +75,10 @@ class DiaryService {
     });
   }
 
-  // 닉네임/캐릭터 변경 시 본인의 모든 다이어리 작성자 정보 일괄 업데이트
-  Future<void> updateAuthorInfo(String uid, String name, Map<String, dynamic> character, int level) async {
+  // 닉네임/캐릭터/칭호 변경 시 본인의 모든 다이어리 작성자 정보 일괄 업데이트
+  Future<void> updateAuthorInfo(String uid, String name, Map<String, dynamic> character, int level, {String? equippedAchievement}) async {
     final snap = await _db.collection('diaries').where('uid', isEqualTo: uid).get();
     if (snap.docs.isEmpty) return;
-    // 500건 초과 시 자동 분할
     const maxBatch = 500;
     for (int i = 0; i < snap.docs.length; i += maxBatch) {
       final chunk = snap.docs.sublist(i, (i + maxBatch).clamp(0, snap.docs.length));
@@ -90,6 +88,7 @@ class DiaryService {
           'authorName': name,
           'authorCharacter': character,
           'authorLevel': level,
+          'authorEquippedAchievement': equippedAchievement,
         });
       }
       await batch.commit();

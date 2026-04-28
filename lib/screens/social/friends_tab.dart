@@ -4,6 +4,7 @@ import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../services/friend_service.dart';
 import 'character_avatar.dart';
+import '../../models/achievement_definitions.dart';
 
 class FriendsTab extends StatefulWidget {
   const FriendsTab({super.key});
@@ -22,18 +23,11 @@ class FriendsTabState extends State<FriendsTab> {
   List<Map<String, dynamic>> _searchResults = [];
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
-  // social_screen에서 외부 호출 가능
   Future<void> reload() => _load();
 
   Future<void> _load() async {
@@ -72,9 +66,12 @@ class FriendsTabState extends State<FriendsTab> {
   }
 
   Future<void> _acceptRequest(String fromUid) async {
-    final uid = context.read<AppProvider>().authUser!.uid;
+    final app = context.read<AppProvider>();
+    final uid = app.authUser!.uid;
     await _friendService.acceptRequest(uid, fromUid);
-    if (mounted) context.read<AppProvider>().showToast('친구 요청을 수락했어요!');
+    if (mounted) app.showToast('친구 요청을 수락했어요!');
+    // 방법 2: 친구 수락 시 업적 체크 (이미 달성이면 내부에서 스킵)
+    await app.onFriendAdded();
     await _load();
   }
 
@@ -107,7 +104,6 @@ class FriendsTabState extends State<FriendsTab> {
   @override
   Widget build(BuildContext context) {
     final myUid = context.read<AppProvider>().authUser!.uid;
-
     if (_loading) return Center(child: CircularProgressIndicator(color: context.primaryColor));
 
     return RefreshIndicator(
@@ -122,8 +118,7 @@ class FriendsTabState extends State<FriendsTab> {
               controller: _searchCtrl,
               style: TextStyle(fontSize: 14, color: context.textPrimary),
               textInputAction: TextInputAction.search,
-              onChanged: _search,
-              onSubmitted: _search,
+              onChanged: _search, onSubmitted: _search,
               decoration: InputDecoration(
                 hintText: '닉네임으로 친구 검색',
                 hintStyle: TextStyle(color: context.textSecondary),
@@ -138,34 +133,32 @@ class FriendsTabState extends State<FriendsTab> {
             const SizedBox(height: 8),
             Container(
               decoration: BoxDecoration(color: context.surfaceColor, border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)),
-              child: Column(
-                children: _searchResults.map((user) {
-                  final isFriend = _friends.any((f) => f['uid'] == user['uid']);
-                  return FutureBuilder<String?>(
-                    future: _friendService.getFriendshipStatus(myUid, user['uid']),
-                    builder: (_, snap) {
-                      final status = snap.data;
-                      return ListTile(
-                        leading: CharacterAvatar(character: user['character'] as Map<String, dynamic>?, size: 36),
-                        title: Text(user['name'] ?? '모험가', style: TextStyle(fontSize: 14, color: context.textPrimary)),
-                        subtitle: Text('Lv.${user['level'] ?? 1}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
-                        trailing: isFriend
-                            ? Text('친구', style: TextStyle(fontSize: 12, color: context.primaryColor))
-                            : status == 'pending'
-                                ? Text('요청 중', style: TextStyle(fontSize: 12, color: context.textSecondary))
-                                : GestureDetector(
-                                    onTap: () => _sendRequest(user['uid']),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                                      decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
-                                      child: Text('친구 추가', style: TextStyle(fontSize: 12, color: context.isDark ? Colors.black : Colors.white)),
-                                    ),
+              child: Column(children: _searchResults.map((user) {
+                final isFriend = _friends.any((f) => f['uid'] == user['uid']);
+                return FutureBuilder<String?>(
+                  future: _friendService.getFriendshipStatus(myUid, user['uid']),
+                  builder: (_, snap) {
+                    final status = snap.data;
+                    return ListTile(
+                      leading: CharacterAvatar(character: user['character'] as Map<String, dynamic>?, size: 36),
+                      title: Text(user['name'] ?? '모험가', style: TextStyle(fontSize: 14, color: context.textPrimary)),
+                      subtitle: Text('Lv.${user['level'] ?? 1}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+                      trailing: isFriend
+                          ? Text('친구', style: TextStyle(fontSize: 12, color: context.primaryColor))
+                          : status == 'pending'
+                              ? Text('요청 중', style: TextStyle(fontSize: 12, color: context.textSecondary))
+                              : GestureDetector(
+                                  onTap: () => _sendRequest(user['uid']),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                    decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
+                                    child: Text('친구 추가', style: TextStyle(fontSize: 12, color: context.isDark ? Colors.black : Colors.white)),
                                   ),
-                      );
-                    },
-                  );
-                }).toList(),
-              ),
+                                ),
+                    );
+                  },
+                );
+              }).toList()),
             ),
           ],
           const SizedBox(height: 20),
@@ -248,8 +241,7 @@ class FriendsTabState extends State<FriendsTab> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: context.surfaceColor,
-                  borderRadius: BorderRadius.circular(12),
+                  color: context.surfaceColor, borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: isMe ? context.primaryColor : context.borderColor, width: isMe ? 1.5 : 0.5),
                 ),
                 child: Row(children: [
@@ -271,6 +263,16 @@ class FriendsTabState extends State<FriendsTab> {
                         ),
                       ],
                     ]),
+                    Builder(builder: (ctx) {
+                      final eid = user['equippedAchievement'] as String?;
+                      final a = eid != null ? Achievements.findById(eid) : null;
+                      if (a == null) return const SizedBox.shrink();
+                      final dc = Color(Achievements.difficultyColor[a.difficulty]!);
+                      return Padding(padding: const EdgeInsets.only(bottom: 2), child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(color: dc.withOpacity(0.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: dc.withOpacity(0.3))),
+                        child: Text(a.title, style: TextStyle(fontSize: 10, color: dc, fontWeight: FontWeight.w600))));
+                    }),
                     Text('Lv.${user['level'] ?? 1}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                   ])),
                   Text(_formatMin(focusMin), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
@@ -329,21 +331,28 @@ class _FriendTile extends StatelessWidget {
       child: Row(children: [
         Stack(children: [
           CharacterAvatar(character: friend['character'] as Map<String, dynamic>?, size: 40),
-          Positioned(
-            bottom: 0, right: 0,
-            child: Container(
-              width: 12, height: 12,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isOnline ? const Color(0xFF4CAF50) : const Color(0xFF9E9E9E),
-                border: Border.all(color: context.surfaceColor, width: 1.5),
-              ),
+          Positioned(bottom: 0, right: 0, child: Container(
+            width: 12, height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isOnline ? const Color(0xFF4CAF50) : const Color(0xFF9E9E9E),
+              border: Border.all(color: context.surfaceColor, width: 1.5),
             ),
-          ),
+          )),
         ]),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(friend['name'] ?? '모험가', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textPrimary)),
+          Builder(builder: (ctx) {
+            final eid = friend['equippedAchievement'] as String?;
+            final a = eid != null ? Achievements.findById(eid) : null;
+            if (a == null) return const SizedBox.shrink();
+            final dc = Color(Achievements.difficultyColor[a.difficulty]!);
+            return Padding(padding: const EdgeInsets.only(top: 2, bottom: 2), child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(color: dc.withOpacity(0.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: dc.withOpacity(0.3))),
+              child: Text(a.title, style: TextStyle(fontSize: 10, color: dc, fontWeight: FontWeight.w600))));
+          }),
           Row(children: [
             Text('Lv.${friend['level'] ?? 1}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
             const SizedBox(width: 6),

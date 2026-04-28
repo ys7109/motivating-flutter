@@ -6,6 +6,7 @@ import '../../services/diary_service.dart';
 import '../../services/friend_service.dart';
 import '../../models/diary_model.dart';
 import 'character_avatar.dart';
+import '../../models/achievement_definitions.dart';
 
 class DiaryTab extends StatefulWidget {
   const DiaryTab({super.key});
@@ -31,12 +32,8 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
   }
 
   @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _tabCtrl.dispose(); super.dispose(); }
 
-  // social_screen에서 외부 호출 가능
   Future<void> reload() => _load();
 
   Future<void> _load() async {
@@ -74,7 +71,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 40),
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 20),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text(editing == null ? '다이어리 작성' : '다이어리 수정', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
@@ -84,8 +81,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
             Container(
               decoration: BoxDecoration(color: context.surfaceColor, border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)),
               child: TextField(
-                controller: contentCtrl,
-                maxLines: 6,
+                controller: contentCtrl, maxLines: 6,
                 style: TextStyle(fontSize: 14, color: context.textPrimary),
                 decoration: InputDecoration(
                   hintText: '오늘 하루를 기록해보세요...',
@@ -123,7 +119,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
               onTap: () async {
                 if (contentCtrl.text.trim().isEmpty) return;
                 final uid = app.authUser!.uid;
-                final userData = {'name': app.userData!.name, 'level': app.userData!.level, 'character': app.userData!.character.toMap()};
+                final userData = {'name': app.userData!.name, 'level': app.userData!.level, 'character': app.userData!.character.toMap(), 'equippedAchievement': app.userData!.equippedAchievement};
                 if (editing == null) {
                   await _diaryService.addDiary(uid, userData, contentCtrl.text.trim(), visibility);
                 } else {
@@ -131,6 +127,10 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
                 await _load();
+                // 방법 2: 다이어리 작성 시 업적 체크 (신규 작성일 때만)
+                if (editing == null && mounted) {
+                  await app.onDiaryWritten(_myDiaries.length);
+                }
               },
               child: Container(
                 width: double.infinity,
@@ -186,8 +186,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
             ? Center(child: CircularProgressIndicator(color: context.primaryColor))
             : TabBarView(controller: _tabCtrl, children: [
                 RefreshIndicator(
-                  onRefresh: _load,
-                  color: context.primaryColor,
+                  onRefresh: _load, color: context.primaryColor,
                   child: _myDiaries.isEmpty
                       ? const _EmptyDiary(message: '아직 작성한 다이어리가 없어요')
                       : ListView.separated(
@@ -202,8 +201,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
                         ),
                 ),
                 RefreshIndicator(
-                  onRefresh: _load,
-                  color: context.primaryColor,
+                  onRefresh: _load, color: context.primaryColor,
                   child: _friendDiaries.isEmpty
                       ? const _EmptyDiary(message: '친구의 공개 다이어리가 없어요')
                       : ListView.separated(
@@ -217,8 +215,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
                         ),
                 ),
                 RefreshIndicator(
-                  onRefresh: _load,
-                  color: context.primaryColor,
+                  onRefresh: _load, color: context.primaryColor,
                   child: _publicDiaries.isEmpty
                       ? const _EmptyDiary(message: '전체 공개 다이어리가 없어요')
                       : ListView.separated(
@@ -246,9 +243,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
 class _DiaryCard extends StatelessWidget {
   final DiaryModel diary;
   final bool isMe;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-  final VoidCallback? onLike;
+  final VoidCallback? onEdit, onDelete, onLike;
   const _DiaryCard({required this.diary, required this.isMe, this.onEdit, this.onDelete, this.onLike});
 
   @override
@@ -262,6 +257,15 @@ class _DiaryCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(diary.authorName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
+            if (diary.authorEquippedAchievement != null) Builder(builder: (ctx) {
+              final a = Achievements.findById(diary.authorEquippedAchievement!);
+              if (a == null) return const SizedBox.shrink();
+              final dc = Color(Achievements.difficultyColor[a.difficulty]!);
+              return Padding(padding: const EdgeInsets.only(top: 2, bottom: 2), child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(color: dc.withOpacity(0.12), borderRadius: BorderRadius.circular(99), border: Border.all(color: dc.withOpacity(0.3))),
+                child: Text(a.title, style: TextStyle(fontSize: 10, color: dc, fontWeight: FontWeight.w600))));
+            }),
             Row(children: [
               Text('Lv.${diary.authorLevel}', style: TextStyle(fontSize: 11, color: context.textSecondary)),
               const SizedBox(width: 6),

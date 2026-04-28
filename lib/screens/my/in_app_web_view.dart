@@ -53,13 +53,16 @@ class _InAppWebViewState extends State<InAppWebView> {
           child: Divider(height: 0.5, color: AppTheme.border),
         ),
       ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _ctrl),
-          if (_loading)
-            const Center(
-                child: CircularProgressIndicator(color: AppTheme.primary)),
-        ],
+      body: SafeArea(
+        top: false, // AppBar가 상단 처리
+        child: Stack(
+          children: [
+            WebViewWidget(controller: _ctrl),
+            if (_loading)
+              const Center(
+                  child: CircularProgressIndicator(color: AppTheme.primary)),
+          ],
+        ),
       ),
     );
   }

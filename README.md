@@ -1,23 +1,23 @@
 # Motivating 🎮
- 
+
 > 목표를 게임처럼. 생산성 gamification Android 앱
- 
+
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.4.0-green)]()
- 
+[![Version](https://img.shields.io/badge/version-1.6.0-green)]()
+
 ---
- 
+
 ## 📱 스크린샷
- 
+
 | 홈 | 목표 추가 | 소셜 | 집중 타이머 |
 |---|---|---|---|
 | - | - | - | - |
- 
+
 ---
- 
+
 ## ✨ 주요 기능
- 
+
 ### 🎯 목표 관리
 - 단일 목표 및 반복 목표 (매일/매주/매달) 생성
 - 매주/매달 반복 시 요일·날짜 **다중 선택** 지원
@@ -26,33 +26,52 @@
 - **반복 목표 XP 시스템**: 1회 완료 시 단기 기준 XP 지급 + 전체 완료 시 보너스 XP 추가 지급
 - 반복 목표 배치 저장으로 대량 생성 속도 개선
 - 단일 목표는 별도 "단일" 뱃지로 표시
+
 ### 🤖 AI XP 분석
 - Gemini 2.5 Flash API 기반 목표 난이도 자동 분석
 - 목표 제목과 기간을 분석해 XP 자동 책정 (전체 완료 보너스 + 1회 완료 XP 동시 책정)
 - thinking 비활성화(`thinkingBudget: 0`)로 비용 최소화
+
 ### 👥 소셜
 - **친구 탭**: 닉네임 검색 또는 랭킹에서 친구 추가, 실시간 접속 상태 표시, 친구 랭킹
 - **피드 탭**: 친구의 목표 달성 활동 피드
 - **다이어리 탭**: 내 다이어리 / 친구 공개 / 전체 공개 다이어리, 좋아요 기능
 - **랭킹 탭**: 전체 집중 시간 랭킹, 프로필에서 친구 추가
-### 🔥 스트릭 시스템
+- 친구/다이어리/랭킹에서 업적 칭호 표시
+
+### 🔥 연속 출석 일수
 - 연속 출석 일수 추적
 - 7/14/30/60/100/365일 마일스톤 보상
 - 스트릭 복구 아이템 및 광고 시청 복구
-### ⏱ 집중 타이머
+
+### ⏱ 집중 타이머 & 통계
 - 포모도로 스타일 집중 세션
 - 백그라운드/화면 꺼짐 상태에서도 정확한 타이머
 - 집중 시간 누적 통계 및 랭킹 반영
+- **집중 통계 화면**: 일별/주별/월별 막대 차트, 계정 생성일 기반 실제 구간만 표시
+
+### 🏆 업적 시스템
+- 목표/연속 출석/집중/레벨/소셜 5개 카테고리, 총 19개 업적
+- 입문/일반/고급/전설 난이도별 XP 보상 차등 지급
+- 업적 달성 시 전용 스킨 해금 (19종)
+- 전체 유저 달성률 표시
+- 업적 칭호 장착 기능 (닉네임 아래 표시)
+- 로그인 시 기존 달성 조건 자동 체크
+
 ### 📬 우편함
 - 출석/마일스톤 보상 수령
 - XP 및 부활 아이템 지급
+
 ### 🎨 캐릭터 커스터마이징
-- 스킨/뱃지/프레임 선택
+- 레벨 기반 스킨/뱃지/프레임 선택
+- 업적 달성 시 전용 스킨 해금 (19종)
+- 무지개 프레임 실제 6색 애니메이션
 - 변경 시 랭킹·소셜에 즉시 반영
+
 ---
- 
+
 ## 🏗 기술 스택
- 
+
 | 분류 | 기술 |
 |---|---|
 | Framework | Flutter 3.x |
@@ -61,57 +80,63 @@
 | 상태관리 | Provider |
 | 로그인 | Google, Kakao OAuth |
 | 알림 | flutter_local_notifications |
- 
+
 ---
- 
+
 ## 📂 프로젝트 구조
- 
+
 ```
 lib/
-├── config.dart                        # API 키 (gitignore)
+├── config.dart
 ├── main.dart
 ├── models/
 │   ├── user_model.dart
-│   ├── goal_model.dart                # xp + repeatXp 필드
+│   ├── goal_model.dart
 │   ├── mail_model.dart
-│   ├── friend_model.dart              # 친구 모델
-│   └── diary_model.dart               # 다이어리 모델
+│   ├── friend_model.dart
+│   ├── diary_model.dart
+│   └── achievement_definitions.dart
 ├── services/
 │   ├── auth_service.dart
-│   ├── firestore_service.dart         # 배치 저장 지원
+│   ├── firestore_service.dart
 │   ├── notification_service.dart
-│   ├── friend_service.dart            # 친구 관계 + presence
-│   └── diary_service.dart             # 다이어리 CRUD + 좋아요
+│   ├── friend_service.dart
+│   └── diary_service.dart
 ├── providers/
-│   └── app_provider.dart              # 반복 목표 XP 로직
+│   └── app_provider.dart
 ├── screens/
 │   ├── auth/login_screen.dart
 │   ├── home/home_screen.dart
 │   ├── goals/
-│   │   ├── add_goal_screen.dart       # XP 모드 선택, 날짜 기반 타입 자동 계산
+│   │   ├── add_goal_screen.dart
 │   │   └── goal_pickers.dart
 │   ├── focus/focus_screen.dart
-│   ├── social/                        # 소셜 탭 (친구/피드/다이어리/랭킹)
+│   ├── social/
 │   │   ├── social_screen.dart
 │   │   ├── friends_tab.dart
 │   │   ├── feed_tab.dart
 │   │   ├── diary_tab.dart
 │   │   ├── ranking_tab.dart
 │   │   └── character_avatar.dart
-│   └── my/ (settings/mailbox/in_app_web_view)
+│   └── my/
+│       ├── my_screen.dart
+│       ├── focus_stats_screen.dart
+│       ├── mailbox_screen.dart
+│       ├── settings_screen.dart
+│       └── in_app_web_view.dart
 └── widgets/
-    ├── main_nav.dart                  # 소셜 탭으로 교체
+    ├── main_nav.dart
     └── level_up_modal.dart
- 
+
 web_hosting/
 ├── privacy.html
 └── terms.html
 ```
- 
+
 ---
- 
+
 ## 💎 XP 시스템
- 
+
 ### 기본 설정 (고정 XP)
 | 목표 유형 | 기간 | XP |
 |---|---|---|
@@ -119,30 +144,34 @@ web_hosting/
 | 중기 | 31~180일 | 300 XP |
 | 장기 | 181일+ | 600 XP |
 | 단일 목표 | - | 100 XP |
- 
+
 ### 반복 목표 XP
 - **1회 완료 시**: 100 XP (항상 단기 기준)
 - **전체 완료 시**: 책정 XP 추가 지급 (단기 100 / 중기 300 / 장기 600)
 - AI 분석 시 1회 완료 XP도 AI가 난이도에 맞게 책정
+
+### 업적 보상 XP
+| 난이도 | XP |
+|---|---|
+| 입문 | 50 XP |
+| 일반 | 100 XP |
+| 고급 | 300 XP |
+| 전설 | 600 XP |
+
 ### 레벨업 시스템
 - 시작 xpToNext: 100 XP
 - 레벨업마다 ×1.15 배율로 증가
-- 부드러운 성장 곡선으로 꾸준한 레벨업 가능
+
 ---
- 
+
 ## 🚀 설치 및 실행
- 
+
 ```bash
-# 의존성 설치
 flutter pub get
- 
-# 실행
 flutter run
- 
-# 빌드
 flutter build apk --release
 ```
- 
+
 ### 필수 설정
 1. `lib/config.dart` 생성 (gitignore 포함)
 ```dart
@@ -150,30 +179,52 @@ class Config {
   static const geminiApiKey = 'YOUR_GEMINI_API_KEY';
 }
 ```
- 
-2. `google-services.json` → `android/app/` 경로에 배치
-3. Firebase Console에서 SHA-1 등록
+2. `google-services.json` → `android/app/`
+3. Firebase Console SHA-1 등록
+
 ### Firestore 컬렉션 구조
 ```
-users/{uid}/goals/          # 목표
-users/{uid}/mailbox/        # 우편함
-users/{uid}/focusSessions/  # 집중 세션
-rankings/{uid}              # 랭킹
-friendships/{uid_a}_{uid_b} # 친구 관계
-presence/{uid}              # 실시간 접속 상태
-diaries/{diaryId}           # 다이어리
+users/{uid}/goals/
+users/{uid}/mailbox/
+users/{uid}/focusSessions/
+rankings/{uid}
+friendships/{uid_a}_{uid_b}
+presence/{uid}
+diaries/{diaryId}
+achievement_stats/{achievementId}
 ```
- 
+
 ---
- 
+
 ## 📋 버전 히스토리
- 
+
+### v1.6.0 (2026.04.28)
+- ✨ 업적 시스템 (19개 업적, 5개 카테고리, 난이도별 XP 보상)
+- ✨ 업적 전용 스킨 19종 해금 시스템
+- ✨ 업적 칭호 장착 기능 (닉네임 아래 표시)
+- ✨ 전체 유저 업적 달성률 표시
+- ✨ 마이 탭 업적/통계/캐릭터 탭 구조로 개편
+- ✨ 소셜 탭 전체 (친구/다이어리/랭킹)에 업적 칭호 표시
+- ✨ 무지개 프레임 실제 6색 애니메이션으로 개선
+- ✨ 하단 시스템 내비게이션 바 테마 연동
+- ✨ 집중 통계 계정 생성일 기반 실제 구간만 표시
+- 🔧 앱 콘텐츠가 하단 시스템 바와 겹치는 문제 수정
+- 🔧 Firestore 보안 규칙 업데이트 (achievement_stats 추가)
+- 🔧 칭호 변경 시 불필요한 다이어리 일괄 업데이트 제거 (서버 비용 최적화)
+
+### v1.5.0 (2026.04.27)
+- ✨ 집중 통계 화면 추가 (일별/주별/월별 막대 차트)
+- ✨ 반복 목표 전체 완료 여부에 따른 XP 표시 개선 (회차 무관 적용)
+- ✨ 토스트 메시지 큐 시스템 (1.5초씩 순서대로 표시)
+- ✨ 반복 목표 마지막 완료 시 달성률 메시지 표시
+- 🔧 앱 최초 설치 시 알림 권한 요청 후 하얀 화면 버그 수정
+
 ### v1.4.1 (2026.04.27)
 - 🔧 알림이 켜진 경우 앱 로딩이 실패하는 버그 수정 (try-finally)
-- 🔧 알림 기본 설정을 ON 상태로 변경하고 앱 최초 실행시 권한 허용을 묻도록 변경
+- 🔧 알림 기본 설정을 ON 상태로 변경, 앱 최초 실행 시 권한 허용을 묻도록 변경
 - 🔧 달력 dot 위치 고정
-- 🔧 현재 회차의 목표를 완료시 획득하는 XP가 실제 획득하는 XP와 다르게 표시되는 문제 수정
-- 🔧 반복 목표의 경우 현재 몇 회차 반복인지 표시하도록 변경
+- 🔧 현재 회차 목표 완료 시 획득 XP 표시 정확도 개선
+- 🔧 반복 목표 현재 회차 표시
 - 🔧 소셜 탭 캐릭터 실시간 동기화
 - 🔧 닉네임/캐릭터 변경 시 기존 다이어리 일괄 업데이트
 - 🔧 Firestore 보안 규칙 업데이트
@@ -189,19 +240,15 @@ diaries/{diaryId}           # 다이어리
 - ✨ 반복 목표 배치 저장 (속도 개선, 500건 자동 분할)
 - ✨ 레벨업 배율 ×1.3 → ×1.15 (레벨업 쉽게 개선)
 - 🔧 하단 탭 랭킹 → 소셜로 교체
- 
+
 ### v1.3.0 (2026.04.24)
 - ✨ XP 획득 방법 선택 UI (기본 설정 / AI 분석)
 - ✨ 반복 목표 XP 시스템 개편 (1회 완료 + 전체 완료 보너스)
 - ✨ 시작일~종료일 기반 목표 유형 자동 분류
 - ✨ 매주/매달 반복 요일·날짜 다중 선택 지원
-- ✨ 시작일/종료일 UI 개선 (박스 크기 확대, ~ 표시 추가)
 - ✨ Gemini API로 1회 완료 XP도 AI 자동 책정
 - ✨ 단일 목표 뱃지 "단일"로 별도 표시
-- ✨ XP 직접 조정 버튼 제거 (기간별 고정값으로 단순화)
-- ✨ 목표 유형 선택 버튼 제거 (날짜 기반 자동 분류)
 - 🔧 Gemini thinking 비활성화로 API 비용 최소화
-- 🔧 XP 획득 방법 레이블 "직접 입력" → "기본 설정" + 아이콘 변경
 
 ### v1.2.4 (2026.04.21)
 - ✨ 푸시 알림 구현 (목표 리마인더, 스트릭 위기 알림)
@@ -211,7 +258,7 @@ diaries/{diaryId}           # 다이어리
 ### v1.2.3 (2026.04.20)
 - ✨ 약관/개인정보 Firebase Hosting 배포
 - ✨ 랭킹 캐릭터 아바타
-- 🔧 XP 중복 처리 버그 수정
+- 🐛 XP 중복 처리 버그 수정
 
 ### v1.2.2 (2026.04.19)
 - ✨ 앱 아이콘 교체
@@ -220,11 +267,13 @@ diaries/{diaryId}           # 다이어리
 ### v1.2.1 (2026.04.18)
 - ✨ Google/카카오 공식 SVG 로그인 아이콘
 - ✨ 홈 목표 완료 취소 버튼
-- 🔧 로그아웃 후 자동 로그인 화면 이동
+- 🐛 로그아웃 후 자동 로그인 화면 이동
 
 - **v1.2.0** - 다크 테마 전체 적용, 파일 분리, 타이머 개선, 토스트 알림, 애니메이션
 - **v1.1.0** - 카카오 로그인, 모달, 푸시 알림, 목표 추가 완성
 - **v1.0.0** - 초기 Flutter 앱 구현
+
+---
 
 ## 🔐 환경 설정
 
