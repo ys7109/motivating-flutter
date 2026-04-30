@@ -16,6 +16,24 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   // 'all' | 'direct' | 'group'
   String _filter = 'all';
+  // 이름 캐시 — uid → 닉네임
+  final Map<String, String> _nameCache = {};
+
+  // names 필드 없는 기존 채팅방용 — 한 번만 Firestore 조회 후 캐시 + 저장
+  Future<String> _resolveName(String chatId, String myUid, String otherUid) async {
+    if (_nameCache.containsKey(otherUid)) return _nameCache[otherUid]!;
+    final snap = await FirebaseFirestore.instance.collection('users').doc(otherUid).get();
+    final mySnap = await FirebaseFirestore.instance.collection('users').doc(myUid).get();
+    final otherName = snap.data()?['name'] as String? ?? '모험가';
+    final myName = mySnap.data()?['name'] as String? ?? '모험가';
+    _nameCache[otherUid] = otherName;
+    // Firestore에 names 필드 저장해서 다음엔 조회 불필요
+    FirebaseFirestore.instance.collection('chats').doc(chatId).update({
+      'names': {myUid: otherName, otherUid: myName},
+    });
+    return otherName;
+  }
+
 
   // 채팅방 나가기 확인
   Future<void> _confirmLeave(BuildContext context, String chatId, String title, String myUid) async {
@@ -200,31 +218,43 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 final unreadMap = (data['unreadCount'] as Map<String, dynamic>?) ?? {};
                 final unread = unreadMap[myUid] as int? ?? 0;
 
-                // 1:1 채팅 — 상대방 정보 로드
+                // 1:1 채팅
                 if (!isGroup) {
                   final otherUid = users.firstWhere((u) => u != myUid, orElse: () => '');
-                  return FutureBuilder<DocumentSnapshot>(
-                    future: FirebaseFirestore.instance.collection('users').doc(otherUid).get(),
-                    builder: (_, userSnap) {
-                      final userData = userSnap.data?.data() as Map<String, dynamic>? ?? {};
-                      // name 필드 사용
-                      final name = userData['name'] as String? ?? '모험가';
-                      final character = userData['character'] as Map<String, dynamic>?;
+                  final namesMap = (data['names'] as Map<String, dynamic>?) ?? {};
+                  final cachedName = namesMap[myUid] as String?;
+
+                  // names 필드 있으면 FutureBuilder 없이 바로 표시
+                  if (cachedName != null) {
+                    return GestureDetector(
+                      onLongPress: () => _showMenu(context, chatId, cachedName, myUid),
+                      child: _ChatTile(
+                        title: cachedName,
+                        lastMsg: lastMsg, lastMsgAt: lastMsgAt,
+                        unread: unread, isGroup: false,
+                        onTap: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => ChatRoomScreen(
+                            chatId: chatId, title: cachedName, memberUids: users,
+                          ),
+                        )),
+                      ),
+                    );
+                  }
+
+                  // names 없는 기존 채팅방 — 한 번만 조회 후 저장
+                  return FutureBuilder<String>(
+                    future: _resolveName(chatId, myUid, otherUid),
+                    builder: (_, snap) {
+                      final name = snap.data ?? _nameCache[otherUid] ?? '...';
                       return GestureDetector(
                         onLongPress: () => _showMenu(context, chatId, name, myUid),
                         child: _ChatTile(
                           title: name,
-                          lastMsg: lastMsg,
-                          lastMsgAt: lastMsgAt,
-                          unread: unread,
-                          isGroup: false,
-                          otherCharacter: character,
+                          lastMsg: lastMsg, lastMsgAt: lastMsgAt,
+                          unread: unread, isGroup: false,
                           onTap: () => Navigator.push(context, MaterialPageRoute(
                             builder: (_) => ChatRoomScreen(
-                              chatId: chatId,
-                              title: name,
-                              otherCharacter: character,
-                              memberUids: users,
+                              chatId: chatId, title: name, memberUids: users,
                             ),
                           )),
                         ),

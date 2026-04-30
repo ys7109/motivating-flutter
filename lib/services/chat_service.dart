@@ -10,20 +10,36 @@ class ChatService {
   String directChatId(String a, String b) =>
       a.compareTo(b) < 0 ? '${a}_$b' : '${b}_$a';
 
-  // 1:1 채팅방 생성 또는 기존 방 반환
+  // 1:1 채팅방 생성 또는 기존 방 반환 — 각자의 화면에 표시할 상대방 이름 저장
   Future<String> getOrCreateDirectChat(String myUid, String otherUid) async {
     final id = directChatId(myUid, otherUid);
     final ref = _db.collection('chats').doc(id);
     if (!(await ref.get()).exists) {
+      // 양쪽 유저 이름 조회해서 저장 (각자 상대방 이름을 names 맵에 저장)
+      final mySnap = await _db.collection('users').doc(myUid).get();
+      final otherSnap = await _db.collection('users').doc(otherUid).get();
+      final myName = mySnap.data()?['name'] as String? ?? '모험가';
+      final otherName = otherSnap.data()?['name'] as String? ?? '모험가';
       await ref.set({
         'type': 'direct',
         'users': [myUid, otherUid],
         'lastMessage': '',
         'lastMessageAt': FieldValue.serverTimestamp(),
         'unreadCount': {myUid: 0, otherUid: 0},
-        // lastReadAt: 각 유저가 마지막으로 읽은 시각 (카카오톡 방식)
         'lastReadAt': {myUid: FieldValue.serverTimestamp(), otherUid: Timestamp.fromMillisecondsSinceEpoch(0)},
+        // 각 유저 입장에서 채팅방 제목 (상대방 이름)
+        'names': {myUid: otherName, otherUid: myName},
       });
+    } else {
+      // 기존 채팅방에 names 없으면 추가
+      final snap = await ref.get();
+      if (snap.data()?['names'] == null) {
+        final mySnap = await _db.collection('users').doc(myUid).get();
+        final otherSnap = await _db.collection('users').doc(otherUid).get();
+        final myName = mySnap.data()?['name'] as String? ?? '모험가';
+        final otherName = otherSnap.data()?['name'] as String? ?? '모험가';
+        await ref.update({'names': {myUid: otherName, otherUid: myName}});
+      }
     }
     return id;
   }
