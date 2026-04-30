@@ -11,6 +11,8 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/notification_service.dart';
 import '../services/diary_service.dart';
+import '../services/activity_notification_service.dart';
+import '../services/chat_service.dart';
 import '../services/friend_service.dart';
 
 class AppProvider extends ChangeNotifier {
@@ -63,6 +65,27 @@ class AppProvider extends ChangeNotifier {
 
   int get unreadMailCount => mailbox.where((m) => !m.read).length;
 
+  // 집중모드 진행 중 여부 — main_nav 탭 전환 경고에 사용
+  bool isFocusing = false;
+
+  // 집중모드 일시정지 콜백 — FocusScreen에서 등록, main_nav 탭 전환 시 호출
+  VoidCallback? onPauseFocus;
+
+  int _unreadNotifCount = 0;
+  int get unreadNotifCount => _unreadNotifCount;
+
+  int _unreadChatCount = 0;
+  int get unreadChatCount => _unreadChatCount;
+  // 소셜 탭 배지 = 알림 + 채팅 미읽음 합산
+  int get unreadSocialCount => _unreadNotifCount + _unreadChatCount;
+
+  Future<void> reloadUnreadNotifCount() async {
+    if (authUser == null) return;
+    _unreadNotifCount = await ActivityNotificationService().getUnreadCount(authUser!.uid);
+    _unreadChatCount = await ChatService().getTotalUnreadCount(authUser!.uid);
+    notifyListeners();
+  }
+
   // 수령 대기 중인 업적 보상 개수
   int get unclaimedAchievementCount {
     if (userData == null) return 0;
@@ -97,7 +120,10 @@ class AppProvider extends ChangeNotifier {
           if (userData != null) {
             await Future.wait([loadGoals(), loadMailbox()]);
             await checkAttendance();
+            await reloadUnreadNotifCount();
             await _checkAllAchievementsSilently();
+            // 로그인 시 FCM 토큰 저장
+            await NotificationService.saveFcmToken(user.uid);
           }
         } else {
           userData = null; goals = []; mailbox = [];
@@ -288,6 +314,15 @@ class AppProvider extends ChangeNotifier {
   }
 
   // 업적 장착/해제
+  // 광고 시청 등으로 부활 아이템 지급
+  Future<void> addReviveItem(int count) async {
+    if (authUser == null || userData == null) return;
+    final newCount = userData!.reviveItem + count;
+    await _db.updateUser(authUser!.uid, {'reviveItem': newCount});
+    userData = userData!.copyWith(reviveItem: newCount);
+    notifyListeners();
+  }
+
   Future<void> equipAchievement(String? achievementId) async {
     if (authUser == null || userData == null) return;
     await _db.updateUser(authUser!.uid, {'equippedAchievement': achievementId});
@@ -598,6 +633,8 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    // 로그아웃 전 FCM 토큰 삭제
+    if (authUser != null) await NotificationService.deleteFcmToken(authUser!.uid);
     await _auth.signOut();
     authUser = null; userData = null; goals = []; mailbox = [];
     notifyListeners();

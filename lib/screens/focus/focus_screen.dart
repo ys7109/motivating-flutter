@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
+import '../../services/friend_service.dart';
 
 class FocusScreen extends StatefulWidget {
   const FocusScreen({super.key});
@@ -97,6 +98,10 @@ class _FocusScreenState extends State<FocusScreen> {
     if (_totalSec == 0) return;
     _elapsedAtStartMs = 0;
     setState(() { _phase = 'running'; _elapsedMs = 0; });
+    // 집중모드 상태 등록
+    context.read<AppProvider>().isFocusing = true;
+    final uid = context.read<AppProvider>().authUser?.uid;
+    if (uid != null) FriendService().setFocusing(uid);
     _tick();
   }
 
@@ -109,6 +114,10 @@ class _FocusScreenState extends State<FocusScreen> {
     _timer?.cancel();
     final mins = _elapsed ~/ 60;
     if (mins > 0) await context.read<AppProvider>().saveFocusSession(mins);
+    // 집중모드 상태 해제
+    context.read<AppProvider>().isFocusing = false;
+    final uid = context.read<AppProvider>().authUser?.uid;
+    if (uid != null) FriendService().clearFocusing(uid);
     if (mounted) setState(() { _phase = 'idle'; _elapsedMs = 0; _elapsedAtStartMs = 0; });
   }
 

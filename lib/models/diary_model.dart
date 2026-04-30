@@ -6,10 +6,11 @@ class DiaryModel {
   final String authorName;
   final Map<String, dynamic> authorCharacter;
   final int authorLevel;
-  final String? authorEquippedAchievement; // 업적 칭호
+  final String? authorEquippedAchievement;
   final String content;
   final String visibility; // private | friends | public
   final int likeCount;
+  final int commentCount;
   final bool likedByMe;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -24,6 +25,7 @@ class DiaryModel {
     required this.content,
     required this.visibility,
     required this.likeCount,
+    this.commentCount = 0,
     required this.likedByMe,
     this.createdAt,
     this.updatedAt,
@@ -34,12 +36,14 @@ class DiaryModel {
       id: id,
       uid: map['uid'] ?? '',
       authorName: map['authorName'] ?? '모험가',
-      authorCharacter: map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
+      authorCharacter: Map<String, dynamic>.from(
+          map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
       authorLevel: map['authorLevel'] ?? 1,
       authorEquippedAchievement: map['authorEquippedAchievement'] as String?,
       content: map['content'] ?? '',
       visibility: map['visibility'] ?? 'private',
       likeCount: map['likeCount'] ?? 0,
+      commentCount: map['commentCount'] ?? 0,
       likedByMe: likedByMe,
       createdAt: map['createdAt'] != null ? (map['createdAt'] as Timestamp).toDate() : null,
       updatedAt: map['updatedAt'] != null ? (map['updatedAt'] as Timestamp).toDate() : null,

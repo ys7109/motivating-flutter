@@ -71,7 +71,7 @@ const _achieveCategories = [
   {'id': 'social', 'label': '소셜',      'emoji': '👥'},
 ];
 const _rainbowColors = [
-  Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFFF00),
+  Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
   Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
 ];
 
@@ -136,24 +136,10 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text('마이', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: context.textPrimary)),
-              Row(children: [
-                _IconBtn(
-                  onTap: () => Navigator.push(context, SlideRightRoute(page: const MailboxScreen())),
-                  child: Stack(clipBehavior: Clip.none, children: [
-                    const Text('📬', style: TextStyle(fontSize: 18)),
-                    if (app.unreadMailCount > 0)
-                      Positioned(top: -4, right: -6, child: Container(
-                        width: 16, height: 16,
-                        decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
-                        child: Center(child: Text('${app.unreadMailCount > 9 ? '9+' : app.unreadMailCount}',
-                            style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
-                      )),
-                  ]),
-                ),
-                const SizedBox(width: 8),
+Row(children: [
                 _IconBtn(
                   onTap: () => Navigator.push(context, SlideRightRoute(page: const SettingsScreen())),
-                  child: const Text('⚙️', style: TextStyle(fontSize: 18)),
+                  child: Icon(Icons.settings_outlined, size: 18, color: context.textSecondary),
                 ),
               ]),
             ]),
@@ -360,13 +346,26 @@ class _RainbowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = 4..strokeCap = StrokeCap.round;
-    for (int i = 0; i < 6; i++) {
-      paint.color = _rainbowColors[i];
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius - 2),
-          (progress + i / 6) * 2 * pi - pi / 2, pi / 3 - 0.05, false, paint);
-    }
+    final radius = size.width / 2 - 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(progress * 2 * pi);
+    canvas.translate(-center.dx, -center.dy);
+    const gradient = SweepGradient(
+      colors: [
+        Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
+        Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
+        Color(0xFFFF0000),
+      ],
+    );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.butt
+      ..shader = gradient.createShader(rect);
+    canvas.drawCircle(center, radius, paint);
+    canvas.restore();
   }
   @override
   bool shouldRepaint(_RainbowPainter old) => old.progress != progress;
@@ -908,12 +907,20 @@ class _RainbowCirclePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 2;
-    final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = 4..strokeCap = StrokeCap.round;
-    for (int i = 0; i < 6; i++) {
-      paint.color = _rainbowColors[i];
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
-          i / 6 * 2 * pi - pi / 2, pi / 3 - 0.05, false, paint);
-    }
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final gradient = const SweepGradient(
+      colors: [
+        Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
+        Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
+        Color(0xFFFF0000),
+      ],
+    );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.butt
+      ..shader = gradient.createShader(rect);
+    canvas.drawCircle(center, radius, paint);
   }
   @override
   bool shouldRepaint(_) => false;

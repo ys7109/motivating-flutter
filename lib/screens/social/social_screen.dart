@@ -8,6 +8,7 @@ import 'feed_tab.dart';
 import 'diary_tab.dart';
 import 'ranking_tab.dart';
 
+
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key});
   @override

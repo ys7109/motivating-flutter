@@ -28,8 +28,52 @@ class _MainNavState extends State<MainNav> {
   ];
 
   void switchTab(int index) {
+    // 집중모드 진행 중 다른 탭으로 이동 시 경고
+    final app = context.read<AppProvider>();
+    if (app.isFocusing && index != 2) {
+      _confirmLeaveFocus(index);
+      return;
+    }
+    _doSwitchTab(index);
+  }
+
+  // 집중모드 종료 확인 다이얼로그
+  void _confirmLeaveFocus(int targetIndex) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: context.modalBg,
+        title: Text('집중 모드 진행 중',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
+                color: context.textPrimary)),
+        content: Text('집중 모드가 진행 중이에요.\n다른 탭으로 이동하면 타이머가 일시정지돼요.',
+            style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.6)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('취소', style: TextStyle(color: context.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // 탭 이동 전 타이머 일시정지
+              context.read<AppProvider>().onPauseFocus?.call();
+              _doSwitchTab(targetIndex);
+            },
+            child: Text('이동', style: TextStyle(color: context.primaryColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _doSwitchTab(int index) {
     setState(() => _currentIndex = index);
+    // 소셜 탭 전환 시 프로필 동기화
     if (index == 3) _syncProfile();
+    // 탭 전환 시 lastActivity 갱신 (3분 타임아웃 리셋)
+    final uid = context.read<AppProvider>().authUser?.uid;
+    if (uid != null) FriendService().updateActivity(uid);
   }
 
   Future<void> _syncProfile() async {
@@ -39,8 +83,8 @@ class _MainNavState extends State<MainNav> {
         'name': app.userData!.name,
         'level': app.userData!.level,
         'character': app.userData!.character.toMap(),
+        'equippedAchievement': app.userData!.equippedAchievement,
       });
-      // 온라인 presence 업데이트
       await FriendService().setOnline(app.authUser!.uid);
     }
   }
@@ -48,7 +92,6 @@ class _MainNavState extends State<MainNav> {
   @override
   void initState() {
     super.initState();
-    // 앱 시작 시 온라인 상태 설정
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final app = context.read<AppProvider>();
       if (app.authUser != null) FriendService().setOnline(app.authUser!.uid);
@@ -57,7 +100,6 @@ class _MainNavState extends State<MainNav> {
 
   @override
   void dispose() {
-    // 앱 종료 시 오프라인 상태 설정
     final app = context.read<AppProvider>();
     if (app.authUser != null) FriendService().setOffline(app.authUser!.uid);
     super.dispose();
@@ -70,7 +112,12 @@ class _MainNavState extends State<MainNav> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
-        if (_currentIndex != 0) { setState(() => _currentIndex = 0); return; }
+        if (_currentIndex != 0) {
+          // 집중모드 탭(2번)에서 뒤로가기는 FocusScreen의 PopScope가 처리
+          // 다른 탭에서 뒤로가기 시 홈으로 이동
+          if (_currentIndex != 2) setState(() => _currentIndex = 0);
+          return;
+        }
         final now = DateTime.now();
         if (_lastBackPressed == null || now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
           _lastBackPressed = now;
@@ -81,7 +128,6 @@ class _MainNavState extends State<MainNav> {
           ));
           return;
         }
-        // 앱 종료 전 오프라인 처리
         if (app.authUser != null) await FriendService().setOffline(app.authUser!.uid);
         SystemNavigator.pop();
       },
@@ -94,8 +140,11 @@ class _MainNavState extends State<MainNav> {
               bottom: 90, left: 24, right: 24,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(color: const Color(0xFF323232), borderRadius: BorderRadius.circular(12)),
-                child: Text(app.toast!, style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.center),
+                decoration: BoxDecoration(
+                    color: const Color(0xFF323232), borderRadius: BorderRadius.circular(12)),
+                child: Text(app.toast!,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    textAlign: TextAlign.center),
               ),
             ),
         ]),
@@ -108,17 +157,21 @@ class _MainNavState extends State<MainNav> {
             child: SizedBox(
               height: 56,
               child: Row(children: [
-                _NavItem(icon: Icons.home_rounded, label: '홈', index: 0, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
-                _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
-                _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i)),
+                // 모든 탭 전환을 switchTab으로 통일 (집중모드 경고 처리)
+                _NavItem(icon: Icons.home_rounded, label: '홈', index: 0,
+                    current: _currentIndex, onTap: switchTab),
+                _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1,
+                    current: _currentIndex, onTap: switchTab),
+                _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2,
+                    current: _currentIndex, onTap: switchTab),
                 _NavItem(
-                  icon: Icons.people_rounded,
-                  label: '소셜',
-                  index: 3,
+                  icon: Icons.people_rounded, label: '소셜', index: 3,
                   current: _currentIndex,
-                  onTap: (i) { setState(() => _currentIndex = i); _syncProfile(); },
+                  onTap: switchTab,
+                  badge: app.unreadSocialCount, // 알림 + 채팅 미읽음 합산 배지
                 ),
-                _NavItem(icon: Icons.person_rounded, label: '마이', index: 4, current: _currentIndex, onTap: (i) => setState(() => _currentIndex = i), badge: app.unreadMailCount),
+                _NavItem(icon: Icons.person_rounded, label: '마이', index: 4,
+                    current: _currentIndex, onTap: switchTab),
               ]),
             ),
           ),
@@ -135,7 +188,8 @@ class _NavItem extends StatelessWidget {
   final ValueChanged<int> onTap;
   final int badge;
 
-  const _NavItem({required this.icon, required this.label, required this.index, required this.current, required this.onTap, this.badge = 0});
+  const _NavItem({required this.icon, required this.label, required this.index,
+      required this.current, required this.onTap, this.badge = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +206,8 @@ class _NavItem extends StatelessWidget {
                 width: 14, height: 14,
                 decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
                 child: Center(child: Text(badge > 9 ? '9+' : '$badge',
-                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
+                    style: const TextStyle(color: Colors.white, fontSize: 8,
+                        fontWeight: FontWeight.bold))),
               )),
           ]),
           const SizedBox(height: 3),

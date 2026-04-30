@@ -55,7 +55,7 @@ Color? frameColor(String? frame) {
 }
 
 const _rainbowColors = [
-  Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFFF00),
+  Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
   Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
 ];
 
@@ -187,13 +187,27 @@ class _RainbowPainter extends CustomPainter {
   void paint(Canvas canvas, Size s) {
     final center = Offset(s.width / 2, s.height / 2);
     final radius = s.width / 2 - 1;
-    final strokeW = size * 0.06;
-    final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = strokeW..strokeCap = StrokeCap.round;
-    for (int i = 0; i < 6; i++) {
-      paint.color = _rainbowColors[i];
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
-          (progress + i / 6) * 2 * pi - pi / 2, pi / 3 - 0.05, false, paint);
-    }
+    final strokeW = size * 0.07;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    // 캔버스를 회전시켜서 무지개가 돌아가는 효과
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(progress * 2 * pi);
+    canvas.translate(-center.dx, -center.dy);
+    final gradient = const SweepGradient(
+      colors: [
+        Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
+        Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
+        Color(0xFFFF0000),
+      ],
+    );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW
+      ..strokeCap = StrokeCap.butt
+      ..shader = gradient.createShader(rect);
+    canvas.drawCircle(center, radius, paint);
+    canvas.restore();
   }
   @override
   bool shouldRepaint(_RainbowPainter old) => old.progress != progress;

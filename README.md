@@ -1,23 +1,23 @@
 # Motivating 🎮
-
+ 
 > 목표를 게임처럼. 생산성 gamification Android 앱
-
+ 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
-[![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.6.0-green)]()
-
+[![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage%20%7C%20Messaging-orange)](https://firebase.google.com)
+[![Version](https://img.shields.io/badge/version-1.7.0-green)]()
+ 
 ---
-
+ 
 ## 📱 스크린샷
-
+ 
 | 홈 | 목표 추가 | 소셜 | 집중 타이머 |
 |---|---|---|---|
 | - | - | - | - |
-
+ 
 ---
-
+ 
 ## ✨ 주요 기능
-
+ 
 ### 🎯 목표 관리
 - 단일 목표 및 반복 목표 (매일/매주/매달) 생성
 - 매주/매달 반복 시 요일·날짜 **다중 선택** 지원
@@ -26,65 +26,71 @@
 - **반복 목표 XP 시스템**: 1회 완료 시 단기 기준 XP 지급 + 전체 완료 시 보너스 XP 추가 지급
 - 반복 목표 배치 저장으로 대량 생성 속도 개선
 - 단일 목표는 별도 "단일" 뱃지로 표시
-
 ### 🤖 AI XP 분석
 - Gemini 2.5 Flash API 기반 목표 난이도 자동 분석
 - 목표 제목과 기간을 분석해 XP 자동 책정 (전체 완료 보너스 + 1회 완료 XP 동시 책정)
 - thinking 비활성화(`thinkingBudget: 0`)로 비용 최소화
-
+### 💬 채팅
+- **1:1 채팅** 및 **그룹 채팅** 지원
+- 이모지 반응 (👍 ❤️ 😂 😮 😢 😡)
+- `lastReadAt` 기반 실시간 읽음 표시 (카카오톡 방식)
+- 새 메시지 미읽음 배지
 ### 👥 소셜
-- **친구 탭**: 닉네임 검색 또는 랭킹에서 친구 추가, 실시간 접속 상태 표시, 친구 랭킹
+- **친구 탭**: 닉네임 검색, 실시간 접속 상태 표시, 친구 랭킹
+  - 접속 중 (초록) / 집중모드 실행중 (노란) / 오프라인 (회색)
+  - 3분 이상 비활동 시 자동 오프라인 처리
 - **피드 탭**: 친구의 목표 달성 활동 피드
-- **다이어리 탭**: 내 다이어리 / 친구 공개 / 전체 공개 다이어리, 좋아요 기능
-- **랭킹 탭**: 전체 집중 시간 랭킹, 프로필에서 친구 추가
+- **다이어리 탭**: 다이어리 작성/댓글/대댓글/좋아요
+- **랭킹 탭**: 전체 집중 시간 랭킹
 - 친구/다이어리/랭킹에서 업적 칭호 표시
-
+### 🔔 활동 알림 (FCM)
+- 친구 요청 / 수락 알림
+- 댓글 / 대댓글 / 좋아요 알림
+- 채팅 메시지 알림
+- 앱 포그라운드: 인앱 배너 표시
+- 앱 백그라운드/종료: 시스템 알림 표시
+- Cloud Functions 기반 서버 발송
 ### 🔥 연속 출석 일수
 - 연속 출석 일수 추적
 - 7/14/30/60/100/365일 마일스톤 보상
 - 스트릭 복구 아이템 및 광고 시청 복구
-
 ### ⏱ 집중 타이머 & 통계
 - 포모도로 스타일 집중 세션
 - 백그라운드/화면 꺼짐 상태에서도 정확한 타이머
+- 다른 탭 이동 시 타이머 일시정지 경고
 - 집중 시간 누적 통계 및 랭킹 반영
-- **집중 통계 화면**: 일별/주별/월별 막대 차트, 계정 생성일 기반 실제 구간만 표시
-
+- **집중 통계 화면**: 일별/주별/월별 막대 차트
 ### 🏆 업적 시스템
 - 목표/연속 출석/집중/레벨/소셜 5개 카테고리, 총 19개 업적
 - 입문/일반/고급/전설 난이도별 XP 보상 차등 지급
 - 업적 달성 시 전용 스킨 해금 (19종)
 - 전체 유저 달성률 표시
 - 업적 칭호 장착 기능 (닉네임 아래 표시)
-- 로그인 시 기존 달성 조건 자동 체크
-
 ### 📬 우편함
 - 출석/마일스톤 보상 수령
 - XP 및 부활 아이템 지급
-
 ### 🎨 캐릭터 커스터마이징
 - 레벨 기반 스킨/뱃지/프레임 선택
 - 업적 달성 시 전용 스킨 해금 (19종)
 - 무지개 프레임 실제 6색 애니메이션
-- 변경 시 랭킹·소셜에 즉시 반영
-
 ---
-
+ 
 ## 🏗 기술 스택
-
+ 
 | 분류 | 기술 |
 |---|---|
 | Framework | Flutter 3.x |
 | Backend | Firebase (Firestore, Auth, Storage, Messaging) |
+| Functions | Firebase Cloud Functions v2 (Node.js) |
 | AI | Google Gemini 2.5 Flash API |
 | 상태관리 | Provider |
 | 로그인 | Google, Kakao OAuth |
-| 알림 | flutter_local_notifications |
-
+| 알림 | FCM + flutter_local_notifications |
+ 
 ---
-
+ 
 ## 📂 프로젝트 구조
-
+ 
 ```
 lib/
 ├── config.dart
@@ -95,11 +101,14 @@ lib/
 │   ├── mail_model.dart
 │   ├── friend_model.dart
 │   ├── diary_model.dart
+│   ├── notification_model.dart
 │   └── achievement_definitions.dart
 ├── services/
 │   ├── auth_service.dart
 │   ├── firestore_service.dart
 │   ├── notification_service.dart
+│   ├── activity_notification_service.dart
+│   ├── chat_service.dart
 │   ├── friend_service.dart
 │   └── diary_service.dart
 ├── providers/
@@ -117,26 +126,30 @@ lib/
 │   │   ├── feed_tab.dart
 │   │   ├── diary_tab.dart
 │   │   ├── ranking_tab.dart
+│   │   ├── chat_room_screen.dart
 │   │   └── character_avatar.dart
 │   └── my/
 │       ├── my_screen.dart
 │       ├── focus_stats_screen.dart
-│       ├── mailbox_screen.dart
+│       ├── activity_notification_screen.dart
 │       ├── settings_screen.dart
 │       └── in_app_web_view.dart
 └── widgets/
     ├── main_nav.dart
     └── level_up_modal.dart
-
+ 
+functions/
+└── index.js      ← Cloud Functions (FCM 알림 트리거)
+ 
 web_hosting/
 ├── privacy.html
 └── terms.html
 ```
-
+ 
 ---
-
+ 
 ## 💎 XP 시스템
-
+ 
 ### 기본 설정 (고정 XP)
 | 목표 유형 | 기간 | XP |
 |---|---|---|
@@ -144,12 +157,11 @@ web_hosting/
 | 중기 | 31~180일 | 300 XP |
 | 장기 | 181일+ | 600 XP |
 | 단일 목표 | - | 100 XP |
-
+ 
 ### 반복 목표 XP
 - **1회 완료 시**: 100 XP (항상 단기 기준)
 - **전체 완료 시**: 책정 XP 추가 지급 (단기 100 / 중기 300 / 장기 600)
 - AI 분석 시 1회 완료 XP도 AI가 난이도에 맞게 책정
-
 ### 업적 보상 XP
 | 난이도 | XP |
 |---|---|
@@ -157,21 +169,20 @@ web_hosting/
 | 일반 | 100 XP |
 | 고급 | 300 XP |
 | 전설 | 600 XP |
-
+ 
 ### 레벨업 시스템
 - 시작 xpToNext: 100 XP
 - 레벨업마다 ×1.15 배율로 증가
-
 ---
-
+ 
 ## 🚀 설치 및 실행
-
+ 
 ```bash
 flutter pub get
 flutter run
 flutter build apk --release
 ```
-
+ 
 ### 필수 설정
 1. `lib/config.dart` 생성 (gitignore 포함)
 ```dart
@@ -181,22 +192,48 @@ class Config {
 ```
 2. `google-services.json` → `android/app/`
 3. Firebase Console SHA-1 등록
-
+### Cloud Functions 배포
+```bash
+cd functions
+npm install
+cd ..
+firebase deploy --only functions
+```
+ 
 ### Firestore 컬렉션 구조
 ```
+users/{uid}/
 users/{uid}/goals/
 users/{uid}/mailbox/
 users/{uid}/focusSessions/
+users/{uid}/notifications/
 rankings/{uid}
 friendships/{uid_a}_{uid_b}
 presence/{uid}
 diaries/{diaryId}
+diaries/{diaryId}/comments/{commentId}
+diaries/{diaryId}/comments/{commentId}/replies/{replyId}
+chats/{chatId}
+chats/{chatId}/messages/{msgId}
 achievement_stats/{achievementId}
 ```
-
+ 
 ---
-
+ 
 ## 📋 버전 히스토리
+ 
+### v1.7.0 (2026.04.30)
+- ✨ 1:1 채팅 및 그룹 채팅 기능 추가
+- ✨ 채팅 이모지 반응 (6종)
+- ✨ `lastReadAt` 기반 실시간 읽음 표시 (카카오톡 방식)
+- ✨ FCM 푸시 알림 연동 (친구 요청/수락, 댓글/좋아요, 채팅)
+- ✨ Cloud Functions v2 기반 알림 서버 발송
+- ✨ 다이어리 댓글 및 대댓글 기능
+- ✨ 친구 접속 상태 개선 (3분 비활동 → 오프라인, 집중모드 실행중 표시)
+- ✨ 집중모드 탭 전환 경고 및 타이머 자동 일시정지
+- 🔧 채팅창 키보드 올라올 때 스크롤 위치 고정
+- 🔧 채팅창 깜빡임 수정 (StreamBuilder 단일화)
+- 🔧 반응 선택창 시스템 하단바 겹침 수정
 
 ### v1.6.0 (2026.04.28)
 - ✨ 업적 시스템 (19개 업적, 5개 카테고리, 난이도별 XP 보상)
