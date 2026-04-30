@@ -5,6 +5,7 @@ import '../../utils/transitions.dart';
 import '../../providers/app_provider.dart';
 import '../../models/goal_model.dart';
 import '../../widgets/tap_scale.dart';
+import '../../widgets/level_up_modal.dart' hide mainNavKey;
 import 'add_goal_screen.dart';
 
 const _weekDays = ['일', '월', '화', '수', '목', '금', '토'];
@@ -54,11 +55,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
     }
   }
 
-  // 이 목표를 완료하면 전체가 완료되는지 여부 계산 (회차 무관)
   bool _willAllDone(GoalModel g, List<GoalModel> allGoals) {
     if (g.repeatId == null) return false;
     final repeatGoals = allGoals.where((r) => r.repeatId == g.repeatId).toList();
-    // 이 목표 제외한 나머지가 모두 완료인지 확인
     return repeatGoals.where((r) => r.id != g.id).every((r) => r.done);
   }
 
@@ -252,6 +251,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
             onDeleteOne: () { app.removeGoal(_deleteModal!['goalId']); setState(() => _deleteModal = null); },
             onCancel: () => setState(() => _deleteModal = null),
           ),
+
+        // 레벨업 모달 — home_screen과 동일한 방식
+        if (app.levelUpTo != null)
+          LevelUpModal(level: app.levelUpTo!, onClose: () => app.dismissLevelUp()),
       ]),
     );
   }
@@ -307,9 +310,6 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
     final tagLabel = g.type == 'short' ? '단기' : g.type == 'mid' ? '중기' : '장기';
     final isRepeat = g.repeatId != null;
 
-    // 이 목표 완료 시 전체 완료 → repeatXp + xp
-    // 아니면 → repeatXp
-    // 단일 → xp
     final displayXp = isRepeat
         ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp)
         : g.xp;

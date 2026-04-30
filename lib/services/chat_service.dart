@@ -128,6 +128,54 @@ class ChatService {
     return total;
   }
 
+  // 내가 참여한 채팅방 목록 실시간 스트림 (클라이언트에서 정렬)
+  Stream<QuerySnapshot> chatListStream(String uid) {
+    return _db.collection('chats')
+        .where('users', arrayContains: uid)
+        .snapshots();
+  }
+
+  // 채팅방 나가기 — users 배열에서 제거, 비면 문서 삭제
+  Future<void> leaveChat(String chatId, String myUid) async {
+    final ref = _db.collection('chats').doc(chatId);
+    final snap = await ref.get();
+    if (!snap.exists) return;
+    final users = List<String>.from(snap.data()?['users'] ?? []);
+    users.remove(myUid);
+    if (users.isEmpty) {
+      // 모든 멤버가 나가면 채팅방 + 메시지 삭제
+      final msgs = await ref.collection('messages').get();
+      final batch = _db.batch();
+      for (final m in msgs.docs) batch.delete(m.reference);
+      batch.delete(ref);
+      await batch.commit();
+    } else {
+      await ref.update({
+        'users': users,
+        'unreadCount.$myUid': FieldValue.delete(),
+        'lastReadAt.$myUid': FieldValue.delete(),
+      });
+    }
+  }
+
+  // 채팅방 이름 변경 (그룹 채팅만)
+  Future<void> renameChat(String chatId, String newName) async {
+    await _db.collection('chats').doc(chatId).update({'name': newName});
+  }
+
+  // 그룹 채팅 멤버 추가
+  Future<void> addMembers(String chatId, List<String> newUids) async {
+    if (newUids.isEmpty) return;
+    final updates = <String, dynamic>{
+      'users': FieldValue.arrayUnion(newUids),
+    };
+    for (final uid in newUids) {
+      updates['unreadCount.$uid'] = 0;
+      updates['lastReadAt.$uid'] = Timestamp.fromMillisecondsSinceEpoch(0);
+    }
+    await _db.collection('chats').doc(chatId).update(updates);
+  }
+
   // 전체 미읽음 실시간 스트림
   Stream<int> unreadCountStream(String uid) {
     return _db.collection('chats').where('users', arrayContains: uid).snapshots().map((snap) {

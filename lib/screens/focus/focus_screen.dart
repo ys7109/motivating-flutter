@@ -42,6 +42,10 @@ class _FocusScreenState extends State<FocusScreen> {
   @override
   void initState() {
     super.initState();
+    // 탭 전환 시 타이머 일시정지 콜백 등록 — main_nav에서 호출
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppProvider>().onPauseFocus = _pauseFromOutside;
+    });
     _lifecycleSub = _lifecycleChannel.receiveBroadcastStream().listen((event) {
       if (event == 'app_switch') {
         if (_phase == 'running') {
@@ -62,9 +66,16 @@ class _FocusScreenState extends State<FocusScreen> {
 
   @override
   void dispose() {
+    // 콜백 해제
+    context.read<AppProvider>().onPauseFocus = null;
     _timer?.cancel();
     _lifecycleSub?.cancel();
     super.dispose();
+  }
+
+  // 외부(main_nav)에서 탭 전환 시 호출되는 일시정지
+  void _pauseFromOutside() {
+    if (_phase == 'running') _pause();
   }
 
   int get _realtimeXp { final mins = _elapsed ~/ 60; return mins + (mins ~/ 10) * 10; }
@@ -105,10 +116,17 @@ class _FocusScreenState extends State<FocusScreen> {
     _tick();
   }
 
-  void _pause() { _timer?.cancel(); _elapsedAtStartMs = _elapsedMs; setState(() => _phase = 'paused'); }
-  void _resume() { setState(() => _phase = 'running'); _tick(); }
+  void _pause() { _timer?.cancel(); _elapsedAtStartMs = _elapsedMs; setState(() => _phase = 'paused'); context.read<AppProvider>().isFocusing = false; }
+  void _resume() { setState(() => _phase = 'running'); context.read<AppProvider>().isFocusing = true; _tick(); }
 
-  void _onDone() { _timer?.cancel(); setState(() { _phase = 'done'; _elapsedMs = _totalSec * 1000; }); }
+  void _onDone() {
+    _timer?.cancel();
+    // 집중 완료 시 isFocusing 해제
+    context.read<AppProvider>().isFocusing = false;
+    final uid = context.read<AppProvider>().authUser?.uid;
+    if (uid != null) FriendService().clearFocusing(uid);
+    setState(() { _phase = 'done'; _elapsedMs = _totalSec * 1000; });
+  }
 
   Future<void> _finish() async {
     _timer?.cancel();
@@ -149,6 +167,7 @@ class _FocusScreenState extends State<FocusScreen> {
 
     return PopScope(
       canPop: _phase == 'idle',
+      // 뒤로가기 시 집중모드 종료 확인 팝업만 표시
       onPopInvokedWithResult: (didPop, _) { if (!didPop && _isActive) setState(() => _exitPopup = true); },
       child: Scaffold(
         backgroundColor: context.bgColor,

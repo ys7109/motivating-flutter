@@ -30,6 +30,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final _chatService = ChatService();
   final _msgCtrl = TextEditingController();
   String? _myUid;
+  late String _title; // 이름 변경 반영을 위해 state로 관리
 
   // lastReadAt 캐시 — 메시지 스트림 rebuild 시 불필요한 Firestore 호출 방지
   Map<String, DateTime> _lastReadAt = {};
@@ -38,6 +39,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void initState() {
     super.initState();
     _myUid = context.read<AppProvider>().authUser!.uid;
+    _title = widget.title;
     _initChat();
   }
 
@@ -92,6 +94,224 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.dispose();
   }
 
+  // 설정 바텀시트
+  void _showSettings(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: context.modalBg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        final bottomPad = MediaQuery.of(ctx).padding.bottom;
+        return Padding(
+        padding: EdgeInsets.fromLTRB(0, 16, 0, bottomPad + 16),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: context.borderColor,
+                  borderRadius: BorderRadius.circular(99))),
+          const SizedBox(height: 16),
+          // 채팅방 이름 변경 (1:1, 그룹 모두)
+          ListTile(
+            leading: Icon(Icons.edit_outlined, color: context.textPrimary),
+            title: Text('채팅방 이름 변경',
+                style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500)),
+            onTap: () { Navigator.pop(context); _showRenameDialog(context); },
+          ),
+          // 멤버 추가 (그룹만)
+          if (widget.isGroup)
+            ListTile(
+              leading: Icon(Icons.person_add_outlined, color: context.textPrimary),
+              title: Text('멤버 추가',
+                  style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500)),
+              onTap: () { Navigator.pop(context); _showAddMemberDialog(context); },
+            ),
+          // 채팅방 나가기
+          ListTile(
+            leading: const Icon(Icons.exit_to_app_rounded, color: AppTheme.danger),
+            title: const Text('채팅방 나가기',
+                style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w500)),
+            onTap: () { Navigator.pop(context); _confirmLeave(context); },
+          ),
+        ]),
+      );},
+    );
+  }
+
+  // 채팅방 이름 변경 다이얼로그
+  Future<void> _showRenameDialog(BuildContext context) async {
+    final ctrl = TextEditingController(text: _title);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: context.modalBg,
+        title: Text('채팅방 이름 변경', style: TextStyle(fontSize: 16,
+            fontWeight: FontWeight.w600, color: context.textPrimary)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          style: TextStyle(fontSize: 14, color: context.textPrimary),
+          decoration: InputDecoration(
+            hintText: '채팅방 이름을 입력하세요',
+            hintStyle: TextStyle(color: context.textSecondary),
+            enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: context.borderColor)),
+            focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: context.primaryColor)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context),
+              child: Text('취소', style: TextStyle(color: context.textSecondary))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: Text('변경', style: TextStyle(color: context.primaryColor)),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (newName != null && newName.isNotEmpty && newName != _title) {
+      await _chatService.renameChat(widget.chatId, newName);
+      if (mounted) setState(() => _title = newName);
+    }
+  }
+
+  // 멤버 추가 다이얼로그 — 친구 목록에서 선택
+  Future<void> _showAddMemberDialog(BuildContext context) async {
+    final app = context.read<AppProvider>();
+    // 현재 채팅방 문서에서 최신 멤버 목록 가져오기
+    final chatSnap = await FirebaseFirestore.instance
+        .collection('chats').doc(widget.chatId).get();
+    final currentMembers = List<String>.from(chatSnap.data()?['users'] ?? widget.memberUids);
+
+    // Firestore에서 친구 목록 직접 조회
+    final friendships = await FirebaseFirestore.instance
+        .collection('friendships')
+        .where('users', arrayContains: _myUid)
+        .where('status', isEqualTo: 'accepted')
+        .get();
+    final friendUids = friendships.docs.map((d) {
+      final users = List<String>.from(d['users']);
+      return users.firstWhere((u) => u != _myUid, orElse: () => '');
+    }).where((uid) => uid.isNotEmpty && !currentMembers.contains(uid)).toList();
+
+    if (friendUids.isEmpty) {
+      if (mounted) app.showToast('추가할 수 있는 친구가 없어요');
+      return;
+    }
+
+    // 친구 정보 로드
+    final friendDocs = await Future.wait(
+      friendUids.map((uid) => FirebaseFirestore.instance.collection('users').doc(uid).get())
+    );
+    final friends = friendDocs.where((d) => d.exists).map((d) => {
+      'uid': d.id, ...d.data()!
+    }).toList();
+
+    if (!mounted) return;
+    final selected = <String>{};
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.modalBg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          final bottomPad = MediaQuery.of(ctx).padding.bottom;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPad + 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('멤버 추가 (${selected.length}명 선택)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
+                        color: ctx.textPrimary)),
+                GestureDetector(onTap: () => Navigator.pop(ctx),
+                    child: Text('×', style: TextStyle(fontSize: 24, color: ctx.textSecondary))),
+              ]),
+              const SizedBox(height: 12),
+              // 친구 목록
+              ...friends.map((f) {
+                final uid = f['uid'] as String;
+                final isSelected = selected.contains(uid);
+                return GestureDetector(
+                  onTap: () => setModal(() {
+                    if (isSelected) selected.remove(uid); else selected.add(uid);
+                  }),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? ctx.primaryColor.withOpacity(0.08) : ctx.surfaceColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? ctx.primaryColor : ctx.borderColor,
+                        width: isSelected ? 1.5 : 0.5,
+                      ),
+                    ),
+                    child: Row(children: [
+                      Expanded(child: Text(f['name'] as String? ?? '모험가',
+                          style: TextStyle(fontSize: 14, color: ctx.textPrimary))),
+                      if (isSelected) Icon(Icons.check_circle, size: 18, color: ctx.primaryColor),
+                    ]),
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              // 추가 버튼
+              GestureDetector(
+                onTap: selected.isEmpty ? null : () async {
+                  await _chatService.addMembers(widget.chatId, selected.toList());
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (mounted) app.showToast('${selected.length}명을 추가했어요');
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: selected.isEmpty ? ctx.borderColor : ctx.primaryColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(child: Text('추가하기',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                          color: selected.isEmpty ? ctx.textSecondary
+                              : (ctx.isDark ? Colors.black : Colors.white)))),
+                ),
+              ),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
+  // 채팅방 나가기 확인
+  Future<void> _confirmLeave(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: context.modalBg,
+        title: Text('채팅방 나가기', style: TextStyle(fontSize: 16,
+            fontWeight: FontWeight.w600, color: context.textPrimary)),
+        content: Text('"$_title" 채팅방에서 나가시겠어요?',
+            style: TextStyle(fontSize: 13, color: context.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: Text('취소', style: TextStyle(color: context.textSecondary))),
+          TextButton(onPressed: () => Navigator.pop(context, true),
+              child: const Text('나가기', style: TextStyle(color: AppTheme.danger))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _chatService.leaveChat(widget.chatId, _myUid!);
+      if (mounted) {
+        context.read<AppProvider>().showToast('채팅방에서 나갔어요');
+        Navigator.pop(context);
+      }
+    }
+  }
+
   Future<void> _send() async {
     final content = _msgCtrl.text.trim();
     if (content.isEmpty) return;
@@ -141,12 +361,21 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 CharacterAvatar(character: widget.otherCharacter, size: 36),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(widget.title, style: TextStyle(fontSize: 16,
+                Text(_title, style: TextStyle(fontSize: 16,
                     fontWeight: FontWeight.w600, color: context.textPrimary)),
                 if (widget.isGroup)
                   Text('${widget.memberUids.length}명',
                       style: TextStyle(fontSize: 11, color: context.textSecondary)),
               ])),
+              // 설정 버튼
+              GestureDetector(
+                onTap: () => _showSettings(context),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Icon(Icons.more_vert_rounded, size: 22, color: context.textSecondary),
+                ),
+              ),
             ]),
           ),
 

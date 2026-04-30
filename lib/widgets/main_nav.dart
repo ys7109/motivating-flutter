@@ -28,7 +28,6 @@ class _MainNavState extends State<MainNav> {
   ];
 
   void switchTab(int index) {
-    // 집중모드 진행 중 다른 탭으로 이동 시 경고
     final app = context.read<AppProvider>();
     if (app.isFocusing && index != 2) {
       _confirmLeaveFocus(index);
@@ -37,7 +36,6 @@ class _MainNavState extends State<MainNav> {
     _doSwitchTab(index);
   }
 
-  // 집중모드 종료 확인 다이얼로그
   void _confirmLeaveFocus(int targetIndex) {
     showDialog(
       context: context,
@@ -56,7 +54,6 @@ class _MainNavState extends State<MainNav> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              // 탭 이동 전 타이머 일시정지
               context.read<AppProvider>().onPauseFocus?.call();
               _doSwitchTab(targetIndex);
             },
@@ -69,9 +66,7 @@ class _MainNavState extends State<MainNav> {
 
   void _doSwitchTab(int index) {
     setState(() => _currentIndex = index);
-    // 소셜 탭 전환 시 프로필 동기화
     if (index == 3) _syncProfile();
-    // 탭 전환 시 lastActivity 갱신 (3분 타임아웃 리셋)
     final uid = context.read<AppProvider>().authUser?.uid;
     if (uid != null) FriendService().updateActivity(uid);
   }
@@ -108,18 +103,48 @@ class _MainNavState extends State<MainNav> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
+    final isLevelUp = app.levelUpTo != null;
+
+    // 하단 네비게이션 바 — 레벨업 시 딤 처리
+    final navBar = Container(
+      decoration: BoxDecoration(
+        color: isLevelUp
+            ? context.surfaceColor.withOpacity(0.3) // 레벨업 시 흐리게
+            : context.surfaceColor,
+        border: Border(top: BorderSide(color: context.borderColor, width: 0.5)),
+      ),
+      child: SafeArea(
+        child: SizedBox(
+          height: 56,
+          child: Row(children: [
+            _NavItem(icon: Icons.home_rounded, label: '홈', index: 0,
+                current: _currentIndex, onTap: switchTab),
+            _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1,
+                current: _currentIndex, onTap: switchTab),
+            _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2,
+                current: _currentIndex, onTap: switchTab),
+            _NavItem(
+              icon: Icons.people_rounded, label: '소셜', index: 3,
+              current: _currentIndex, onTap: switchTab,
+              badge: app.unreadSocialCount,
+            ),
+            _NavItem(icon: Icons.person_rounded, label: '마이', index: 4,
+                current: _currentIndex, onTap: switchTab),
+          ]),
+        ),
+      ),
+    );
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (_currentIndex != 0) {
-          // 집중모드 탭(2번)에서 뒤로가기는 FocusScreen의 PopScope가 처리
-          // 다른 탭에서 뒤로가기 시 홈으로 이동
           if (_currentIndex != 2) setState(() => _currentIndex = 0);
           return;
         }
         final now = DateTime.now();
-        if (_lastBackPressed == null || now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
+        if (_lastBackPressed == null ||
+            now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
           _lastBackPressed = now;
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('한 번 더 누르면 종료됩니다'),
@@ -135,47 +160,27 @@ class _MainNavState extends State<MainNav> {
         backgroundColor: context.bgColor,
         body: Stack(children: [
           IndexedStack(index: _currentIndex, children: _screens),
+          // 토스트
           if (app.toast != null)
             Positioned(
-              bottom: 90, left: 24, right: 24,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(
-                    color: const Color(0xFF323232), borderRadius: BorderRadius.circular(12)),
-                child: Text(app.toast!,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    textAlign: TextAlign.center),
+              bottom: 100, left: 24, right: 24,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF323232),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(app.toast!,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      textAlign: TextAlign.center),
+                ),
               ),
             ),
         ]),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: context.surfaceColor,
-            border: Border(top: BorderSide(color: context.borderColor, width: 0.5)),
-          ),
-          child: SafeArea(
-            child: SizedBox(
-              height: 56,
-              child: Row(children: [
-                // 모든 탭 전환을 switchTab으로 통일 (집중모드 경고 처리)
-                _NavItem(icon: Icons.home_rounded, label: '홈', index: 0,
-                    current: _currentIndex, onTap: switchTab),
-                _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1,
-                    current: _currentIndex, onTap: switchTab),
-                _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2,
-                    current: _currentIndex, onTap: switchTab),
-                _NavItem(
-                  icon: Icons.people_rounded, label: '소셜', index: 3,
-                  current: _currentIndex,
-                  onTap: switchTab,
-                  badge: app.unreadSocialCount, // 알림 + 채팅 미읽음 합산 배지
-                ),
-                _NavItem(icon: Icons.person_rounded, label: '마이', index: 4,
-                    current: _currentIndex, onTap: switchTab),
-              ]),
-            ),
-          ),
-        ),
+        // 레벨업 시 하단바도 딤 처리된 버전으로 교체
+        bottomNavigationBar: navBar,
       ),
     );
   }
@@ -188,8 +193,10 @@ class _NavItem extends StatelessWidget {
   final ValueChanged<int> onTap;
   final int badge;
 
-  const _NavItem({required this.icon, required this.label, required this.index,
-      required this.current, required this.onTap, this.badge = 0});
+  const _NavItem({
+    required this.icon, required this.label, required this.index,
+    required this.current, required this.onTap, this.badge = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -200,11 +207,13 @@ class _NavItem extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Stack(clipBehavior: Clip.none, children: [
-            Icon(icon, size: 24, color: isActive ? context.primaryColor : const Color(0xFFBDBDBD)),
+            Icon(icon, size: 24,
+                color: isActive ? context.primaryColor : const Color(0xFFBDBDBD)),
             if (badge > 0)
               Positioned(top: -4, right: -6, child: Container(
                 width: 14, height: 14,
-                decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                    color: AppTheme.danger, shape: BoxShape.circle),
                 child: Center(child: Text(badge > 9 ? '9+' : '$badge',
                     style: const TextStyle(color: Colors.white, fontSize: 8,
                         fontWeight: FontWeight.bold))),

@@ -4,7 +4,7 @@
  
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage%20%7C%20Messaging-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.7.0-green)]()
+[![Version](https://img.shields.io/badge/version-1.7.1-green)]()
  
 ---
  
@@ -35,10 +35,14 @@
 - 이모지 반응 (👍 ❤️ 😂 😮 😢 😡)
 - `lastReadAt` 기반 실시간 읽음 표시 (카카오톡 방식)
 - 새 메시지 미읽음 배지
+- 채팅 목록에서 1:1 / 그룹 필터링
+- 채팅방 이름 변경, 나가기, 멤버 추가 (그룹)
+- 꾹 눌러서 채팅방 설정 메뉴 표시
 ### 👥 소셜
 - **친구 탭**: 닉네임 검색, 실시간 접속 상태 표시, 친구 랭킹
   - 접속 중 (초록) / 집중모드 실행중 (노란) / 오프라인 (회색)
   - 3분 이상 비활동 시 자동 오프라인 처리
+- **채팅 탭**: 채팅 목록 (1:1/그룹 필터)
 - **피드 탭**: 친구의 목표 달성 활동 피드
 - **다이어리 탭**: 다이어리 작성/댓글/대댓글/좋아요
 - **랭킹 탭**: 전체 집중 시간 랭킹
@@ -117,6 +121,7 @@ lib/
 │   ├── auth/login_screen.dart
 │   ├── home/home_screen.dart
 │   ├── goals/
+│   │   ├── goals_screen.dart
 │   │   ├── add_goal_screen.dart
 │   │   └── goal_pickers.dart
 │   ├── focus/focus_screen.dart
@@ -126,6 +131,7 @@ lib/
 │   │   ├── feed_tab.dart
 │   │   ├── diary_tab.dart
 │   │   ├── ranking_tab.dart
+│   │   ├── chat_list_screen.dart
 │   │   ├── chat_room_screen.dart
 │   │   └── character_avatar.dart
 │   └── my/
@@ -221,6 +227,18 @@ achievement_stats/{achievementId}
 ---
  
 ## 📋 버전 히스토리
+ 
+### v1.7.1 (2026.04.30)
+- ✨ 채팅 목록 화면 추가 (소셜 탭 내 채팅 탭)
+- ✨ 채팅 목록 1:1 / 그룹 필터링
+- ✨ 채팅방 이름 변경 (1:1, 그룹 모두)
+- ✨ 채팅방 나가기
+- ✨ 그룹 채팅 멤버 추가
+- ✨ 목표 화면에서도 레벨업 모달 표시
+- ✨ 토스트 메시지 Overlay 방식으로 변경 (어떤 화면에서도 표시)
+- 🔧 집중모드 일시정지 상태에서 탭 전환 경고 제거
+- 🔧 채팅방 읽음 표시 실시간 반영 (lastReadAt 방식)
+- 🔧 친구 접속 상태 정확도 개선
  
 ### v1.7.0 (2026.04.30)
 - ✨ 1:1 채팅 및 그룹 채팅 기능 추가

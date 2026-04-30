@@ -646,13 +646,46 @@ class AppProvider extends ChangeNotifier {
     if (!_toastRunning) _processToastQueue();
   }
 
+  OverlayEntry? _toastEntry;
+
   Future<void> _processToastQueue() async {
     if (_toastQueue.isEmpty) { _toastRunning = false; return; }
     _toastRunning = true;
     while (_toastQueue.isNotEmpty) {
-      toast = _toastQueue.removeAt(0);
-      notifyListeners();
+      final msg = _toastQueue.removeAt(0);
+
+      // 기존 토스트 제거
+      _toastEntry?.remove();
+      _toastEntry = null;
+
+      // Overlay 방식 — Navigator 최상위에 표시되므로 push된 화면에서도 보임
+      final overlay = navigatorKey.currentState?.overlay;
+      if (overlay != null) {
+        _toastEntry = OverlayEntry(
+          builder: (_) => Positioned(
+            bottom: 100, left: 24, right: 24,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                    color: const Color(0xFF323232),
+                    borderRadius: BorderRadius.circular(12)),
+                child: Text(msg,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    textAlign: TextAlign.center),
+              ),
+            ),
+          ),
+        );
+        overlay.insert(_toastEntry!);
+      } else {
+        // Overlay 없을 경우 fallback — notifyListeners로 main_nav Stack에 표시
+        toast = msg; notifyListeners();
+      }
+
       await Future.delayed(const Duration(milliseconds: 1500));
+      _toastEntry?.remove(); _toastEntry = null;
       toast = null; notifyListeners();
       if (_toastQueue.isNotEmpty) await Future.delayed(const Duration(milliseconds: 200));
     }
