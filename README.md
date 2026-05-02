@@ -4,7 +4,7 @@
  
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage%20%7C%20Messaging-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.7.1-green)]()
+[![Version](https://img.shields.io/badge/version-1.7.2-green)]()
  
 ---
  
@@ -227,6 +227,21 @@ achievement_stats/{achievementId}
 ---
  
 ## 📋 버전 히스토리
+ 
+### v1.7.2 (2026.05.03)
+- ✨ 채팅 알림 설정 토글 추가 (설정 화면)
+- ✨ 활동 알림 설정별 FCM 발송 필터링 (Cloud Functions)
+- ✨ 알림 탭으로 앱 실행 시 소셜 탭 자동 이동
+- ✨ 친구 접속 상태 실시간 갱신 (앱 포그라운드/백그라운드 전환 감지)
+- 🔧 채팅방 진입 렉 해결 (Firestore 직렬 await 제거)
+- 🔧 읽음 표시 무한 루프 해결 (_prevMsgCount로 markAsRead 호출 최소화)
+- 🔧 읽음 표시 실시간 반영 (상대방 uid 변경만 감지, 내 uid 변경 무시)
+- 🔧 채팅방 진입 시 읽음 1 깜빡임 해결 (초기값 get() 선로드)
+- 🔧 현재 열린 채팅방 알림 차단 (currentOpenChatId)
+- 🔧 FCM 토큰 미저장 문제 해결 (requestPermission 후 토큰 저장)
+- 🔧 Cloud Functions 수신자별 try-catch 적용 (일부 실패 시 나머지 정상 발송)
+- 🔧 닉네임 깜빡임 해결 (채팅방 문서 names 필드 캐싱)
+- 🔧 Storage 보안 규칙 업데이트 (인증된 사용자만 접근
  
 ### v1.7.1 (2026.04.30)
 - ✨ 채팅 목록 화면 추가 (소셜 탭 내 채팅 탭)

@@ -28,6 +28,12 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
     super.initState();
     // 탭 5개 — 친구 / 채팅 / 피드 / 다이어리 / 랭킹
     _tabCtrl = TabController(length: 5, vsync: this);
+    // 친구 탭(0번) 진입 시 접속 상태 갱신을 위해 reload
+    _tabCtrl.addListener(() {
+      if (_tabCtrl.index == 0 && !_tabCtrl.indexIsChanging) {
+        _friendsKey.currentState?.reload();
+      }
+    });
   }
 
   Future<void> _syncAndReload() async {

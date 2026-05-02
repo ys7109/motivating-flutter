@@ -124,6 +124,7 @@ class AppProvider extends ChangeNotifier {
             await _checkAllAchievementsSilently();
             // 로그인 시 FCM 토큰 저장
             await NotificationService.saveFcmToken(user.uid);
+
           }
         } else {
           userData = null; goals = []; mailbox = [];

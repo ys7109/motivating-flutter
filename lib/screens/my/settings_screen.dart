@@ -19,7 +19,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _withdrawModal = false;
   bool _cancelModal = false;
 
-  // 알림 설정 맵 (기본값 true)
   Map<String, bool> _notif = {
     'goal': true,
     'streak': true,
@@ -27,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     'activity_like': true,
     'activity_comment': true,
     'activity_friend': true,
+    'activity_chat': true,
   };
 
   @override
@@ -35,7 +35,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadNotifPrefs();
   }
 
-  // SharedPreferences에서 알림 설정 로드
   Future<void> _loadNotifPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -46,22 +45,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'activity_like':    prefs.getBool('notif_activity_like')    ?? true,
         'activity_comment': prefs.getBool('notif_activity_comment') ?? true,
         'activity_friend':  prefs.getBool('notif_activity_friend')  ?? true,
+        'activity_chat':    prefs.getBool('notif_activity_chat')    ?? true,
       };
     });
   }
 
-  // 알림 토글 — ON 시 권한 확인, OFF 시 즉시 저장
   Future<void> _toggleNotif(String key) async {
     final newVal = !_notif[key]!;
 
     if (newVal) {
-      // 켜는 경우 시스템 알림 권한 확인
       final hasPermission = await NotificationService.hasPermission();
       if (!hasPermission) {
         final granted = await NotificationService.requestPermission();
         if (!granted) {
           if (mounted) {
-            // 권한 거부 시 시스템 설정으로 안내
             showDialog(
               context: context,
               builder: (_) => AlertDialog(
@@ -87,12 +84,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
 
-    // 설정값 저장
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('notif_$key', newVal);
     setState(() => _notif[key] = newVal);
 
-    // 푸시 스케줄 처리 (activity_* 는 발송 시점에 체크하므로 별도 처리 없음)
     final app = context.read<AppProvider>();
     if (key == 'goal') {
       if (newVal) await NotificationService.scheduleDailyGoalReminder();
@@ -103,6 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else if (key == 'mail') {
       if (!newVal) await NotificationService.cancelNotification(3);
     }
+    // activity_* 는 Cloud Functions 발송 시점에 SharedPreferences 값 체크
   }
 
   @override
@@ -168,7 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // 디스플레이 섹션
               _Section(title: '디스플레이', children: [const _ThemeItem()]),
 
-              // 알림 섹션 (목표·스트릭·우편함)
+              // 알림 섹션
               _Section(title: '알림', children: [
                 _ToggleItem(label: '목표 리마인더', sub: '매일 아침 9시 — 오늘의 목표 확인',
                     value: _notif['goal']!, onChange: () => _toggleNotif('goal')),
@@ -178,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: _notif['mail']!, onChange: () => _toggleNotif('mail')),
               ]),
 
-              // 활동 알림 섹션 (좋아요·댓글·친구)
+              // 활동 알림 섹션
               _Section(title: '활동 알림', children: [
                 _ToggleItem(label: '좋아요 알림', sub: '내 다이어리에 좋아요가 달리면 알림',
                     value: _notif['activity_like']!, onChange: () => _toggleNotif('activity_like')),
@@ -186,6 +182,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: _notif['activity_comment']!, onChange: () => _toggleNotif('activity_comment')),
                 _ToggleItem(label: '친구 요청 알림', sub: '친구 요청 및 수락 시 알림',
                     value: _notif['activity_friend']!, onChange: () => _toggleNotif('activity_friend')),
+                _ToggleItem(label: '채팅 알림', sub: '새 채팅 메시지가 오면 알림',
+                    value: _notif['activity_chat']!, onChange: () => _toggleNotif('activity_chat')),
               ]),
 
               // 개인정보 섹션
@@ -220,7 +218,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
 
-        // 로그아웃 확인 모달
         if (_logoutModal)
           _ConfirmModal(
             title: '로그아웃', body: '로그아웃 하시겠습니까?', confirmLabel: '로그아웃',
@@ -228,14 +225,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onConfirm: () async { setState(() => _logoutModal = false); await app.signOut(); },
           ),
 
-        // 회원 탈퇴 모달
         if (_withdrawModal)
           _WithdrawModal(
             onCancel: () => setState(() => _withdrawModal = false),
             onConfirm: () async { setState(() => _withdrawModal = false); await app.scheduleWithdraw(); },
           ),
 
-        // 탈퇴 취소 모달
         if (_cancelModal)
           _ConfirmModal(
             title: '탈퇴 취소', body: '탈퇴 신청을 취소하시겠습니까?\n계정이 정상 복구됩니다.',
@@ -252,7 +247,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-// 테마 선택 아이템
 class _ThemeItem extends StatelessWidget {
   const _ThemeItem();
   @override
@@ -280,7 +274,6 @@ class _ThemeItem extends StatelessWidget {
   }
 }
 
-// 테마 선택 버튼 (시스템/라이트/다크)
 class _ThemeOption extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -316,7 +309,6 @@ class _ThemeOption extends StatelessWidget {
   }
 }
 
-// 섹션 컨테이너
 class _Section extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -340,8 +332,6 @@ class _Section extends StatelessWidget {
   }
 }
 
-// 토글 아이템 — StatefulWidget으로 구현해야 isDark 전환 시 rebuild 정상 동작
-// StatelessWidget은 상위 rebuild 없이 테마 변경을 감지 못함
 class _ToggleItem extends StatefulWidget {
   final String label, sub;
   final bool value;
@@ -355,13 +345,9 @@ class _ToggleItem extends StatefulWidget {
 class _ToggleItemState extends State<_ToggleItem> {
   @override
   Widget build(BuildContext context) {
-    // 라이트 ON: 검정 트랙 + 흰 thumb / 라이트 OFF: 연회색 트랙 + 흰 thumb
-    // 다크 ON: 흰 트랙 + 검정 thumb / 다크 OFF: 진회색 트랙 + 흰 thumb
     final trackColor = widget.value
         ? context.primaryColor
         : (context.isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE0E0E0));
-
-    // 다크 ON일 때만 thumb을 검정으로 반전
     final thumbColor = (context.isDark && widget.value) ? Colors.black : Colors.white;
 
     return Container(
@@ -394,7 +380,6 @@ class _ToggleItemState extends State<_ToggleItem> {
   }
 }
 
-// 링크 아이템 (화살표 포함)
 class _LinkItem extends StatelessWidget {
   final String label;
   final bool danger;
@@ -417,7 +402,6 @@ class _LinkItem extends StatelessWidget {
   }
 }
 
-// 정보 아이템 (버전, 빌드 등 읽기 전용)
 class _InfoItem extends StatelessWidget {
   final String label, value;
   const _InfoItem({required this.label, required this.value});
@@ -434,7 +418,6 @@ class _InfoItem extends StatelessWidget {
   }
 }
 
-// 단순 확인 모달 (로그아웃, 탈퇴 취소 등)
 class _ConfirmModal extends StatelessWidget {
   final String title, body, confirmLabel;
   final VoidCallback onCancel, onConfirm;
@@ -457,7 +440,6 @@ class _ConfirmModal extends StatelessWidget {
                 style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.6)),
             const SizedBox(height: 24),
             Row(children: [
-              // 취소 버튼
               Expanded(child: GestureDetector(
                 onTap: onCancel,
                 child: Container(
@@ -468,7 +450,6 @@ class _ConfirmModal extends StatelessWidget {
                 ),
               )),
               const SizedBox(width: 10),
-              // 확인 버튼
               Expanded(child: GestureDetector(
                 onTap: onConfirm,
                 child: Container(
@@ -487,7 +468,6 @@ class _ConfirmModal extends StatelessWidget {
   }
 }
 
-// 회원 탈퇴 전용 모달 (30일 유예기간 안내 포함)
 class _WithdrawModal extends StatelessWidget {
   final VoidCallback onCancel, onConfirm;
   const _WithdrawModal({required this.onCancel, required this.onConfirm});
@@ -509,7 +489,6 @@ class _WithdrawModal extends StatelessWidget {
             Text('탈퇴 신청 후 30일 유예기간이 적용됩니다.',
                 style: TextStyle(fontSize: 13, color: context.textSecondary)),
             const SizedBox(height: 12),
-            // 탈퇴 유의사항
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
@@ -522,7 +501,6 @@ class _WithdrawModal extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Row(children: [
-              // 취소 버튼
               Expanded(child: GestureDetector(
                 onTap: onCancel,
                 child: Container(
@@ -533,7 +511,6 @@ class _WithdrawModal extends StatelessWidget {
                 ),
               )),
               const SizedBox(width: 10),
-              // 탈퇴 신청 버튼
               Expanded(child: GestureDetector(
                 onTap: onConfirm,
                 child: Container(

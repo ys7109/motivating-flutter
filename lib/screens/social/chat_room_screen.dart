@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../services/chat_service.dart';
+import '../../services/notification_service.dart';
 import '../social/character_avatar.dart';
 
 class ChatRoomScreen extends StatefulWidget {
@@ -30,286 +32,50 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final _chatService = ChatService();
   final _msgCtrl = TextEditingController();
   String? _myUid;
-  late String _title; // 이름 변경 반영을 위해 state로 관리
+  late String _title;
 
-  // lastReadAt 캐시 — 메시지 스트림 rebuild 시 불필요한 Firestore 호출 방지
+  // lastReadAt — 상대방 변경만 감지 (내 uid 변경은 무시 → 루프 방지)
   Map<String, DateTime> _lastReadAt = {};
+  StreamSubscription? _readSub;
+  int _prevMsgCount = -1;
 
   @override
   void initState() {
     super.initState();
     _myUid = context.read<AppProvider>().authUser!.uid;
     _title = widget.title;
-    _initChat();
+    // 현재 열린 채팅방 등록 (포그라운드 알림 필터용)
+    currentOpenChatId = widget.chatId;
+    // 읽음 처리 + lastReadAt 구독 시작
+    _chatService.markAsRead(widget.chatId, _myUid!);
+    _subscribeReadStatus();
   }
 
-  Future<void> _initChat() async {
-    // 입장 시 읽음 처리 + lastReadAt 초기 로드
-    await _chatService.markAsRead(widget.chatId, _myUid!);
-    await _loadLastReadAt();
-  }
-
-  // lastReadAt 로드 및 실시간 구독
-  Future<void> _loadLastReadAt() async {
-    final snap = await FirebaseFirestore.instance
-        .collection('chats').doc(widget.chatId).get();
-    _updateLastReadAt(snap.data());
-
-    // lastReadAt 실시간 구독 — 메시지 스트림과 분리해서 깜빡임 방지
-    FirebaseFirestore.instance
+  void _subscribeReadStatus() {
+    _readSub = FirebaseFirestore.instance
         .collection('chats').doc(widget.chatId)
         .snapshots()
         .listen((snap) {
       if (!mounted) return;
-      final updated = _parseLastReadAt(snap.data());
-      if (_lastReadAtChanged(updated)) {
-        setState(() => _lastReadAt = updated);
+      final raw = snap.data()?['lastReadAt'] as Map<String, dynamic>? ?? {};
+      final updated = raw.map((k, v) => MapEntry(k, (v as Timestamp).toDate()));
+      // 상대방 lastReadAt만 비교 — 내 uid 변경(markAsRead)은 무시해서 루프 방지
+      bool changed = false;
+      for (final k in updated.keys) {
+        if (k == _myUid) continue; // 내 변경 무시
+        if (_lastReadAt[k] != updated[k]) { changed = true; break; }
       }
+      if (changed) setState(() => _lastReadAt = updated);
     });
-  }
-
-  void _updateLastReadAt(Map<String, dynamic>? data) {
-    _lastReadAt = _parseLastReadAt(data);
-  }
-
-  Map<String, DateTime> _parseLastReadAt(Map<String, dynamic>? data) {
-    final raw = data?['lastReadAt'] as Map<String, dynamic>? ?? {};
-    return raw.map((k, v) => MapEntry(k, (v as Timestamp).toDate()));
-  }
-
-  // 변경됐을 때만 setState 호출하기 위한 비교
-  bool _lastReadAtChanged(Map<String, DateTime> updated) {
-    if (updated.length != _lastReadAt.length) return true;
-    for (final k in updated.keys) {
-      final a = _lastReadAt[k];
-      final b = updated[k];
-      if (a == null || b == null || a != b) return true;
-    }
-    return false;
   }
 
   @override
   void dispose() {
+    // 채팅방 나갈 때 등록 해제
+    currentOpenChatId = null;
+    _readSub?.cancel();
     _msgCtrl.dispose();
     super.dispose();
-  }
-
-  // 설정 바텀시트
-  void _showSettings(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: context.modalBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) {
-        final bottomPad = MediaQuery.of(ctx).padding.bottom;
-        return Padding(
-        padding: EdgeInsets.fromLTRB(0, 16, 0, bottomPad + 16),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 36, height: 4,
-              decoration: BoxDecoration(color: context.borderColor,
-                  borderRadius: BorderRadius.circular(99))),
-          const SizedBox(height: 16),
-          // 채팅방 이름 변경 (1:1, 그룹 모두)
-          ListTile(
-            leading: Icon(Icons.edit_outlined, color: context.textPrimary),
-            title: Text('채팅방 이름 변경',
-                style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500)),
-            onTap: () { Navigator.pop(context); _showRenameDialog(context); },
-          ),
-          // 멤버 추가 (그룹만)
-          if (widget.isGroup)
-            ListTile(
-              leading: Icon(Icons.person_add_outlined, color: context.textPrimary),
-              title: Text('멤버 추가',
-                  style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500)),
-              onTap: () { Navigator.pop(context); _showAddMemberDialog(context); },
-            ),
-          // 채팅방 나가기
-          ListTile(
-            leading: const Icon(Icons.exit_to_app_rounded, color: AppTheme.danger),
-            title: const Text('채팅방 나가기',
-                style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w500)),
-            onTap: () { Navigator.pop(context); _confirmLeave(context); },
-          ),
-        ]),
-      );},
-    );
-  }
-
-  // 채팅방 이름 변경 다이얼로그
-  Future<void> _showRenameDialog(BuildContext context) async {
-    final ctrl = TextEditingController(text: _title);
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: context.modalBg,
-        title: Text('채팅방 이름 변경', style: TextStyle(fontSize: 16,
-            fontWeight: FontWeight.w600, color: context.textPrimary)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          style: TextStyle(fontSize: 14, color: context.textPrimary),
-          decoration: InputDecoration(
-            hintText: '채팅방 이름을 입력하세요',
-            hintStyle: TextStyle(color: context.textSecondary),
-            enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: context.borderColor)),
-            focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: context.primaryColor)),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
-              child: Text('취소', style: TextStyle(color: context.textSecondary))),
-          TextButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-            child: Text('변경', style: TextStyle(color: context.primaryColor)),
-          ),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    if (newName != null && newName.isNotEmpty && newName != _title) {
-      await _chatService.renameChat(widget.chatId, newName);
-      if (mounted) setState(() => _title = newName);
-    }
-  }
-
-  // 멤버 추가 다이얼로그 — 친구 목록에서 선택
-  Future<void> _showAddMemberDialog(BuildContext context) async {
-    final app = context.read<AppProvider>();
-    // 현재 채팅방 문서에서 최신 멤버 목록 가져오기
-    final chatSnap = await FirebaseFirestore.instance
-        .collection('chats').doc(widget.chatId).get();
-    final currentMembers = List<String>.from(chatSnap.data()?['users'] ?? widget.memberUids);
-
-    // Firestore에서 친구 목록 직접 조회
-    final friendships = await FirebaseFirestore.instance
-        .collection('friendships')
-        .where('users', arrayContains: _myUid)
-        .where('status', isEqualTo: 'accepted')
-        .get();
-    final friendUids = friendships.docs.map((d) {
-      final users = List<String>.from(d['users']);
-      return users.firstWhere((u) => u != _myUid, orElse: () => '');
-    }).where((uid) => uid.isNotEmpty && !currentMembers.contains(uid)).toList();
-
-    if (friendUids.isEmpty) {
-      if (mounted) app.showToast('추가할 수 있는 친구가 없어요');
-      return;
-    }
-
-    // 친구 정보 로드
-    final friendDocs = await Future.wait(
-      friendUids.map((uid) => FirebaseFirestore.instance.collection('users').doc(uid).get())
-    );
-    final friends = friendDocs.where((d) => d.exists).map((d) => {
-      'uid': d.id, ...d.data()!
-    }).toList();
-
-    if (!mounted) return;
-    final selected = <String>{};
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.modalBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModal) {
-          final bottomPad = MediaQuery.of(ctx).padding.bottom;
-          return Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPad + 20),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('멤버 추가 (${selected.length}명 선택)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
-                        color: ctx.textPrimary)),
-                GestureDetector(onTap: () => Navigator.pop(ctx),
-                    child: Text('×', style: TextStyle(fontSize: 24, color: ctx.textSecondary))),
-              ]),
-              const SizedBox(height: 12),
-              // 친구 목록
-              ...friends.map((f) {
-                final uid = f['uid'] as String;
-                final isSelected = selected.contains(uid);
-                return GestureDetector(
-                  onTap: () => setModal(() {
-                    if (isSelected) selected.remove(uid); else selected.add(uid);
-                  }),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isSelected ? ctx.primaryColor.withOpacity(0.08) : ctx.surfaceColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? ctx.primaryColor : ctx.borderColor,
-                        width: isSelected ? 1.5 : 0.5,
-                      ),
-                    ),
-                    child: Row(children: [
-                      Expanded(child: Text(f['name'] as String? ?? '모험가',
-                          style: TextStyle(fontSize: 14, color: ctx.textPrimary))),
-                      if (isSelected) Icon(Icons.check_circle, size: 18, color: ctx.primaryColor),
-                    ]),
-                  ),
-                );
-              }),
-              const SizedBox(height: 12),
-              // 추가 버튼
-              GestureDetector(
-                onTap: selected.isEmpty ? null : () async {
-                  await _chatService.addMembers(widget.chatId, selected.toList());
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  if (mounted) app.showToast('${selected.length}명을 추가했어요');
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: selected.isEmpty ? ctx.borderColor : ctx.primaryColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(child: Text('추가하기',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                          color: selected.isEmpty ? ctx.textSecondary
-                              : (ctx.isDark ? Colors.black : Colors.white)))),
-                ),
-              ),
-            ]),
-          );
-        },
-      ),
-    );
-  }
-
-  // 채팅방 나가기 확인
-  Future<void> _confirmLeave(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: context.modalBg,
-        title: Text('채팅방 나가기', style: TextStyle(fontSize: 16,
-            fontWeight: FontWeight.w600, color: context.textPrimary)),
-        content: Text('"$_title" 채팅방에서 나가시겠어요?',
-            style: TextStyle(fontSize: 13, color: context.textSecondary)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false),
-              child: Text('취소', style: TextStyle(color: context.textSecondary))),
-          TextButton(onPressed: () => Navigator.pop(context, true),
-              child: const Text('나가기', style: TextStyle(color: AppTheme.danger))),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      await _chatService.leaveChat(widget.chatId, _myUid!);
-      if (mounted) {
-        context.read<AppProvider>().showToast('채팅방에서 나갔어요');
-        Navigator.pop(context);
-      }
-    }
   }
 
   Future<void> _send() async {
@@ -320,14 +86,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     await _chatService.sendMessage(widget.chatId, _myUid!, receivers, content);
   }
 
-  // 내 메시지를 수신자 중 누군가 읽었는지 확인
+  // 내 메시지를 상대방이 읽었는지 확인
+  // 상대방의 lastReadAt이 Epoch(0)보다 크면 한 번 이상 읽은 것 → 쭉 읽음 유지
   bool _isRead(MessageModel msg) {
-    if (msg.createdAt == null) return false;
     final receivers = widget.memberUids.where((uid) => uid != _myUid);
     return receivers.any((uid) {
       final readTime = _lastReadAt[uid];
       if (readTime == null) return false;
-      return readTime.isAfter(msg.createdAt!);
+      // Epoch(0) = 아직 한 번도 읽지 않음
+      if (readTime.millisecondsSinceEpoch == 0) return false;
+      // 한 번이라도 읽었으면 이후 모든 메시지도 읽음으로 표시
+      if (msg.createdAt == null) return true;
+      return readTime.isAfter(
+          msg.createdAt!.subtract(const Duration(seconds: 1)));
     });
   }
 
@@ -335,7 +106,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.bgColor,
-      // resizeToAvoidBottomInset: true + reverse ListView로 키보드 위치 고정
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         bottom: false,
@@ -379,23 +149,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ]),
           ),
 
-          // 메시지 목록 — 단일 StreamBuilder로 깜빡임 제거
+          // 메시지 목록
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _chatService.messagesStream(widget.chatId),
               builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting &&
-                    !snap.hasData) {
-                  return Center(child: CircularProgressIndicator(
-                      color: context.primaryColor));
+                if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+                  return Center(child: CircularProgressIndicator(color: context.primaryColor));
                 }
                 final docs = snap.data?.docs ?? [];
 
-                // 새 메시지 수신 시 읽음 처리
-                if (docs.isNotEmpty) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) _chatService.markAsRead(widget.chatId, _myUid!);
-                  });
+                // 새 메시지 수신 시에만 읽음 처리
+                if (docs.length != _prevMsgCount) {
+                  _prevMsgCount = docs.length;
+                  if (docs.isNotEmpty) {
+                    _chatService.markAsRead(widget.chatId, _myUid!);
+                  }
                 }
 
                 if (docs.isEmpty) return const _EmptyChat();
@@ -403,7 +172,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 final messages = docs.map((d) => MessageModel.fromDoc(d)).toList();
 
                 return ListView.builder(
-                  // reverse: true — 최신 메시지가 항상 하단, 키보드 올라와도 위치 유지
                   reverse: true,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemCount: messages.length,
@@ -419,12 +187,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         && messages[idx - 1].createdAt != null
                         && msg.createdAt!.difference(
                             messages[idx - 1].createdAt!).inMinutes < 1;
-
-                    // lastReadAt 기반 읽음 여부 계산
                     final isRead = isMe ? _isRead(msg) : false;
 
-                    return Column(crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
+                    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       if (showDate && msg.createdAt != null)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -433,20 +198,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 12),
                               child: Text(_dateLabel(msg.createdAt!),
-                                  style: TextStyle(fontSize: 11,
-                                      color: context.textSecondary)),
+                                  style: TextStyle(fontSize: 11, color: context.textSecondary)),
                             ),
                             Expanded(child: Divider(color: context.borderColor)),
                           ]),
                         ),
                       _MessageBubble(
-                        message: msg,
-                        isMe: isMe,
-                        isRead: isRead,
-                        isGroup: widget.isGroup,
-                        myUid: _myUid!,
-                        isContinued: isContinued,
-                        chatId: widget.chatId,
+                        message: msg, isMe: isMe, isRead: isRead,
+                        isGroup: widget.isGroup, myUid: _myUid!,
+                        isContinued: isContinued, chatId: widget.chatId,
                         chatService: _chatService,
                       ),
                     ]);
@@ -461,6 +221,202 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ]),
       ),
     );
+  }
+
+  // 설정 바텀시트
+  void _showSettings(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: context.modalBg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        final bottomPad = MediaQuery.of(ctx).padding.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(0, 16, 0, bottomPad + 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 36, height: 4,
+                decoration: BoxDecoration(color: context.borderColor,
+                    borderRadius: BorderRadius.circular(99))),
+            const SizedBox(height: 16),
+            // 이름 변경 (1:1, 그룹 모두)
+            ListTile(
+              leading: Icon(Icons.edit_outlined, color: context.textPrimary),
+              title: Text('채팅방 이름 변경',
+                  style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500)),
+              onTap: () { Navigator.pop(ctx); _showRenameDialog(context); },
+            ),
+            // 멤버 추가 (그룹만)
+            if (widget.isGroup)
+              ListTile(
+                leading: Icon(Icons.person_add_outlined, color: context.textPrimary),
+                title: Text('멤버 추가',
+                    style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500)),
+                onTap: () { Navigator.pop(ctx); _showAddMemberDialog(context); },
+              ),
+            // 나가기
+            ListTile(
+              leading: const Icon(Icons.exit_to_app_rounded, color: AppTheme.danger),
+              title: const Text('채팅방 나가기',
+                  style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w500)),
+              onTap: () { Navigator.pop(ctx); _confirmLeave(context); },
+            ),
+          ]),
+        );
+      },
+    );
+  }
+
+  Future<void> _showRenameDialog(BuildContext context) async {
+    final ctrl = TextEditingController(text: _title);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: context.modalBg,
+        title: Text('채팅방 이름 변경', style: TextStyle(fontSize: 16,
+            fontWeight: FontWeight.w600, color: context.textPrimary)),
+        content: TextField(
+          controller: ctrl, autofocus: true,
+          style: TextStyle(fontSize: 14, color: context.textPrimary),
+          decoration: InputDecoration(
+            hintText: '채팅방 이름을 입력하세요',
+            hintStyle: TextStyle(color: context.textSecondary),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: context.borderColor)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: context.primaryColor)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context),
+              child: Text('취소', style: TextStyle(color: context.textSecondary))),
+          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+              child: Text('변경', style: TextStyle(color: context.primaryColor))),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (newName != null && newName.isNotEmpty && newName != _title) {
+      await _chatService.renameChat(widget.chatId, newName);
+      if (mounted) setState(() => _title = newName);
+    }
+  }
+
+  Future<void> _showAddMemberDialog(BuildContext context) async {
+    final app = context.read<AppProvider>();
+    final chatSnap = await FirebaseFirestore.instance
+        .collection('chats').doc(widget.chatId).get();
+    final currentMembers = List<String>.from(chatSnap.data()?['users'] ?? widget.memberUids);
+    final friendships = await FirebaseFirestore.instance
+        .collection('friendships')
+        .where('users', arrayContains: _myUid)
+        .where('status', isEqualTo: 'accepted')
+        .get();
+    final friendUids = friendships.docs.map((d) {
+      final users = List<String>.from(d['users']);
+      return users.firstWhere((u) => u != _myUid, orElse: () => '');
+    }).where((uid) => uid.isNotEmpty && !currentMembers.contains(uid)).toList();
+    if (friendUids.isEmpty) {
+      if (mounted) app.showToast('추가할 수 있는 친구가 없어요');
+      return;
+    }
+    final friendDocs = await Future.wait(
+        friendUids.map((uid) => FirebaseFirestore.instance.collection('users').doc(uid).get()));
+    final friends = friendDocs.where((d) => d.exists).map((d) => {'uid': d.id, ...d.data()!}).toList();
+    if (!mounted) return;
+    final selected = <String>{};
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.modalBg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          final bottomPad = MediaQuery.of(ctx).padding.bottom;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPad + 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('멤버 추가 (${selected.length}명 선택)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ctx.textPrimary)),
+                GestureDetector(onTap: () => Navigator.pop(ctx),
+                    child: Text('×', style: TextStyle(fontSize: 24, color: ctx.textSecondary))),
+              ]),
+              const SizedBox(height: 12),
+              ...friends.map((f) {
+                final uid = f['uid'] as String;
+                final isSelected = selected.contains(uid);
+                return GestureDetector(
+                  onTap: () => setModal(() {
+                    if (isSelected) selected.remove(uid); else selected.add(uid);
+                  }),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? ctx.primaryColor.withOpacity(0.08) : ctx.surfaceColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isSelected ? ctx.primaryColor : ctx.borderColor,
+                          width: isSelected ? 1.5 : 0.5),
+                    ),
+                    child: Row(children: [
+                      Expanded(child: Text(f['name'] as String? ?? '모험가',
+                          style: TextStyle(fontSize: 14, color: ctx.textPrimary))),
+                      if (isSelected) Icon(Icons.check_circle, size: 18, color: ctx.primaryColor),
+                    ]),
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: selected.isEmpty ? null : () async {
+                  await _chatService.addMembers(widget.chatId, selected.toList());
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (mounted) app.showToast('${selected.length}명을 추가했어요');
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: selected.isEmpty ? ctx.borderColor : ctx.primaryColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(child: Text('추가하기',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                          color: selected.isEmpty ? ctx.textSecondary
+                              : (ctx.isDark ? Colors.black : Colors.white)))),
+                ),
+              ),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmLeave(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: context.modalBg,
+        title: Text('채팅방 나가기', style: TextStyle(fontSize: 16,
+            fontWeight: FontWeight.w600, color: context.textPrimary)),
+        content: Text('"$_title" 채팅방에서 나가시겠어요?',
+            style: TextStyle(fontSize: 13, color: context.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: Text('취소', style: TextStyle(color: context.textSecondary))),
+          TextButton(onPressed: () => Navigator.pop(context, true),
+              child: const Text('나가기', style: TextStyle(color: AppTheme.danger))),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _chatService.leaveChat(widget.chatId, _myUid!);
+      if (mounted) {
+        context.read<AppProvider>().showToast('채팅방에서 나갔어요');
+        Navigator.pop(context);
+      }
+    }
   }
 
   String _dateLabel(DateTime dt) {
@@ -478,7 +434,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 }
 
-// 빈 채팅 화면
 class _EmptyChat extends StatelessWidget {
   const _EmptyChat();
   @override
@@ -492,7 +447,6 @@ class _EmptyChat extends StatelessWidget {
   }
 }
 
-// 입력창 — StatefulWidget으로 분리해서 상위 rebuild 차단
 class _ChatInputBar extends StatefulWidget {
   final TextEditingController controller;
   final Future<void> Function() onSend;
@@ -531,7 +485,6 @@ class _ChatInputBarState extends State<_ChatInputBar> {
   @override
   Widget build(BuildContext context) {
     final isEmpty = widget.controller.text.trim().isEmpty;
-    // 시스템 하단바 높이 적용 (SafeArea bottom: false 상태)
     final bottomPad = MediaQuery.of(context).padding.bottom;
 
     return Container(
@@ -586,7 +539,6 @@ class _ChatInputBarState extends State<_ChatInputBar> {
   }
 }
 
-// 메시지 버블
 class _MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isMe, isGroup, isContinued, isRead;
@@ -643,14 +595,12 @@ class _MessageBubble extends StatelessWidget {
     final reactionSummary = message.reactions.entries
         .where((e) => e.value.isNotEmpty).toList();
 
-    // 반응 버튼은 상대방 메시지에만 표시
     final reactionBtn = isMe ? const SizedBox.shrink() : GestureDetector(
       onTap: () => _showReactionPicker(context),
       child: Container(
         width: 28, height: 28,
         decoration: BoxDecoration(
-          color: context.subtleBg,
-          shape: BoxShape.circle,
+          color: context.subtleBg, shape: BoxShape.circle,
           border: Border.all(color: context.borderColor),
         ),
         child: Icon(Icons.add_reaction_outlined, size: 14, color: context.textSecondary),
@@ -668,7 +618,6 @@ class _MessageBubble extends StatelessWidget {
             children: [
               if (isMe) ...[
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  // 읽음 표시 — lastReadAt 기반으로 상대방이 읽으면 즉시 사라짐
                   if (!isRead)
                     Text('1', style: TextStyle(fontSize: 10,
                         color: context.primaryColor, fontWeight: FontWeight.w600)),
@@ -677,8 +626,7 @@ class _MessageBubble extends StatelessWidget {
                 ]),
                 const SizedBox(width: 4),
                 Container(
-                  constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.62),
+                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.62),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: context.primaryColor,
@@ -688,13 +636,11 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ),
                   child: Text(message.content, style: TextStyle(fontSize: 14,
-                      height: 1.4,
-                      color: context.isDark ? Colors.black : Colors.white)),
+                      height: 1.4, color: context.isDark ? Colors.black : Colors.white)),
                 ),
               ] else ...[
                 Container(
-                  constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.62),
+                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.62),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: context.surfaceColor,
@@ -715,12 +661,9 @@ class _MessageBubble extends StatelessWidget {
               ],
             ],
           ),
-
-          // 이모지 반응 카운트
           if (reactionSummary.isNotEmpty)
             Padding(
-              padding: EdgeInsets.only(
-                  top: 4, left: isMe ? 0 : 4, right: isMe ? 4 : 0),
+              padding: EdgeInsets.only(top: 4, left: isMe ? 0 : 4, right: isMe ? 4 : 0),
               child: Wrap(spacing: 4,
                 children: reactionSummary.map((e) {
                   final isMine = e.value.contains(myUid);

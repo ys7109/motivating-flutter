@@ -13,6 +13,12 @@ async function getFcmToken(uid) {
   return snap.data()?.fcmToken ?? null;
 }
 
+// 알림 설정 조회 — Firestore users 문서의 notifSettings 필드 사용
+async function getNotifSettings(uid) {
+  const snap = await db.collection("users").doc(uid).get();
+  return snap.data()?.notifSettings ?? {};
+}
+
 // FCM 발송 헬퍼
 async function sendPush(token, title, body, data = {}) {
   if (!token) return;
@@ -45,34 +51,46 @@ exports.onActivityNotification = onDocumentCreated(
     const token = await getFcmToken(uid);
     if (!token) return;
 
+    // 알림 설정 확인
+    const settings = await getNotifSettings(uid);
+
     const fromName = data.fromName ?? "누군가";
     let title = "Motivating";
     let body = "";
+    let settingKey = "";
 
     switch (data.type) {
       case "like":
         title = "좋아요 💙";
         body = `${fromName} 님이 회원님의 다이어리를 좋아해요`;
+        settingKey = "activity_like";
         break;
       case "comment":
         title = "댓글 💬";
         body = `${fromName} 님이 댓글을 남겼어요`;
+        settingKey = "activity_comment";
         break;
       case "reply":
         title = "답글 💬";
         body = `${fromName} 님이 답글을 남겼어요`;
+        settingKey = "activity_comment";
         break;
       case "friend_request":
         title = "친구 요청 👋";
         body = `${fromName} 님이 친구 요청을 보냈어요`;
+        settingKey = "activity_friend";
         break;
       case "friend_accepted":
         title = "친구 수락 🎉";
         body = `${fromName} 님이 친구 요청을 수락했어요`;
+        settingKey = "activity_friend";
         break;
       default:
         return;
     }
+
+    // 해당 알림 설정이 꺼져있으면 발송 안 함 (기본값 true)
+    if (settings[settingKey] === false) return;
 
     await sendPush(token, title, body, { type: data.type, fromUid: data.fromUid ?? "" });
   }
@@ -106,18 +124,25 @@ exports.onChatMessage = onDocumentCreated(
     const receivers = users.filter((uid) => uid !== senderUid);
     await Promise.all(
       receivers.map(async (uid) => {
-        const token = await getFcmToken(uid);
-        if (!token) return;
+        try {
+          const token = await getFcmToken(uid);
+          if (!token) return;
 
-        const title = isGroup ? `${chatName} · ${senderName}` : senderName;
-        // 내용 미리보기 (30자 제한)
-        const body = content.length > 30 ? `${content.substring(0, 30)}...` : content;
+          // 채팅 알림 설정 확인 (기본값 true)
+          const settings = await getNotifSettings(uid);
+          if (settings["activity_chat"] === false) return;
 
-        await sendPush(token, title, body, {
-          type: "chat",
-          chatId,
-          senderUid,
-        });
+          const title = isGroup ? `${chatName} · ${senderName}` : senderName;
+          const body = content.length > 30 ? `${content.substring(0, 30)}...` : content;
+
+          await sendPush(token, title, body, {
+            type: "chat",
+            chatId,
+            senderUid,
+          });
+        } catch (e) {
+          console.error(`채팅 알림 발송 실패 (uid: ${uid}):`, e);
+        }
       })
     );
   }
