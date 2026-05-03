@@ -75,7 +75,13 @@ class MyApp extends StatelessWidget {
               statusBarColor: Colors.transparent,
               statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
             ));
-            return child!;
+            // 휴대폰 글꼴 크기 설정 무시 — 앱 내 텍스트 크기 고정
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.noScaling,
+              ),
+              child: child!,
+            );
           },
           home: const RootScreen(),
           navigatorKey: AppProvider.navigatorKey,

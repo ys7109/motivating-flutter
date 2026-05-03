@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
@@ -17,6 +18,10 @@ class FriendsTab extends StatefulWidget {
 
 class FriendsTabState extends State<FriendsTab> {
   final _friendService = FriendService();
+
+  StreamSubscription? _friendsSub;
+  StreamSubscription? _requestsSub;
+
   List<Map<String, dynamic>> _friends = [];
   List<Map<String, dynamic>> _requests = [];
   List<Map<String, dynamic>> _friendRankings = [];
@@ -26,14 +31,42 @@ class FriendsTabState extends State<FriendsTab> {
   List<Map<String, dynamic>> _searchResults = [];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _startStreams();
+    _loadRankings();
+  }
 
   @override
-  void dispose() { _searchCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _friendsSub?.cancel();
+    _requestsSub?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
-  Future<void> reload() => _load();
+  Future<void> reload() async => _loadRankings();
 
-  // 그룹 채팅 생성 다이얼로그
+  void _startStreams() {
+    final uid = context.read<AppProvider>().authUser!.uid;
+
+    _friendsSub = _friendService.friendsStream(uid).listen((friends) {
+      if (mounted) setState(() { _friends = friends; _loading = false; });
+    }, onError: (_) {
+      if (mounted) setState(() => _loading = false);
+    });
+
+    _requestsSub = _friendService.requestsStream(uid).listen((requests) {
+      if (mounted) setState(() => _requests = requests);
+    });
+  }
+
+  Future<void> _loadRankings() async {
+    final uid = context.read<AppProvider>().authUser!.uid;
+    final rankings = await _friendService.getFriendRankings(uid, _rankTab);
+    if (mounted) setState(() => _friendRankings = rankings);
+  }
+
   Future<void> _openGroupChatDialog(BuildContext context, String myUid) async {
     final selected = <String>{};
     final nameCtrl = TextEditingController();
@@ -144,26 +177,6 @@ class FriendsTabState extends State<FriendsTab> {
     nameCtrl.dispose();
   }
 
-  Future<void> _load() async {
-    if (!mounted) return;
-    final uid = context.read<AppProvider>().authUser!.uid;
-    setState(() => _loading = true);
-    try {
-      final results = await Future.wait([
-        _friendService.getFriends(uid),
-        _friendService.getReceivedRequests(uid),
-        _friendService.getFriendRankings(uid, _rankTab),
-      ]);
-      if (mounted) setState(() {
-        _friends = results[0];
-        _requests = results[1];
-        _friendRankings = results[2];
-      });
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
   Future<void> _search(String query) async {
     if (query.trim().isEmpty) { setState(() => _searchResults = []); return; }
     final uid = context.read<AppProvider>().authUser!.uid;
@@ -185,13 +198,11 @@ class FriendsTabState extends State<FriendsTab> {
     await _friendService.acceptRequest(uid, fromUid);
     if (mounted) app.showToast('친구 요청을 수락했어요!');
     await app.onFriendAdded();
-    await _load();
   }
 
   Future<void> _rejectRequest(String fromUid) async {
     final uid = context.read<AppProvider>().authUser!.uid;
     await _friendService.removeFriend(uid, fromUid);
-    await _load();
   }
 
   Future<void> _removeFriend(String friendUid) async {
@@ -212,7 +223,6 @@ class FriendsTabState extends State<FriendsTab> {
     if (confirm == true) {
       final uid = context.read<AppProvider>().authUser!.uid;
       await _friendService.removeFriend(uid, friendUid);
-      await _load();
     }
   }
 
@@ -222,7 +232,7 @@ class FriendsTabState extends State<FriendsTab> {
     if (_loading) return Center(child: CircularProgressIndicator(color: context.primaryColor));
 
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () async => _loadRankings(),
       color: context.primaryColor,
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -289,7 +299,7 @@ class FriendsTabState extends State<FriendsTab> {
           ],
           const SizedBox(height: 20),
 
-          // 친구 요청 목록
+          // 친구 요청
           if (_requests.isNotEmpty) ...[
             Text('친구 요청 ${_requests.length}', style: TextStyle(fontSize: 13,
                 fontWeight: FontWeight.w600, color: context.textPrimary)),
@@ -483,7 +493,6 @@ class FriendsTabState extends State<FriendsTab> {
   }
 }
 
-// StatefulWidget — async 작업 후 mounted 체크 가능
 class _FriendTile extends StatefulWidget {
   final Map<String, dynamic> friend;
   final VoidCallback onRemove;
@@ -525,21 +534,19 @@ class _FriendTileState extends State<_FriendTile> {
   @override
   Widget build(BuildContext context) {
     final friend = widget.friend;
-    // presenceStatus: 'online' | 'focusing' | 'offline'
     final presenceStatus = friend['presenceStatus'] as String? ?? 'offline';
     final isOnline = presenceStatus == 'online';
     final isFocusing = presenceStatus == 'focusing';
     final lastSeen = friend['lastSeen'];
 
-    // 상태 텍스트 결정
     String statusText;
     Color statusColor;
     if (isFocusing) {
       statusText = '집중모드 실행중';
-      statusColor = const Color(0xFFf9a825); // 노란색
+      statusColor = const Color(0xFFf9a825);
     } else if (isOnline) {
       statusText = '접속 중';
-      statusColor = const Color(0xFF4CAF50); // 초록색
+      statusColor = const Color(0xFF4CAF50);
     } else if (lastSeen != null) {
       final dt = (lastSeen as dynamic).toDate() as DateTime;
       final diff = DateTime.now().difference(dt);
@@ -553,15 +560,9 @@ class _FriendTileState extends State<_FriendTile> {
       statusColor = context.textSecondary;
     }
 
-    // 온라인 dot 색상
-    Color dotColor;
-    if (isFocusing) {
-      dotColor = const Color(0xFFf9a825);
-    } else if (isOnline) {
-      dotColor = const Color(0xFF4CAF50);
-    } else {
-      dotColor = const Color(0xFF9E9E9E);
-    }
+    final dotColor = isFocusing ? const Color(0xFFf9a825)
+        : isOnline ? const Color(0xFF4CAF50)
+        : const Color(0xFF9E9E9E);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -570,14 +571,12 @@ class _FriendTileState extends State<_FriendTile> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: context.borderColor, width: 0.5)),
       child: Row(children: [
-        // 온라인/집중모드/오프라인 상태 dot 표시
         Stack(children: [
           CharacterAvatar(character: friend['character'] as Map<String, dynamic>?, size: 40),
           Positioned(bottom: 0, right: 0, child: Container(
             width: 12, height: 12,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: dotColor,
+              shape: BoxShape.circle, color: dotColor,
               border: Border.all(color: context.surfaceColor, width: 1.5),
             ),
           )),
@@ -608,7 +607,6 @@ class _FriendTileState extends State<_FriendTile> {
             Text(statusText, style: TextStyle(fontSize: 12, color: statusColor)),
           ]),
         ])),
-        // 채팅 버튼
         GestureDetector(
           onTap: _navigating ? null : _openChat,
           behavior: HitTestBehavior.opaque,

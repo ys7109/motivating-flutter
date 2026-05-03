@@ -108,6 +108,55 @@ class FriendService {
     return await Future.wait(futures);
   }
 
+  // 친구 목록 실시간 스트림
+  Stream<List<Map<String, dynamic>>> friendsStream(String uid) {
+    return _db.collection('friendships')
+        .where('users', arrayContains: uid)
+        .where('status', isEqualTo: 'accepted')
+        .snapshots()
+        .asyncMap((snap) async {
+      final friendUids = snap.docs.map((d) {
+        final users = List<String>.from(d['users']);
+        return users.firstWhere((u) => u != uid);
+      }).toList();
+      if (friendUids.isEmpty) return [];
+      final futures = friendUids.map((fUid) async {
+        final userSnap = await _db.collection('users').doc(fUid).get();
+        final presenceSnap = await _db.collection('presence').doc(fUid).get();
+        final userData = userSnap.data() ?? {};
+        final presenceData = presenceSnap.data() ?? {};
+        final presenceStatus = _calcPresenceStatus(presenceData);
+        return {
+          ...userData,
+          'uid': fUid,
+          'presenceStatus': presenceStatus,
+          'isOnline': presenceStatus == 'online',
+          'isFocusing': presenceStatus == 'focusing',
+          'lastSeen': presenceData['lastSeen'],
+        };
+      });
+      return await Future.wait(futures);
+    });
+  }
+
+  // 친구 요청 실시간 스트림
+  Stream<List<Map<String, dynamic>>> requestsStream(String uid) {
+    return _db.collection('friendships')
+        .where('users', arrayContains: uid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .asyncMap((snap) async {
+      final requests = snap.docs.where((d) => d['requestedBy'] != uid).toList();
+      if (requests.isEmpty) return [];
+      final futures = requests.map((doc) async {
+        final fromUid = List<String>.from(doc['users']).firstWhere((u) => u != uid);
+        final userSnap = await _db.collection('users').doc(fromUid).get();
+        return {'docId': doc.id, ...userSnap.data() ?? {}, 'uid': fromUid};
+      });
+      return await Future.wait(futures);
+    });
+  }
+
   Future<List<Map<String, dynamic>>> searchUsers(String name, String myUid) async {
     debugPrint('검색어: $name');
     final snap = await _db.collection('users').where('name', isEqualTo: name).limit(20).get();
