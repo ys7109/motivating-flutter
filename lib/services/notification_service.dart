@@ -128,16 +128,24 @@ class NotificationService {
   // 토큰이 null이면 권한 재요청 후 재시도
   static Future<void> saveFcmToken(String uid) async {
     try {
-      String? token = await _fcm.getToken();
-
-      // 토큰이 null이면 권한 재요청 후 재시도 (Android 13+ 권한 미허용 대응)
-      if (token == null) {
-        await _fcm.requestPermission(alert: true, badge: true, sound: true);
-        await Future.delayed(const Duration(seconds: 1));
-        token = await _fcm.getToken();
+      // 최대 5회 재시도 — 릴리즈 빌드에서 getToken 지연 대응
+      String? token;
+      for (int i = 0; i < 5; i++) {
+        try {
+          token = await _fcm.getToken()
+              .timeout(const Duration(seconds: 10), onTimeout: () => null);
+        } catch (e) {
+          print('FCM getToken 시도 \${i+1} 실패: \$e');
+        }
+        if (token != null) break;
+        print('FCM getToken null, \${i+1}회 재시도 대기중...');
+        await Future.delayed(const Duration(seconds: 2));
       }
 
-      if (token == null) return;
+      if (token == null) {
+        print('FCM 토큰 발급 최종 실패: \$uid');
+        return;
+      }
 
       // 기존 토큰과 동일하면 Firestore 업데이트 스킵 (단, 기존 토큰이 없으면 무조건 저장)
       final snap = await FirebaseFirestore.instance
@@ -145,17 +153,19 @@ class NotificationService {
       final existing = snap.data()?['fcmToken'];
       if (existing != null && existing == token) return;
 
-      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'fcmToken': token,
-      });
+      }, SetOptions(merge: true));
+      print('FCM 토큰 저장 완료: \${token.substring(0, 20)}...');
 
       // 토큰 갱신 리스너 — 앱 생애주기당 1회만 등록
       if (!_tokenRefreshRegistered) {
         _tokenRefreshRegistered = true;
         _fcm.onTokenRefresh.listen((newToken) {
-          FirebaseFirestore.instance.collection('users').doc(uid).update({
+          FirebaseFirestore.instance.collection('users').doc(uid).set({
             'fcmToken': newToken,
-          });
+          }, SetOptions(merge: true));
+          print('FCM 토큰 갱신: ${newToken.substring(0, 20)}...');
         });
       }
     } catch (e) {

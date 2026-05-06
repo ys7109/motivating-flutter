@@ -121,6 +121,8 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
       // 앱 진입 시 온라인 상태로 설정
       if (uid != null) FriendService().setOnline(uid);
       _handlePendingNotificationTab();
+      // FCM 토큰 없는 기존 유저 대응 — UI 마운트 완료 후 저장 시도
+      if (uid != null) NotificationService.saveFcmToken(uid);
     });
   }
 
