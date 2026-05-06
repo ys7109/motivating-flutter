@@ -147,3 +147,104 @@ exports.onChatMessage = onDocumentCreated(
     );
   }
 );
+
+const { onRequest } = require("firebase-functions/v2/https");
+const { getAuth } = require("firebase-admin/auth");
+const https = require("https");
+const querystring = require("querystring");
+
+const KAKAO_REST_API_KEY = "082569048a2b73f88d2b6d6865f84a8b";
+const KAKAO_CLIENT_SECRET = "nR07hD8l3nH8j99BYcUPaaAbBeOFwdnl";
+const KAKAO_REDIRECT_URI = "https://kakaologin-kyremexayq-uc.a.run.app/callback";
+
+// 카카오 로그인 URL 발급 및 콜백 처리
+exports.kakaologin = onRequest({ region: "us-central1" }, async (req, res) => {
+  const path = req.path;
+
+  // GET / → 카카오 인증 URL 반환
+  if (req.method === "GET" && (path === "/" || path === "")) {
+    const kakaoAuthUrl =
+      `https://kauth.kakao.com/oauth/authorize` +
+      `?client_id=${KAKAO_REST_API_KEY}` +
+      `&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}` +
+      `&response_type=code`;
+    res.json({ url: kakaoAuthUrl });
+    return;
+  }
+
+  // GET /callback → 인증 코드로 카카오 토큰 교환 후 Firebase Custom Token 발급
+  if (req.method === "GET" && path === "/callback") {
+    const code = req.query.code;
+    if (!code) {
+      res.redirect(`motivating://kakao-callback?error=no_code`);
+      return;
+    }
+
+    try {
+      // 카카오 액세스 토큰 교환
+      const tokenData = await new Promise((resolve, reject) => {
+        const body = querystring.stringify({
+          grant_type: "authorization_code",
+          client_id: KAKAO_REST_API_KEY,
+          redirect_uri: KAKAO_REDIRECT_URI,
+          code,
+          client_secret: KAKAO_CLIENT_SECRET,
+        });
+        const options = {
+          hostname: "kauth.kakao.com",
+          path: "/oauth/token",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Length": Buffer.byteLength(body),
+          },
+        };
+        const reqHttp = https.request(options, (r) => {
+          let data = "";
+          r.on("data", (chunk) => (data += chunk));
+          r.on("end", () => resolve(JSON.parse(data)));
+        });
+        reqHttp.on("error", reject);
+        reqHttp.write(body);
+        reqHttp.end();
+      });
+
+      if (!tokenData.access_token) throw new Error("카카오 토큰 교환 실패");
+
+      // 카카오 사용자 정보 조회
+      const userInfo = await new Promise((resolve, reject) => {
+        const options = {
+          hostname: "kapi.kakao.com",
+          path: "/v2/user/me",
+          method: "GET",
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        };
+        const reqHttp = https.request(options, (r) => {
+          let data = "";
+          r.on("data", (chunk) => (data += chunk));
+          r.on("end", () => resolve(JSON.parse(data)));
+        });
+        reqHttp.on("error", reject);
+        reqHttp.end();
+      });
+
+      const kakaoId = String(userInfo.id);
+      const uid = `kakao:${kakaoId}`;
+
+      // Firebase Custom Token 발급
+      const customToken = await getAuth().createCustomToken(uid, {
+        provider: "kakao",
+        kakaoId,
+      });
+
+      // 앱으로 토큰 전달
+      res.redirect(`motivating://kakao-callback?token=${customToken}`);
+    } catch (e) {
+      console.error("카카오 로그인 오류:", e);
+      res.redirect(`motivating://kakao-callback?error=${encodeURIComponent(e.message)}`);
+    }
+    return;
+  }
+
+  res.status(404).send("Not found");
+});

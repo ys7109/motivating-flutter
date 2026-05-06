@@ -10,23 +10,33 @@ import '../screens/social/social_screen.dart';
 import '../screens/my/my_screen.dart';
 import '../services/firestore_service.dart';
 import '../services/friend_service.dart';
+import '../services/notification_service.dart';
 
-final mainNavKey = GlobalKey<_MainNavState>();
-
+// GlobalKey 제거 — 재로그인 시 Element 충돌 방지
+// 탭 전환은 HomeScreen에 onSwitchTab 콜백으로 전달
 class MainNav extends StatefulWidget {
   const MainNav({super.key});
   @override
   State<MainNav> createState() => _MainNavState();
 }
 
-class _MainNavState extends State<MainNav> {
+class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
   int _currentIndex = 0;
   DateTime? _lastBackPressed;
 
-  final List<Widget> _screens = const [
-    HomeScreen(), GoalsScreen(), FocusScreen(), SocialScreen(), MyScreen(),
+  // 현재 로그인한 uid 캐싱 — dispose 시 오프라인 처리에 사용
+  String? _activeUid;
+
+  // 화면 목록 — HomeScreen에 탭 전환 콜백 주입
+  List<Widget> get _screens => [
+    HomeScreen(onSwitchTab: switchTab),
+    const GoalsScreen(),
+    const FocusScreen(),
+    const SocialScreen(),
+    const MyScreen(),
   ];
 
+  // 탭 전환 — 집중모드 중 다른 탭 이동 시 경고 다이얼로그 표시
   void switchTab(int index) {
     final app = context.read<AppProvider>();
     if (app.isFocusing && index != 2) {
@@ -36,6 +46,7 @@ class _MainNavState extends State<MainNav> {
     _doSwitchTab(index);
   }
 
+  // 집중모드 탭 이탈 확인 다이얼로그
   void _confirmLeaveFocus(int targetIndex) {
     showDialog(
       context: context,
@@ -54,6 +65,7 @@ class _MainNavState extends State<MainNav> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
+              // 집중모드 일시정지 후 탭 전환
               context.read<AppProvider>().onPauseFocus?.call();
               _doSwitchTab(targetIndex);
             },
@@ -64,13 +76,17 @@ class _MainNavState extends State<MainNav> {
     );
   }
 
+  // 실제 탭 전환 처리 — 소셜 탭 진입 시 프로필 동기화
   void _doSwitchTab(int index) {
     setState(() => _currentIndex = index);
     if (index == 3) _syncProfile();
     final uid = context.read<AppProvider>().authUser?.uid;
+    _activeUid = uid;
+    // 활동 시간 갱신
     if (uid != null) FriendService().updateActivity(uid);
   }
 
+  // 소셜 탭 진입 시 공개 프로필 동기화 및 온라인 상태 설정
   Future<void> _syncProfile() async {
     final app = context.read<AppProvider>();
     if (app.userData != null && app.authUser != null) {
@@ -84,64 +100,73 @@ class _MainNavState extends State<MainNav> {
     }
   }
 
+  // 예약된 알림 탭 이동 처리 — 앱 시작/재개 후 MainNav가 준비되면 해당 탭으로 이동
+  void _handlePendingNotificationTab() {
+    final pendingTab = NotificationService.pendingTab;
+    if (pendingTab == null) return;
+    NotificationService.pendingTab = null;
+    switchTab(pendingTab);
+  }
+
   @override
   void initState() {
     super.initState();
+    // AppLifecycleState 감지를 위한 옵저버 등록
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final app = context.read<AppProvider>();
-      if (app.authUser != null) FriendService().setOnline(app.authUser!.uid);
+      final uid = app.authUser?.uid;
+      _activeUid = uid;
+      // 앱 진입 시 온라인 상태로 설정
+      if (uid != null) FriendService().setOnline(uid);
+      _handlePendingNotificationTab();
     });
+  }
+
+  // 앱 포그라운드/백그라운드 전환 감지
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final uid = _activeUid;
+    if (uid == null) return;
+    if (state == AppLifecycleState.resumed) {
+      // 앱 포그라운드 복귀 시 온라인으로
+      FriendService().setOnline(uid);
+    } else if (state == AppLifecycleState.paused) {
+      // 앱 백그라운드 전환 시 오프라인으로
+      FriendService().setOffline(uid);
+    }
   }
 
   @override
   void dispose() {
-    final app = context.read<AppProvider>();
-    if (app.authUser != null) FriendService().setOffline(app.authUser!.uid);
+    WidgetsBinding.instance.removeObserver(this);
+    // MainNav 제거 시 오프라인 처리
+    final uid = _activeUid;
+    if (uid != null) FriendService().setOffline(uid);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
+    // build마다 uid 갱신 — 로그아웃 시 null로 초기화됨
+    _activeUid = app.authUser?.uid;
+    // 알림 탭 이동 예약 확인 — 이미 열린 앱에서 알림을 눌렀을 때도 다음 프레임에 반영
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _handlePendingNotificationTab();
+    });
     final isLevelUp = app.levelUpTo != null;
-
-    // 하단 네비게이션 바 — 레벨업 시 딤 처리
-    final navBar = Container(
-      decoration: BoxDecoration(
-        color: isLevelUp
-            ? context.surfaceColor.withOpacity(0.3) // 레벨업 시 흐리게
-            : context.surfaceColor,
-        border: Border(top: BorderSide(color: context.borderColor, width: 0.5)),
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 56,
-          child: Row(children: [
-            _NavItem(icon: Icons.home_rounded, label: '홈', index: 0,
-                current: _currentIndex, onTap: switchTab),
-            _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1,
-                current: _currentIndex, onTap: switchTab),
-            _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2,
-                current: _currentIndex, onTap: switchTab),
-            _NavItem(
-              icon: Icons.people_rounded, label: '소셜', index: 3,
-              current: _currentIndex, onTap: switchTab,
-              badge: app.unreadSocialCount,
-            ),
-            _NavItem(icon: Icons.person_rounded, label: '마이', index: 4,
-                current: _currentIndex, onTap: switchTab),
-          ]),
-        ),
-      ),
-    );
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
+        // 홈 탭이 아니면 홈으로 이동
         if (_currentIndex != 0) {
           if (_currentIndex != 2) setState(() => _currentIndex = 0);
           return;
         }
+        // 2초 이내 뒤로가기 두 번 → 앱 종료
         final now = DateTime.now();
         if (_lastBackPressed == null ||
             now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
@@ -159,8 +184,17 @@ class _MainNavState extends State<MainNav> {
       child: Scaffold(
         backgroundColor: context.bgColor,
         body: Stack(children: [
-          IndexedStack(index: _currentIndex, children: _screens),
-          // 토스트
+          // 화면 콘텐츠 — 레벨업 시 딤 처리
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 300),
+            opacity: isLevelUp ? 0.3 : 1.0,
+            child: IgnorePointer(
+              // 레벨업 모달 표시 중 body 터치 차단
+              ignoring: isLevelUp,
+              child: IndexedStack(index: _currentIndex, children: _screens),
+            ),
+          ),
+          // 토스트 메시지 — 화면 하단 중앙에 표시
           if (app.toast != null)
             Positioned(
               bottom: 100, left: 24, right: 24,
@@ -179,13 +213,48 @@ class _MainNavState extends State<MainNav> {
               ),
             ),
         ]),
-        // 레벨업 시 하단바도 딤 처리된 버전으로 교체
-        bottomNavigationBar: navBar,
+        // 하단 네비게이션 바 — 레벨업 시 함께 딤 처리
+        bottomNavigationBar: AnimatedOpacity(
+          duration: const Duration(milliseconds: 300),
+          opacity: isLevelUp ? 0.3 : 1.0,
+          child: IgnorePointer(
+            // 레벨업 모달 표시 중 하단바 터치 차단
+            ignoring: isLevelUp,
+            child: Container(
+              decoration: BoxDecoration(
+                color: context.surfaceColor,
+                border: Border(top: BorderSide(color: context.borderColor, width: 0.5)),
+              ),
+              child: SafeArea(
+                child: SizedBox(
+                  height: 56,
+                  child: Row(children: [
+                    _NavItem(icon: Icons.home_rounded, label: '홈', index: 0,
+                        current: _currentIndex, onTap: switchTab),
+                    _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1,
+                        current: _currentIndex, onTap: switchTab),
+                    _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2,
+                        current: _currentIndex, onTap: switchTab),
+                    _NavItem(
+                      icon: Icons.people_rounded, label: '소셜', index: 3,
+                      current: _currentIndex, onTap: switchTab,
+                      // 소셜 탭 배지 = 활동 알림 + 채팅 미읽음
+                      badge: app.unreadSocialCount,
+                    ),
+                    _NavItem(icon: Icons.person_rounded, label: '마이', index: 4,
+                        current: _currentIndex, onTap: switchTab),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
+// 하단 네비게이션 아이템 — 활성/비활성 색상 및 배지 표시
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -209,6 +278,7 @@ class _NavItem extends StatelessWidget {
           Stack(clipBehavior: Clip.none, children: [
             Icon(icon, size: 24,
                 color: isActive ? context.primaryColor : const Color(0xFFBDBDBD)),
+            // 미읽음 배지
             if (badge > 0)
               Positioned(top: -4, right: -6, child: Container(
                 width: 14, height: 14,

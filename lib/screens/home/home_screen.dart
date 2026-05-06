@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
-import '../../widgets/main_nav.dart';
 import '../goals/add_goal_screen.dart';
-import '../../widgets/level_up_modal.dart' hide mainNavKey;
+import '../../widgets/level_up_modal.dart';
 import '../../widgets/attendance_modal.dart';
 import '../../widgets/streak_modal.dart';
 import '../../widgets/tap_scale.dart';
@@ -12,8 +11,13 @@ import '../../utils/transitions.dart';
 import '../my/mailbox_screen.dart';
 import '../my/activity_notification_screen.dart';
 
+// 홈 화면 — 오늘의 목표, XP 카드, 스트릭, 집중모드 진입 버튼
+// onSwitchTab: MainNav로부터 받은 탭 전환 콜백 (GlobalKey 대신 콜백 방식 사용)
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final ValueChanged<int>? onSwitchTab;
+
+  const HomeScreen({super.key, this.onSwitchTab});
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -30,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final weekDays = ['일', '월', '화', '수', '목', '금', '토'];
     final todayLabel = '${today.month}월 ${today.day}일 (${weekDays[today.weekday % 7]})';
 
-    // 오늘 날짜에 해당하는 목표 필터링
+    // 오늘 날짜에 해당하는 목표 필터링 (scheduledDate 또는 createdAt 기준)
     final todayGoals = app.goals.where((g) {
       if (g.scheduledDate != null) return g.scheduledDate == todayStr;
       if (g.createdAt != null) {
@@ -130,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 20),
 
-              // XP 카드
+              // XP 카드 — 레벨, XP 진행률 표시
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -184,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
 
-              // 통계 3개 카드
+              // 통계 3개 카드 — 달성 목표, 최고 스트릭, 집중 시간
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(children: [
@@ -197,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
 
-              // 연속 출석 카드
+              // 연속 출석 카드 — 스트릭 및 마일스톤 진행률
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -224,21 +228,21 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
 
-              // 오늘의 목표 헤더
+              // 오늘의 목표 헤더 — 전체 보기는 목표 탭(1)으로 전환
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text('오늘의 목표',
                       style: TextStyle(color: context.textPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
                   GestureDetector(
-                    onTap: () => mainNavKey.currentState?.switchTab(1),
+                    onTap: () => widget.onSwitchTab?.call(1),
                     child: Text('전체 보기 →', style: TextStyle(color: context.textSecondary, fontSize: 12)),
                   ),
                 ]),
               ),
               const SizedBox(height: 12),
 
-              // 오늘 목표 목록
+              // 오늘 목표 목록 — 최대 3개 표시
               if (todayGoals.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
@@ -295,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 집중 모드 카드
+              // 집중 모드 카드 — 시작 버튼은 집중 탭(2)으로 전환
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -314,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text('10분당 +50 XP 획득', style: TextStyle(color: context.textSecondary, fontSize: 12)),
                     ]),
                     GestureDetector(
-                      onTap: () => mainNavKey.currentState?.switchTab(2),
+                      onTap: () => widget.onSwitchTab?.call(2),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
@@ -343,6 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // 레벨별 칭호 텍스트
   String _levelTitle(int level) {
     const prefixes = ['', '새내기', '성장하는', '도전하는', '달리는', '노력하는', '빛나는', '도약하는', '질주하는', '각성한', '눈뜬'];
     final prefix = level <= 10 ? prefixes[level] : '';
@@ -356,6 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// 통계 카드 위젯 — 달성 목표 / 최고 스트릭 / 집중 시간
 class _StatCard extends StatelessWidget {
   final String label, value, sub;
   const _StatCard({required this.label, required this.value, required this.sub});
@@ -380,6 +386,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+// 스트릭 마일스톤 진행률 바 — 다음 마일스톤까지 남은 일수 표시
 class _StreakMilestone extends StatelessWidget {
   final int streak;
   const _StreakMilestone({required this.streak});
@@ -410,6 +417,7 @@ class _StreakMilestone extends StatelessWidget {
   }
 }
 
+// 목표 아이템 위젯 — 완료/취소 애니메이션, 반복 목표 회차 표시
 class _GoalItem extends StatefulWidget {
   final dynamic goal;
   final int? currentCount;
@@ -453,6 +461,7 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
   @override
   Widget build(BuildContext context) {
     final g = widget.goal;
+    // 목표 유형별 태그 색상
     final tagColor = g.type == 'short' ? const Color(0xFF1b8a5a)
         : g.type == 'mid' ? const Color(0xFFf9a825)
         : const Color(0xFF3949ab);
@@ -476,7 +485,7 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: context.borderColor, width: 0.5)),
           child: Row(children: [
-            // 완료 체크 원형 버튼
+            // 완료 체크 원형 버튼 — 완료 시 primaryColor로 채워짐
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               width: 24, height: 24,

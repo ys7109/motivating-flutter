@@ -119,6 +119,6 @@ class _RootScreenState extends State<RootScreen> {
     if (app.authUser == null || app.userData == null) return const LoginScreen();
     if (app.userData!.withdrawScheduledAt != null) return const WithdrawPendingScreen();
     if (!app.userData!.onboardingDone) return const OnboardingScreen();
-    return MainNav(key: mainNavKey);
+    return const MainNav();
   }
 }
