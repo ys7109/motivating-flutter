@@ -139,11 +139,11 @@ class NotificationService {
 
       if (token == null) return;
 
-      // 기존 토큰과 동일하면 Firestore 업데이트 스킵
+      // 기존 토큰과 동일하면 Firestore 업데이트 스킵 (단, 기존 토큰이 없으면 무조건 저장)
       final snap = await FirebaseFirestore.instance
           .collection('users').doc(uid).get();
       final existing = snap.data()?['fcmToken'];
-      if (existing == token) return;
+      if (existing != null && existing == token) return;
 
       await FirebaseFirestore.instance.collection('users').doc(uid).update({
         'fcmToken': token,
