@@ -156,7 +156,8 @@ Row(children: [
           else
             Column(children: [
               Row(mainAxisSize: MainAxisSize.min, children: [
-                Text('${userData.name.split(' ').first} 님',
+                // 닉네임 표시 — 공백이 포함된 닉네임도 자르지 않고 전체 표시
+                Text('${userData.name} 님',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
                 const SizedBox(width: 6),
                 GestureDetector(

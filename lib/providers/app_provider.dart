@@ -134,9 +134,15 @@ class AppProvider extends ChangeNotifier {
       _isInitializing = true;
       try {
         authUser = user;
+        debugPrint('🔥 authStateChanges: user=${user?.uid}');
         if (user != null) {
-          // 유저 데이터 로드
-          userData = await _db.getUser(user.uid);
+          // 유저 데이터 로드 — 신규 회원가입 시 문서 생성 지연 대응해 최대 3회 재시도
+          for (int i = 0; i < 3; i++) {
+            userData = await _db.getUser(user.uid);
+            if (userData != null) break;
+            await Future.delayed(const Duration(seconds: 1));
+          }
+          debugPrint('🔥 userData=${userData?.uid}, null=${userData == null}');
           if (userData != null) {
             // 목표/우편함 병렬 로드
             await Future.wait([loadGoals(), loadMailbox()]);
@@ -147,6 +153,7 @@ class AppProvider extends ChangeNotifier {
             // 업적 조용히 체크 (토스트 없이)
             await _checkAllAchievementsSilently();
             // FCM 토큰 저장
+            debugPrint('🔥 saveFcmToken 호출: ${user.uid}');
             await NotificationService.saveFcmToken(user.uid);
           }
         } else {
@@ -684,11 +691,13 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 온보딩 완료 처리
+  // 온보딩 완료 처리 — 닉네임 저장 후 FCM 토큰 발급
   Future<void> completeOnboarding(String nickname) async {
     if (authUser == null) return;
     await _db.updateUser(authUser!.uid, {'name': nickname, 'onboardingDone': true});
     userData = userData!.copyWith(name: nickname, onboardingDone: true);
+    // 신규 회원은 이 시점에 FCM 토큰 저장 (authStateChanges 타이밍 문제 우회)
+    await NotificationService.saveFcmToken(authUser!.uid);
     notifyListeners();
   }
 
@@ -702,16 +711,17 @@ class AppProvider extends ChangeNotifier {
     await _checkAchievements(diaryWritten: true, diaryCount: diaryCount);
   }
 
-  // 로그아웃 — 먼저 루트로 이동 후 FCM 토큰 삭제, 상태 초기화
-  // GlobalKey 충돌 방지를 위해 popUntil을 signOut 전에 먼저 실행
+  // 로그아웃 — Navigator 스택 초기화 후 상태 초기화
   Future<void> signOut() async {
     final uid = authUser?.uid;
-    // 먼저 루트 라우트로 이동 — MainNav가 트리에서 제거된 후 상태 초기화
-    navigatorKey.currentState?.popUntil((route) => route.isFirst);
-    if (uid != null) await NotificationService.deleteFcmToken(uid);
-    await _auth.signOut();
+    // Navigator 스택을 루트로 초기화 — 설정 화면 등 모든 스택 제거
+    navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+    // 상태 초기화 — RootScreen이 LoginScreen으로 전환
     authUser = null; userData = null; goals = []; mailbox = [];
     notifyListeners();
+    // FCM 토큰 삭제 및 Firebase 로그아웃 (백그라운드)
+    if (uid != null) NotificationService.deleteFcmToken(uid);
+    await _auth.signOut();
   }
 
   // 토스트 메시지 큐에 추가

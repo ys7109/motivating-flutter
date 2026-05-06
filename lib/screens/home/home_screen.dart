@@ -71,7 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('좋은 하루예요,', style: TextStyle(color: context.textSecondary, fontSize: 13)),
                         const SizedBox(height: 2),
-                        Text('${userData.name.split(' ').first} 님',
+                        // 닉네임 표시 — 공백이 포함된 닉네임도 자르지 않고 전체 표시
+                        Text('${userData.name} 님',
                             style: TextStyle(color: context.textPrimary, fontSize: 20, fontWeight: FontWeight.w600)),
                       ]),
                     ),
