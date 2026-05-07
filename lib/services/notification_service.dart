@@ -18,6 +18,9 @@ String? currentOpenChatId;
 class NotificationService {
   // 알림 탭으로 앱 실행 시 소셜 탭으로 이동 — MainNav initState에서 처리
   static int? pendingTab;
+  // 채팅 알림 탭 시 이동할 채팅방 ID
+  static String? pendingChatId;
+  static String? pendingChatTitle;
 
   static final _plugin = FlutterLocalNotificationsPlugin();
   static final _fcm = FirebaseMessaging.instance;
@@ -108,16 +111,18 @@ class NotificationService {
   // MainNav가 준비된 후 pendingTab을 확인해서 탭 전환
   static void _handleMessageTap(RemoteMessage message) {
     final type = message.data['type'] ?? '';
-    final navigatorState = AppProvider.navigatorKey.currentState;
-    if (navigatorState == null) return;
 
     if (type == 'chat') {
-      // 채팅 알림 → 소셜 탭 이동 예약 (MainNav initState에서 처리)
+      // 채팅 알림 → 소셜 탭 이동 + 채팅방 정보 저장
       pendingTab = 3;
+      pendingChatId = message.data['chatId'];
+      pendingChatTitle = message.notification?.title ?? '채팅';
     } else if (type == 'like' || type == 'comment' || type == 'reply'
         || type == 'friend_request' || type == 'friend_accepted') {
       // 활동 알림 → 소셜 탭 이동 예약
       pendingTab = 3;
+      pendingChatId = null;
+      pendingChatTitle = null;
     }
   }
 

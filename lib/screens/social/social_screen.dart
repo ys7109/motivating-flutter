@@ -26,14 +26,7 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    // 탭 5개 — 친구 / 채팅 / 피드 / 다이어리 / 랭킹
     _tabCtrl = TabController(length: 5, vsync: this);
-    // 친구 탭(0번) 진입 시 접속 상태 갱신을 위해 reload
-    _tabCtrl.addListener(() {
-      if (_tabCtrl.index == 0 && !_tabCtrl.indexIsChanging) {
-        _friendsKey.currentState?.reload();
-      }
-    });
   }
 
   Future<void> _syncAndReload() async {
@@ -78,46 +71,28 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
         child: Column(children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Text('소셜', style: TextStyle(fontSize: 22,
-                fontWeight: FontWeight.w600, color: context.textPrimary)),
+            child: Text('소셜', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: context.textPrimary)),
           ),
           const SizedBox(height: 12),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-                color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
             child: TabBar(
               controller: _tabCtrl,
               dividerColor: Colors.transparent,
-              indicator: BoxDecoration(
-                  color: context.primaryColor, borderRadius: BorderRadius.circular(10)),
+              indicator: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(10)),
               indicatorSize: TabBarIndicatorSize.tab,
               labelColor: context.isDark ? Colors.black : Colors.white,
               unselectedLabelColor: context.textSecondary,
               labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
               unselectedLabelStyle: const TextStyle(fontSize: 12),
               padding: const EdgeInsets.all(3),
-              tabs: [
-                const Tab(text: '친구'),
-                // 채팅 탭 — 미읽음 배지 표시
-                Tab(child: Stack(clipBehavior: Clip.none, children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
-                    child: Text('채팅', style: TextStyle(fontSize: 12)),
-                  ),
-                  if (app.unreadChatCount > 0)
-                    Positioned(top: -4, right: -4, child: Container(
-                      width: 14, height: 14,
-                      decoration: const BoxDecoration(
-                          color: AppTheme.danger, shape: BoxShape.circle),
-                      child: Center(child: Text('${app.unreadChatCount}',
-                          style: const TextStyle(color: Colors.white,
-                              fontSize: 8, fontWeight: FontWeight.bold))),
-                    )),
-                ])),
-                const Tab(text: '피드'),
-                const Tab(text: '다이어리'),
-                const Tab(text: '랭킹'),
+              tabs: const [
+                Tab(text: '친구'),
+                Tab(text: '채팅'),
+                Tab(text: '피드'),
+                Tab(text: '다이어리'),
+                Tab(text: '랭킹'),
               ],
             ),
           ),

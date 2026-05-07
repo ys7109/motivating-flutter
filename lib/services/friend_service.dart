@@ -115,27 +115,39 @@ class FriendService {
         .where('status', isEqualTo: 'accepted')
         .snapshots()
         .asyncMap((snap) async {
-      final friendUids = snap.docs.map((d) {
-        final users = List<String>.from(d['users']);
-        return users.firstWhere((u) => u != uid);
-      }).toList();
-      if (friendUids.isEmpty) return [];
-      final futures = friendUids.map((fUid) async {
-        final userSnap = await _db.collection('users').doc(fUid).get();
-        final presenceSnap = await _db.collection('presence').doc(fUid).get();
-        final userData = userSnap.data() ?? {};
-        final presenceData = presenceSnap.data() ?? {};
-        final presenceStatus = _calcPresenceStatus(presenceData);
-        return {
-          ...userData,
-          'uid': fUid,
-          'presenceStatus': presenceStatus,
-          'isOnline': presenceStatus == 'online',
-          'isFocusing': presenceStatus == 'focusing',
-          'lastSeen': presenceData['lastSeen'],
-        };
-      });
-      return await Future.wait(futures);
+      try {
+        final friendUids = snap.docs.map((d) {
+          final users = List<String>.from(d['users']);
+          return users.firstWhere((u) => u != uid);
+        }).toList();
+        if (friendUids.isEmpty) return <Map<String, dynamic>>[];
+        final futures = friendUids.map((fUid) async {
+          try {
+            final userSnap = await _db.collection('users').doc(fUid).get();
+            // 탈퇴 유저는 문서가 없으므로 null 반환 후 필터링
+            if (!userSnap.exists) return null;
+            final presenceSnap = await _db.collection('presence').doc(fUid).get();
+            final userData = userSnap.data() ?? {};
+            final presenceData = presenceSnap.data() ?? {};
+            final presenceStatus = _calcPresenceStatus(presenceData);
+            return <String, dynamic>{
+              ...userData,
+              'uid': fUid,
+              'presenceStatus': presenceStatus,
+              'isOnline': presenceStatus == 'online',
+              'isFocusing': presenceStatus == 'focusing',
+              'lastSeen': presenceData['lastSeen'],
+            };
+          } catch (_) {
+            return null;
+          }
+        });
+        final results = await Future.wait(futures);
+        // 탈퇴 유저(null) 필터링
+        return results.whereType<Map<String, dynamic>>().toList();
+      } catch (_) {
+        return <Map<String, dynamic>>[];
+      }
     });
   }
 
@@ -146,14 +158,23 @@ class FriendService {
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .asyncMap((snap) async {
-      final requests = snap.docs.where((d) => d['requestedBy'] != uid).toList();
-      if (requests.isEmpty) return [];
-      final futures = requests.map((doc) async {
-        final fromUid = List<String>.from(doc['users']).firstWhere((u) => u != uid);
-        final userSnap = await _db.collection('users').doc(fromUid).get();
-        return {'docId': doc.id, ...userSnap.data() ?? {}, 'uid': fromUid};
-      });
-      return await Future.wait(futures);
+      try {
+        final requests = snap.docs.where((d) => d['requestedBy'] != uid).toList();
+        if (requests.isEmpty) return <Map<String, dynamic>>[];
+        final futures = requests.map((doc) async {
+          try {
+            final fromUid = List<String>.from(doc['users']).firstWhere((u) => u != uid);
+            final userSnap = await _db.collection('users').doc(fromUid).get();
+            return <String, dynamic>{'docId': doc.id, ...userSnap.data() ?? {}, 'uid': fromUid};
+          } catch (_) {
+            return <String, dynamic>{};
+          }
+        });
+        final results = await Future.wait(futures);
+        return results.where((r) => r.isNotEmpty).toList();
+      } catch (_) {
+        return <Map<String, dynamic>>[];
+      }
     });
   }
 

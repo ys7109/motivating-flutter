@@ -492,20 +492,42 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 부활 아이템으로 스트릭 복구
+  // 부활 아이템으로 스트릭 복구 — 복구 후 오늘 출석 보상 즉시 지급
   Future<void> reviveStreakByItem() async {
     if (authUser == null || userData == null) return;
-    await _db.updateUser(authUser!.uid, {'streak': brokenStreakPrev, 'reviveItem': userData!.reviveItem - 1});
-    userData = userData!.copyWith(streak: brokenStreakPrev, reviveItem: userData!.reviveItem - 1);
-    streakModalType = null; notifyListeners();
+    final revivedStreak = brokenStreakPrev;
+    await _db.updateUser(authUser!.uid, {'streak': revivedStreak, 'reviveItem': userData!.reviveItem - 1});
+    userData = userData!.copyWith(streak: revivedStreak, reviveItem: userData!.reviveItem - 1);
+    // 출석 보상 우편 발송
+    await _db.sendAttendanceMail(authUser!.uid, revivedStreak);
+    await loadMailbox();
+    // 스트릭 위기 알림 재스케줄
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('notif_streak') ?? true) {
+      await NotificationService.cancelNotification(2);
+      await NotificationService.scheduleStreakRiskReminder(revivedStreak);
+    }
+    streakModalType = null;
+    notifyListeners();
   }
 
-  // 광고 시청으로 스트릭 복구
+  // 광고 시청으로 스트릭 복구 — 복구 후 오늘 출석 보상 즉시 지급
   Future<void> reviveStreakByAd() async {
     if (authUser == null || userData == null) return;
-    await _db.updateUser(authUser!.uid, {'streak': brokenStreakPrev});
-    userData = userData!.copyWith(streak: brokenStreakPrev);
-    streakModalType = null; notifyListeners();
+    final revivedStreak = brokenStreakPrev;
+    await _db.updateUser(authUser!.uid, {'streak': revivedStreak});
+    userData = userData!.copyWith(streak: revivedStreak);
+    // 출석 보상 우편 발송
+    await _db.sendAttendanceMail(authUser!.uid, revivedStreak);
+    await loadMailbox();
+    // 스트릭 위기 알림 재스케줄
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('notif_streak') ?? true) {
+      await NotificationService.cancelNotification(2);
+      await NotificationService.scheduleStreakRiskReminder(revivedStreak);
+    }
+    streakModalType = null;
+    notifyListeners();
   }
 
   // 스트릭 포기 (1로 초기화)

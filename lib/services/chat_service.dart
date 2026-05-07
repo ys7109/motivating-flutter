@@ -14,12 +14,14 @@ class ChatService {
   Future<String> getOrCreateDirectChat(String myUid, String otherUid) async {
     final id = directChatId(myUid, otherUid);
     final ref = _db.collection('chats').doc(id);
-    if (!(await ref.get()).exists) {
-      // 양쪽 유저 이름 조회해서 저장 (각자 상대방 이름을 names 맵에 저장)
-      final mySnap = await _db.collection('users').doc(myUid).get();
-      final otherSnap = await _db.collection('users').doc(otherUid).get();
-      final myName = mySnap.data()?['name'] as String? ?? '모험가';
-      final otherName = otherSnap.data()?['name'] as String? ?? '모험가';
+    final snap = await ref.get();
+    final mySnap = await _db.collection('users').doc(myUid).get();
+    final otherSnap = await _db.collection('users').doc(otherUid).get();
+    final myName = mySnap.data()?['name'] as String? ?? '모험가';
+    final otherName = otherSnap.data()?['name'] as String? ?? '모험가';
+
+    if (!snap.exists) {
+      // 채팅방 신규 생성
       await ref.set({
         'type': 'direct',
         'users': [myUid, otherUid],
@@ -27,19 +29,27 @@ class ChatService {
         'lastMessageAt': FieldValue.serverTimestamp(),
         'unreadCount': {myUid: 0, otherUid: 0},
         'lastReadAt': {myUid: FieldValue.serverTimestamp(), otherUid: Timestamp.fromMillisecondsSinceEpoch(0)},
-        // 각 유저 입장에서 채팅방 제목 (상대방 이름)
         'names': {myUid: otherName, otherUid: myName},
       });
     } else {
-      // 기존 채팅방에 names 없으면 추가
-      final snap = await ref.get();
-      if (snap.data()?['names'] == null) {
-        final mySnap = await _db.collection('users').doc(myUid).get();
-        final otherSnap = await _db.collection('users').doc(otherUid).get();
-        final myName = mySnap.data()?['name'] as String? ?? '모험가';
-        final otherName = otherSnap.data()?['name'] as String? ?? '모험가';
-        await ref.update({'names': {myUid: otherName, otherUid: myName}});
+      // 기존 채팅방 — 나갔던 유저 재참여 처리
+      final users = List<String>.from(snap.data()?['users'] ?? []);
+      final updates = <String, dynamic>{};
+      if (!users.contains(myUid)) {
+        updates['users'] = FieldValue.arrayUnion([myUid]);
+        updates['unreadCount.$myUid'] = 0;
+        updates['lastReadAt.$myUid'] = FieldValue.serverTimestamp();
       }
+      if (!users.contains(otherUid)) {
+        updates['users'] = FieldValue.arrayUnion([otherUid]);
+        updates['unreadCount.$otherUid'] = 0;
+        updates['lastReadAt.$otherUid'] = Timestamp.fromMillisecondsSinceEpoch(0);
+      }
+      // names 없으면 추가
+      if (snap.data()?['names'] == null) {
+        updates['names'] = {myUid: otherName, otherUid: myName};
+      }
+      if (updates.isNotEmpty) await ref.update(updates);
     }
     return id;
   }
