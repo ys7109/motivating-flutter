@@ -185,7 +185,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
               unselectedLabelColor: context.textSecondary,
               labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               unselectedLabelStyle: const TextStyle(fontSize: 13),
-              tabs: const [Tab(text: '내 다이어리'), Tab(text: '친구'), Tab(text: '전체')],
+              tabs: const [Tab(text: '내 게시글'), Tab(text: '친구'), Tab(text: '전체')],
             ),
           ),
           const SizedBox(width: 8),

@@ -91,7 +91,7 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
                 Tab(text: '친구'),
                 Tab(text: '채팅'),
                 Tab(text: '피드'),
-                Tab(text: '다이어리'),
+                Tab(text: '게시판'),
                 Tab(text: '랭킹'),
               ],
             ),

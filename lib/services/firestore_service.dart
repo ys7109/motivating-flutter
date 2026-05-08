@@ -16,7 +16,7 @@ class FirestoreService {
         'name': user.displayName ?? '새로운 모험가',
         'email': user.email ?? '',
         'photoURL': user.photoURL ?? '',
-        'level': 1, 'xp': 0, 'xpToNext': 100,
+        'level': 1, 'xp': 0, 'xpToNext': 100, 'totalXp': 0,
         'streak': 0, 'maxStreak': 0, 'lastStreakDate': '',
         'reviveItem': 0, 'streakBadges': {}, 'totalFocusMin': 0,
         'lastAttendDate': '',
@@ -92,6 +92,12 @@ class FirestoreService {
     await batch.commit();
   }
 
+  // 집중 세션 횟수 조회
+  Future<int> getFocusSessionCount(String uid) async {
+    final snap = await _db.collection('users').doc(uid).collection('focusSessions').count().get();
+    return snap.count ?? 0;
+  }
+
   // 집중 세션
   Future<void> saveFocusSession(String uid, int minutes) async {
     await _db.collection('users').doc(uid).collection('focusSessions').add({
@@ -116,6 +122,18 @@ class FirestoreService {
 
   Future<void> deleteMail(String uid, String mailId) async {
     await _db.collection('users').doc(uid).collection('mailbox').doc(mailId).delete();
+  }
+
+  // 레벨업 보상 우편 발송
+  Future<void> sendLevelUpMail(String uid, int level, Map<String, dynamic> reward) async {
+    await _db.collection('users').doc(uid).collection('mailbox').add({
+      'title': reward['label'],
+      'body': '레벨 $level을 달성했어요! 특별 보상을 확인해보세요.',
+      'reward': {'xp': reward['xp'], 'reviveItem': reward['reviveItem']},
+      'type': 'level_up',
+      'read': false, 'claimed': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> sendAttendanceMail(String uid, int streakDay) async {
@@ -191,7 +209,7 @@ class FirestoreService {
     return snap.docs.map((d) => GoalModel.fromMap(d.id, d.data())).toList();
   }
 
-  // ── 업적 통계 (전체 유저 달성률) ──
+  // 업적 통계 (전체 유저 달성률)
   // achievement_stats/{achievementId} = {count: N, total: N}
   // 업적 달성 시 해당 카운트 +1
   Future<void> incrementAchievementStat(String achievementId) async {
@@ -208,15 +226,23 @@ class FirestoreService {
   }
 
   // 전체 유저 달성률 조회 (achievementId → pct)
+  // 달성자 0명 → 0.0%, 1명 이상 → 정확한 비율 표시 (나만 달성해도 표시)
   Future<Map<String, double>> getAchievementStats() async {
     final statsSnap = await _db.collection('achievement_stats').get();
-    final totalSnap = await _db.collection('rankings').count().get();
-    final total = totalSnap.count ?? 1;
+    // 전체 유저 수 — users 컬렉션 기준 (rankings보다 정확)
+    final totalSnap = await _db.collection('users').count().get();
+    final total = (totalSnap.count ?? 0);
 
     final result = <String, double>{};
     for (final doc in statsSnap.docs) {
       final count = (doc.data()['count'] as int?) ?? 0;
-      result[doc.id] = (count / total * 100).clamp(0.0, 100.0);
+      if (total == 0 || count == 0) {
+        result[doc.id] = 0.0;
+      } else {
+        // 최소 0.1%는 표시 — 달성자가 있으면 항상 표시
+        final pct = (count / total * 100).clamp(0.0, 100.0);
+        result[doc.id] = pct < 0.1 ? 0.1 : double.parse(pct.toStringAsFixed(1));
+      }
     }
     return result;
   }

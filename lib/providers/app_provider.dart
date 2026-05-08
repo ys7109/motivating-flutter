@@ -110,13 +110,112 @@ class AppProvider extends ChangeNotifier {
   }
 
   // 레벨별 칭호
-  String levelTitle(int level) {
-    if (level >= 20) return '전설의 모험가';
-    if (level >= 15) return '영웅';
-    if (level >= 10) return '탐험가';
-    if (level >= 6)  return '학자';
-    if (level >= 3)  return '전사';
+  // 레벨별 호칭 — 10단계 구간
+  static String levelTitle(int level) {
+    if (level >= 100) return '불멸자';
+    if (level >= 76)  return '신화의 존재';
+    if (level >= 51)  return '전설';
+    if (level >= 36)  return '영웅';
+    if (level >= 21)  return '탐험가';
+    if (level >= 11)  return '학자';
+    if (level >= 6)   return '전사';
+    if (level >= 3)   return '견습생';
     return '초보 모험가';
+  }
+
+  // 레벨업 보상 우편 발송 — 특정 레벨 달성 시 특별 보상
+  static Map<String, dynamic>? _getLevelReward(int level) {
+    // 5레벨마다 보상, 10레벨마다 더 큰 보상, 50/100은 특별 보상
+    if (level == 100) return {'xp': 10000, 'reviveItem': 5, 'label': '🌟 레벨 100 달성! 불멸자의 증표'};
+    if (level == 50)  return {'xp': 3000,  'reviveItem': 3, 'label': '💎 레벨 50 달성! 전설의 시작'};
+    if (level % 10 == 0) return {'xp': level * 20, 'reviveItem': 2, 'label': '🎊 레벨 $level 달성!'};
+    if (level % 5 == 0)  return {'xp': level * 10, 'reviveItem': 1, 'label': '🎁 레벨 $level 달성!'};
+    return null;
+  }
+
+
+
+  // 기존 유저 마이그레이션 — totalXp 없으면 1.15배 역산 → 1.05배 재계산
+  Future<void> _migrateTotalXpIfNeeded(String uid) async {
+    if (userData == null) return;
+    // fromMap에서 totalXp가 없으면 역산값이 들어있음
+    // Firestore에 실제로 저장됐는지 확인하기 위해 xpToNext로 판단
+    // 1.05배 기준 xpToNext와 다르면 마이그레이션 필요
+    final expectedXpToNext = xpRequired(userData!.level);
+    final needsMigration = (userData!.xpToNext - expectedXpToNext).abs() > 5;
+    if (!needsMigration) return;
+
+    // 1.15배 기준으로 totalXp 역산
+    final migratedTotal = _calcTotalXpLegacy(userData!.level, userData!.xp);
+    // 1.05배 기준으로 level/xp/xpToNext 재계산
+    final r = calcLevelFromTotal(migratedTotal);
+    final prevLevel = userData!.level;
+    await _db.updateUser(uid, {
+      'totalXp': migratedTotal,
+      'level': r.level,
+      'xp': r.xp,
+      'xpToNext': r.xpToNext,
+    });
+    userData = userData!.copyWith(
+      totalXp: migratedTotal,
+      level: r.level,
+      xp: r.xp,
+      xpToNext: r.xpToNext,
+    );
+    if (r.level != prevLevel) {
+      await _db.updatePublicProfile(uid, {
+        'level': r.level,
+        'name': userData!.name,
+        'character': userData!.character.toMap(),
+      });
+    }
+    debugPrint('마이그레이션 완료: Lv${prevLevel}→Lv${r.level}, totalXp=$migratedTotal');
+  }
+
+  // 1.15배 기준 totalXp 역산 (마이그레이션용)
+  static int _calcTotalXpLegacy(int level, int xp) {
+    int total = xp;
+    int req = 100;
+    for (int i = 1; i < level; i++) {
+      total += req;
+      req = (req * 1.15).round();
+    }
+    return total;
+  }
+
+  // ── XP / 레벨 헬퍼 ──────────────────────────────────────────────────────
+
+  // 레벨 n에서 다음 레벨까지 필요한 XP (1.05배 배율)
+  static int xpRequired(int level) {
+    int req = 100;
+    for (int i = 1; i < level; i++) req = (req * 1.05).round();
+    return req;
+  }
+
+  // totalXp로 level, xp, xpToNext 계산
+  static ({int level, int xp, int xpToNext}) calcLevelFromTotal(int totalXp) {
+    int level = 1;
+    int remaining = totalXp;
+    while (true) {
+      final req = xpRequired(level);
+      if (remaining < req) return (level: level, xp: remaining, xpToNext: req);
+      remaining -= req;
+      level++;
+    }
+  }
+
+  // XP 획득 — totalXp 기반으로 level/xp/xpToNext 재계산
+  Map<String, dynamic> _applyXp(int currentTotalXp, int gain) {
+    final newTotal = currentTotalXp + gain;
+    final r = calcLevelFromTotal(newTotal);
+    return {'totalXp': newTotal, 'xp': r.xp, 'level': r.level, 'xpToNext': r.xpToNext};
+  }
+
+  // XP 차감 — totalXp 기반으로 level/xp/xpToNext 재계산
+  Map<String, dynamic> _deductXp(int currentTotalXp, int loss) {
+    final newTotal = (currentTotalXp - loss).clamp(0, 999999999);
+    final r = calcLevelFromTotal(newTotal);
+    return {'totalXp': newTotal, 'xp': r.xp, 'level': r.level, 'xpToNext': r.xpToNext};
   }
 
   // 앱 초기화 — 테마 로드 후 Auth 상태 구독 시작
@@ -152,6 +251,9 @@ class AppProvider extends ChangeNotifier {
             await reloadUnreadNotifCount();
             // 업적 조용히 체크 (토스트 없이)
             await _checkAllAchievementsSilently();
+            // 기존 유저 totalXp 마이그레이션
+            // totalXp가 없으면 1.15배 기준으로 역산 후 1.05배 기준으로 재계산
+            await _migrateTotalXpIfNeeded(user.uid);
             // FCM 토큰 저장
             debugPrint('🔥 saveFcmToken 호출: ${user.uid}');
             await NotificationService.saveFcmToken(user.uid);
@@ -190,31 +292,60 @@ class AppProvider extends ChangeNotifier {
     }
 
     final doneCount = goals.where((g) => g.done).length;
-    check('goal_first',   doneCount >= 1);
-    check('goal_10',      doneCount >= 10);
-    check('goal_50',      doneCount >= 50);
-    check('goal_100',     doneCount >= 100);
-    check('streak_7',     userData!.streak >= 7);
-    check('streak_30',    userData!.streak >= 30);
-    check('streak_100',   userData!.streak >= 100);
-    check('streak_365',   userData!.streak >= 365);
-    check('focus_1h',     userData!.totalFocusMin >= 60);
-    check('focus_10h',    userData!.totalFocusMin >= 600);
-    check('focus_50h',    userData!.totalFocusMin >= 3000);
-    check('focus_100h',   userData!.totalFocusMin >= 6000);
-    check('level_5',      userData!.level >= 5);
-    check('level_10',     userData!.level >= 10);
-    check('level_20',     userData!.level >= 20);
+    final shortDone = goals.where((g) => g.done && g.type == 'short').length;
+    final longDone  = goals.where((g) => g.done && g.type == 'long').length;
+    final repeatSets = goals.where((g) => g.done && g.repeatId != null).length;
+
+    // 목표 업적
+    check('goal_first',      doneCount >= 1);
+    check('goal_10',         doneCount >= 10);
+    check('goal_50',         doneCount >= 50);
+    check('goal_100',        doneCount >= 100);
+    check('goal_300',        doneCount >= 300);
+    check('repeat_first',    repeatSets >= 1);
+    check('repeat_10',       repeatSets >= 10);
+    check('short_goal_50',   shortDone >= 50);
+    check('long_goal_10',    longDone >= 10);
+
+    // 스트릭 업적
+    check('streak_3',        userData!.streak >= 3);
+    check('streak_7',        userData!.streak >= 7);
+    check('streak_14',       userData!.streak >= 14);
+    check('streak_30',       userData!.streak >= 30);
+    check('streak_60',       userData!.streak >= 60);
+    check('streak_100',      userData!.streak >= 100);
+    check('streak_365',      userData!.streak >= 365);
+
+    // 집중 업적
+    check('focus_1h',        userData!.totalFocusMin >= 60);
+    check('focus_5h',        userData!.totalFocusMin >= 300);
+    check('focus_10h',       userData!.totalFocusMin >= 600);
+    check('focus_30h',       userData!.totalFocusMin >= 1800);
+    check('focus_50h',       userData!.totalFocusMin >= 3000);
+    check('focus_100h',      userData!.totalFocusMin >= 6000);
+    check('focus_200h',      userData!.totalFocusMin >= 12000);
+
+    // 레벨 업적
+    check('level_5',         userData!.level >= 5);
+    check('level_10',        userData!.level >= 10);
+    check('level_20',        userData!.level >= 20);
+    check('level_30',        userData!.level >= 30);
+    check('level_50',        userData!.level >= 50);
+    check('level_75',        userData!.level >= 75);
+    check('level_100',       userData!.level >= 100);
 
     // 소셜 업적 — 이미 달성됐으면 Firestore 조회 스킵
-    if (!achieved.contains('friend_first')) {
+    if (!achieved.contains('friend_first') || !achieved.contains('friend_5') || !achieved.contains('friend_10')) {
       final friends = await _friendService.getFriends(authUser!.uid);
-      check('friend_first', friends.isNotEmpty);
+      check('friend_first',  friends.isNotEmpty);
+      check('friend_5',      friends.length >= 5);
+      check('friend_10',     friends.length >= 10);
     }
-    if (!achieved.contains('diary_first') || !achieved.contains('diary_10')) {
+    if (!achieved.contains('diary_first') || !achieved.contains('diary_10') || !achieved.contains('diary_50')) {
       final diaries = await _diaryService.getMyDiaries(authUser!.uid);
-      check('diary_first', diaries.isNotEmpty);
-      check('diary_10',    diaries.length >= 10);
+      check('diary_first',   diaries.isNotEmpty);
+      check('diary_10',      diaries.length >= 10);
+      check('diary_50',      diaries.length >= 50);
     }
 
     if (newOnes.isEmpty) return;
@@ -242,6 +373,9 @@ class AppProvider extends ChangeNotifier {
     bool friendAdded = false,
     bool diaryWritten = false,
     int? diaryCount,
+    int? friendCount,
+    bool chatStarted = false,
+    int? rankingPosition,
   }) async {
     if (authUser == null || userData == null) return;
     final achieved = Set<String>.from(userData!.achievements);
@@ -258,25 +392,58 @@ class AppProvider extends ChangeNotifier {
     }
 
     final doneCount = goals.where((g) => g.done).length;
-    check('goal_first',   goalCompleted && doneCount >= 1);
-    check('goal_10',      doneCount >= 10);
-    check('goal_50',      doneCount >= 50);
-    check('goal_100',     doneCount >= 100);
-    check('repeat_first', repeatAllDone);
-    check('streak_7',     userData!.streak >= 7);
-    check('streak_30',    userData!.streak >= 30);
-    check('streak_100',   userData!.streak >= 100);
-    check('streak_365',   userData!.streak >= 365);
-    check('focus_1h',     userData!.totalFocusMin >= 60);
-    check('focus_10h',    userData!.totalFocusMin >= 600);
-    check('focus_50h',    userData!.totalFocusMin >= 3000);
-    check('focus_100h',   userData!.totalFocusMin >= 6000);
-    check('level_5',      userData!.level >= 5);
-    check('level_10',     userData!.level >= 10);
-    check('level_20',     userData!.level >= 20);
-    check('friend_first', friendAdded);
-    check('diary_first',  diaryWritten);
-    check('diary_10',     (diaryCount ?? 0) >= 10);
+    final shortDone = goals.where((g) => g.done && g.type == 'short').length;
+    final longDone  = goals.where((g) => g.done && g.type == 'long').length;
+    final repeatSets = goals.where((g) => g.done && g.repeatId != null).length;
+
+    // 목표 업적
+    check('goal_first',      goalCompleted && doneCount >= 1);
+    check('goal_10',         doneCount >= 10);
+    check('goal_50',         doneCount >= 50);
+    check('goal_100',        doneCount >= 100);
+    check('goal_300',        doneCount >= 300);
+    check('repeat_first',    repeatAllDone);
+    check('repeat_10',       repeatSets >= 10);
+    check('short_goal_50',   shortDone >= 50);
+    check('long_goal_10',    longDone >= 10);
+
+    // 스트릭 업적
+    check('streak_3',        userData!.streak >= 3);
+    check('streak_7',        userData!.streak >= 7);
+    check('streak_14',       userData!.streak >= 14);
+    check('streak_30',       userData!.streak >= 30);
+    check('streak_60',       userData!.streak >= 60);
+    check('streak_100',      userData!.streak >= 100);
+    check('streak_365',      userData!.streak >= 365);
+
+    // 집중 업적
+    check('focus_1h',        userData!.totalFocusMin >= 60);
+    check('focus_5h',        userData!.totalFocusMin >= 300);
+    check('focus_10h',       userData!.totalFocusMin >= 600);
+    check('focus_30h',       userData!.totalFocusMin >= 1800);
+    check('focus_50h',       userData!.totalFocusMin >= 3000);
+    check('focus_100h',      userData!.totalFocusMin >= 6000);
+    check('focus_200h',      userData!.totalFocusMin >= 12000);
+
+    // 레벨 업적
+    check('level_5',         userData!.level >= 5);
+    check('level_10',        userData!.level >= 10);
+    check('level_20',        userData!.level >= 20);
+    check('level_30',        userData!.level >= 30);
+    check('level_50',        userData!.level >= 50);
+    check('level_75',        userData!.level >= 75);
+    check('level_100',       userData!.level >= 100);
+
+    // 소셜 업적
+    check('friend_first',    friendAdded);
+    check('friend_5',        (friendCount ?? 0) >= 5);
+    check('friend_10',       (friendCount ?? 0) >= 10);
+    check('diary_first',     diaryWritten);
+    check('diary_10',        (diaryCount ?? 0) >= 10);
+    check('diary_50',        (diaryCount ?? 0) >= 50);
+    check('chat_first',      chatStarted);
+    check('ranking_top3',    rankingPosition != null && rankingPosition! <= 3);
+    check('ranking_top1',    rankingPosition != null && rankingPosition! == 1);
 
     if (newOnes.isEmpty) return;
 
@@ -309,11 +476,11 @@ class AppProvider extends ChangeNotifier {
 
     final claimed = Set<String>.from(userData!.claimedAchievements)..add(achievementId);
     final prevLevel = userData!.level;
-    int newXp = userData!.xp + a.xpReward;
-    int newLevel = userData!.level;
-    int newXpToNext = userData!.xpToNext;
-    // 레벨업 계산
-    while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.15).round(); }
+    final _r1 = _applyXp(userData!.totalXp, a.xpReward);
+    int newXp = _r1['xp'] as int;
+    int newLevel = _r1['level'] as int;
+    int newXpToNext = _r1['xpToNext'] as int;
+    final newTotalXp = _r1['totalXp'] as int;
 
     // 업적 전용 스킨 해금 목록에 추가
     final unlockedSkins = List<String>.from(userData!.streakBadges['unlockedAchieveSkins'] as List? ?? []);
@@ -322,14 +489,14 @@ class AppProvider extends ChangeNotifier {
 
     await _db.updateUser(authUser!.uid, {
       'claimedAchievements': claimed.toList(),
-      'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext,
+      'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp,
       'streakBadges': newStreakBadges,
     });
     // streakBadges는 copyWith에 없으므로 UserModel 직접 재생성
     userData = UserModel(
       uid: userData!.uid, name: userData!.name, email: userData!.email,
       photoURL: userData!.photoURL, level: newLevel, xp: newXp,
-      xpToNext: newXpToNext, streak: userData!.streak, maxStreak: userData!.maxStreak,
+      xpToNext: newXpToNext, totalXp: newTotalXp, streak: userData!.streak, maxStreak: userData!.maxStreak,
       lastStreakDate: userData!.lastStreakDate, reviveItem: userData!.reviveItem,
       streakBadges: newStreakBadges, totalFocusMin: userData!.totalFocusMin,
       lastAttendDate: userData!.lastAttendDate, character: userData!.character,
@@ -345,6 +512,7 @@ class AppProvider extends ChangeNotifier {
     if (newLevel > prevLevel) {
       levelUpTo = newLevel;
       await _db.updatePublicProfile(authUser!.uid, {'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap()});
+      await _handleLevelUpReward(prevLevel, newLevel);
     }
     showToast('🎁 보상 수령! +${a.xpReward} XP · ${a.emoji} 스킨 해금');
     notifyListeners();
@@ -481,13 +649,14 @@ class AppProvider extends ChangeNotifier {
     if (authUser == null || userData == null || currentMilestone == null) return;
     final xpGain = currentMilestone!['xp'] as int;
     final prevLevel = userData!.level;
-    int newXp = userData!.xp + xpGain;
-    int newLevel = userData!.level;
-    int newXpToNext = userData!.xpToNext;
-    while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.15).round(); }
-    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
-    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
-    if (newLevel > prevLevel) levelUpTo = newLevel;
+    final _r2 = _applyXp(userData!.totalXp, xpGain);
+    int newXp = _r2['xp'] as int;
+    int newLevel = _r2['level'] as int;
+    int newXpToNext = _r2['xpToNext'] as int;
+    final newTotalXp = _r2['totalXp'] as int;
+    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp});
+    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp);
+    if (newLevel > prevLevel) { levelUpTo = newLevel; await _handleLevelUpReward(prevLevel, newLevel); }
     streakModalType = null; currentMilestone = null;
     notifyListeners();
   }
@@ -571,13 +740,14 @@ class AppProvider extends ChangeNotifier {
             showToast('🎉 목표 완료! +$xpGain XP 획득');
             showToast('달성률 $pct%로 반복 목표 종료');
           }
-          int newXp = userData!.xp + xpGain;
-          int newLevel = userData!.level;
-          int newXpToNext = userData!.xpToNext;
-          while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.15).round(); }
-          await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
-          userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
-          if (newLevel > prevLevel) { levelUpTo = newLevel; await _db.updatePublicProfile(authUser!.uid, {'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap()}); }
+          final _rg1 = _applyXp(userData!.totalXp, xpGain);
+          int newXp = _rg1['xp'] as int;
+          int newLevel = _rg1['level'] as int;
+          int newXpToNext = _rg1['xpToNext'] as int;
+          final newTotalXp = _rg1['totalXp'] as int;
+          await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'totalXp': newTotalXp});
+          userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp);
+          if (newLevel > prevLevel) { levelUpTo = newLevel; await _db.updatePublicProfile(authUser!.uid, {'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap()}); await _handleLevelUpReward(prevLevel, newLevel); }
           await loadGoals();
           await _checkAchievements(goalCompleted: true, repeatAllDone: repeatAllDone);
           notifyListeners(); return;
@@ -585,13 +755,15 @@ class AppProvider extends ChangeNotifier {
       }
 
       showToast('🎉 목표 완료! +$xpGain XP 획득');
-      int newXp = userData!.xp + xpGain;
-      int newLevel = userData!.level;
-      int newXpToNext = userData!.xpToNext;
-      while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.15).round(); }
-      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
-      userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
-      if (newLevel > prevLevel) { levelUpTo = newLevel; await _db.updatePublicProfile(authUser!.uid, {'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap()}); }
+      final newXpResult = _applyXp(userData!.totalXp, xpGain);
+      int newXp = newXpResult['xp'] as int;
+      int newLevel = newXpResult['level'] as int;
+      int newXpToNext = newXpResult['xpToNext'] as int;
+      final newTotalXp = newXpResult['totalXp'] as int;
+      while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.05).round(); }
+      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'totalXp': newTotalXp});
+      userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp);
+      if (newLevel > prevLevel) { levelUpTo = newLevel; await _db.updatePublicProfile(authUser!.uid, {'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap()}); await _handleLevelUpReward(prevLevel, newLevel); }
       await loadGoals();
       await _checkAchievements(goalCompleted: true);
       notifyListeners();
@@ -600,8 +772,35 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
+  // 단일 업적 체크 헬퍼 — 세션 카운트 등 별도 체크용
+  Future<void> _checkSingleAchievement(String id, bool condition) async {
+    if (authUser == null || userData == null) return;
+    if (!condition || userData!.achievements.contains(id)) return;
+    final achieved = Set<String>.from(userData!.achievements)..add(id);
+    final unlockedAt = Map<String, DateTime>.from(userData!.achievementUnlockedAt)
+      ..[id] = DateTime.now();
+    final unlockedAtFs = unlockedAt.map((k, v) => MapEntry(k, Timestamp.fromDate(v)));
+    await _db.updateUser(authUser!.uid, {'achievements': achieved.toList(), 'achievementUnlockedAt': unlockedAtFs});
+    await _db.incrementAchievementStat(id);
+    userData = userData!.copyWith(achievements: achieved, achievementUnlockedAt: unlockedAt);
+    final a = Achievements.findById(id);
+    if (a != null) showToast('🏆 업적 달성! ${a.emoji} ${a.title}');
+    notifyListeners();
+  }
+
   // 레벨업 모달 닫기
   void dismissLevelUp() { levelUpTo = null; notifyListeners(); }
+
+  // 레벨업 보상 처리 — 특정 레벨 달성 시 보상 우편 발송
+  Future<void> _handleLevelUpReward(int prevLevel, int newLevel) async {
+    if (authUser == null) return;
+    for (int lv = prevLevel + 1; lv <= newLevel; lv++) {
+      final reward = _getLevelReward(lv);
+      if (reward != null) {
+        await _db.sendLevelUpMail(authUser!.uid, lv, reward);
+      }
+    }
+  }
 
   // 목표 완료 취소 — XP 차감
   Future<void> uncompleteGoal(String goalId) async {
@@ -622,14 +821,16 @@ class AppProvider extends ChangeNotifier {
         final repeatGoals = goals.where((g) => g.repeatId == goal.repeatId).toList();
         if (repeatGoals.where((g) => g.done).length >= repeatGoals.length) xpDeduct += goal.xp;
       }
-      int newXp = userData!.xp - xpDeduct;
-      int newLevel = userData!.level;
-      int newXpToNext = userData!.xpToNext;
+      final _r4b = _deductXp(userData!.totalXp, xpDeduct);
+      int newXp = _r4b['xp'] as int;
+      int newLevel = _r4b['level'] as int;
+      int newXpToNext = _r4b['xpToNext'] as int;
+      final newTotalXp = _r4b['totalXp'] as int;
       // 레벨 다운 처리
-      while (newXp < 0 && newLevel > 1) { newLevel--; newXpToNext = (newXpToNext / 1.15).round(); newXp += newXpToNext; }
+      while (newXp < 0 && newLevel > 1) { newLevel--; newXpToNext = (newXpToNext / 1.05).round(); newXp += newXpToNext; }
       newXp = newXp.clamp(0, 999999);
-      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext});
-      userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext);
+      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'totalXp': newTotalXp});
+      userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp);
       showToast('목표 완료를 취소했어요');
       await loadGoals(); notifyListeners();
     } finally {
@@ -668,14 +869,15 @@ class AppProvider extends ChangeNotifier {
     if (mail.claimed) return;
     await _db.claimMail(authUser!.uid, mailId);
     final prevLevel = userData!.level;
-    int newXp = userData!.xp + mail.reward.xp;
+    final _r3b = _applyXp(userData!.totalXp, mail.reward.xp);
+    int newXp = _r3b['xp'] as int;
     int newRevive = userData!.reviveItem + mail.reward.reviveItem;
-    int newLevel = userData!.level;
-    int newXpToNext = userData!.xpToNext;
-    while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.15).round(); }
-    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'reviveItem': newRevive});
-    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, reviveItem: newRevive);
-    if (newLevel > prevLevel) levelUpTo = newLevel;
+    int newLevel = _r3b['level'] as int;
+    int newXpToNext = _r3b['xpToNext'] as int;
+    final newTotalXp = _r3b['totalXp'] as int;
+    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'reviveItem': newRevive});
+    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp, reviveItem: newRevive);
+    if (newLevel > prevLevel) { levelUpTo = newLevel; await _handleLevelUpReward(prevLevel, newLevel); }
     showToast('보상을 수령했어요!');
     await loadMailbox(); notifyListeners();
   }
@@ -773,17 +975,23 @@ class AppProvider extends ChangeNotifier {
     final prevLevel = userData!.level;
     // 집중 시간 XP: 분 + (분 / 10) * 분 (긴 집중일수록 보너스)
     final xpGain = minutes + (minutes ~/ 10) * minutes;
-    int newXp = userData!.xp + xpGain;
-    int newLevel = userData!.level;
-    int newXpToNext = userData!.xpToNext;
+    final _r5 = _applyXp(userData!.totalXp, xpGain);
+    int newXp = _r5['xp'] as int;
+    int newLevel = _r5['level'] as int;
+    int newXpToNext = _r5['xpToNext'] as int;
+    final newTotalXp = _r5['totalXp'] as int;
     int newTotalFocus = userData!.totalFocusMin + minutes;
-    while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.15).round(); }
-    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalFocusMin': newTotalFocus});
+    await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'totalFocusMin': newTotalFocus});
     // 오늘 집중 시간 랭킹 업데이트
     await _db.updateTodayFocus(authUser!.uid, minutes);
-    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalFocusMin: newTotalFocus);
-    if (newLevel > prevLevel) levelUpTo = newLevel;
+    userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp, totalFocusMin: newTotalFocus);
+    if (newLevel > prevLevel) { levelUpTo = newLevel; await _handleLevelUpReward(prevLevel, newLevel); }
+    // 집중 세션 횟수 조회 후 업적 체크
+    final sessionSnap = await _db.getFocusSessionCount(authUser!.uid);
     await _checkAchievements();
+    // 세션 수 업적 체크
+    if (sessionSnap >= 10) { _checkSingleAchievement('focus_session_10', sessionSnap >= 10); }
+    if (sessionSnap >= 50) { _checkSingleAchievement('focus_session_50', sessionSnap >= 50); }
     notifyListeners();
   }
 

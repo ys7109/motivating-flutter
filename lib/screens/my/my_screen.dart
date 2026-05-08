@@ -181,7 +181,7 @@ Row(children: [
               ],
             ]),
           const SizedBox(height: 4),
-          Text('Lv.$level · ${app.levelTitle(level)}', style: TextStyle(fontSize: 13, color: context.textSecondary)),
+          Text('Lv.$level · ${AppProvider.levelTitle(level)}', style: TextStyle(fontSize: 13, color: context.textSecondary)),
           const SizedBox(height: 16),
 
           // 탭바

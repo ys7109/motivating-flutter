@@ -71,8 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('좋은 하루예요,', style: TextStyle(color: context.textSecondary, fontSize: 13)),
                         const SizedBox(height: 2),
-                        // 닉네임 표시 — 공백이 포함된 닉네임도 자르지 않고 전체 표시
-                        Text('${userData.name} 님',
+                        Text('${userData.name.split(' ').first} 님',
                             style: TextStyle(color: context.textPrimary, fontSize: 20, fontWeight: FontWeight.w600)),
                       ]),
                     ),
@@ -350,15 +349,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 레벨별 칭호 텍스트
   String _levelTitle(int level) {
+    // 레벨 구간별 접두사 (1~10레벨)
     const prefixes = ['', '새내기', '성장하는', '도전하는', '달리는', '노력하는', '빛나는', '도약하는', '질주하는', '각성한', '눈뜬'];
     final prefix = level <= 10 ? prefixes[level] : '';
-    final title = level >= 20 ? '전설의 모험가'
-        : level >= 15 ? '영웅'
-        : level >= 10 ? '탐험가'
-        : level >= 6 ? '학자'
-        : level >= 3 ? '전사'
-        : '초보 모험가';
-    return '$prefix $title'.trim();
+    final title = AppProvider.levelTitle(level);
+    return prefix.isEmpty ? title : '$prefix $title';
   }
 }
 

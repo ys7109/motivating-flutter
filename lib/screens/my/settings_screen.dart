@@ -196,15 +196,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         url: 'https://motivating-5a036.web.app/terms.html', title: '이용약관')))),
                 _LinkItem(label: '오픈소스 라이선스', onTap: () {}),
                 _LinkItem(label: '문의하기', onTap: () async {
-                  final uri = Uri.parse('mailto:kimyusong77@gmail.com?subject=Motivating 문의');
+                  final uri = Uri.parse('mailto:cmarco4065@gmail.com?subject=Motivating 문의');
                   if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
                 }),
               ]),
 
               // 앱 정보 섹션
               _Section(title: '앱 정보', children: [
-                const _InfoItem(label: '버전', value: '1.7.6'),
-                const _InfoItem(label: '빌드', value: '2026.05.07'),
+                const _InfoItem(label: '버전', value: '1.8.0'),
+                const _InfoItem(label: '빌드', value: '2026.05.08'),
               ]),
 
               // 계정 섹션

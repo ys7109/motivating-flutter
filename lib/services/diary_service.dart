@@ -6,7 +6,7 @@ class DiaryService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final _notifService = ActivityNotificationService();
 
-  // ── 다이어리 CRUD ──
+  // 다이어리 CRUD
 
   Future<List<DiaryModel>> getMyDiaries(String uid) async {
     final snap = await _db.collection('diaries').where('uid', isEqualTo: uid).get();
@@ -144,7 +144,7 @@ class DiaryService {
     return snap.exists;
   }
 
-  // ── 댓글 CRUD ──
+  // 댓글 CRUD
 
   Future<List<CommentModel>> getComments(String diaryId) async {
     final snap = await _db
@@ -208,7 +208,7 @@ class DiaryService {
     await batch.commit();
   }
 
-  // ── 대댓글 CRUD ──
+  // 대댓글 CRUD
 
   // 대댓글 작성 + 알림 (댓글 작성자에게)
   Future<void> addReply(String diaryId, String commentId, Map<String, dynamic> userData,
@@ -267,7 +267,7 @@ class DiaryService {
   }
 }
 
-// ── CommentModel ──
+// CommentModel
 class CommentModel {
   final String id;
   final String uid;
@@ -310,7 +310,7 @@ class CommentModel {
   }
 }
 
-// ── ReplyModel ──
+// ReplyModel
 class ReplyModel {
   final String id;
   final String uid;

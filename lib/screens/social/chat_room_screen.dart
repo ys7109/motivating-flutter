@@ -44,11 +44,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.initState();
     _myUid = context.read<AppProvider>().authUser!.uid;
     _title = widget.title;
-    // 현재 열린 채팅방 등록 (포그라운드 알림 필터용)
     currentOpenChatId = widget.chatId;
-    // 읽음 처리 + lastReadAt 구독 시작
-    _chatService.markAsRead(widget.chatId, _myUid!);
+    _initReadStatus(); // markAsRead 전에 lastReadAt 선로드
     _subscribeReadStatus();
+  }
+
+  Future<void> _initReadStatus() async {
+    // lastReadAt 초기값 선로드 — 1 깜빡임 방지
+    final snap = await FirebaseFirestore.instance
+        .collection('chats').doc(widget.chatId).get();
+    final raw = snap.data()?['lastReadAt'] as Map<String, dynamic>? ?? {};
+    if (mounted) {
+      setState(() {
+        _lastReadAt = raw.map((k, v) => MapEntry(k, (v as Timestamp).toDate()));
+      });
+    }
+    // 선로드 완료 후 읽음 처리
+    _chatService.markAsRead(widget.chatId, _myUid!);
   }
 
   void _subscribeReadStatus() {

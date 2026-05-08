@@ -8,6 +8,7 @@ class UserModel {
   final int level;
   final int xp;
   final int xpToNext;
+  final int totalXp;   // 누적 총 경험치 — 레벨 배율 변경 시 재계산 기준
   final int streak;
   final int maxStreak;
   final String lastStreakDate;
@@ -34,6 +35,7 @@ class UserModel {
     required this.level,
     required this.xp,
     required this.xpToNext,
+    required this.totalXp,
     required this.streak,
     required this.maxStreak,
     required this.lastStreakDate,
@@ -57,14 +59,23 @@ class UserModel {
     final unlockedAt = rawUnlocked.map((k, v) =>
         MapEntry(k, v is Timestamp ? v.toDate() : DateTime.now()));
 
+    final level = map['level'] ?? 1;
+    final xp = (map['xp'] ?? 0) as int;
+
+    // totalXp 없는 기존 유저 — level과 xp로 역산 (1.15배 기준)
+    final totalXp = map['totalXp'] != null
+        ? (map['totalXp'] as int)
+        : _calcTotalXpLegacy(level, xp);
+
     return UserModel(
       uid: map['uid'] ?? '',
       name: map['name'] ?? '새로운 모험가',
       email: map['email'] ?? '',
       photoURL: map['photoURL'] ?? '',
-      level: map['level'] ?? 1,
-      xp: map['xp'] ?? 0,
+      level: level,
+      xp: xp,
       xpToNext: map['xpToNext'] ?? 300,
+      totalXp: totalXp,
       streak: map['streak'] ?? 0,
       maxStreak: map['maxStreak'] ?? 0,
       lastStreakDate: map['lastStreakDate'] ?? '',
@@ -87,11 +98,23 @@ class UserModel {
     );
   }
 
+  // 기존 유저 마이그레이션용 — 1.15배 기준으로 totalXp 역산
+  static int _calcTotalXpLegacy(int level, int xp) {
+    int total = xp;
+    int req = 100;
+    for (int i = 1; i < level; i++) {
+      total += req;
+      req = (req * 1.15).round();
+    }
+    return total;
+  }
+
   UserModel copyWith({
     String? name,
     int? level,
     int? xp,
     int? xpToNext,
+    int? totalXp,
     int? streak,
     int? maxStreak,
     String? lastStreakDate,
@@ -115,6 +138,7 @@ class UserModel {
       level: level ?? this.level,
       xp: xp ?? this.xp,
       xpToNext: xpToNext ?? this.xpToNext,
+      totalXp: totalXp ?? this.totalXp,
       streak: streak ?? this.streak,
       maxStreak: maxStreak ?? this.maxStreak,
       lastStreakDate: lastStreakDate ?? this.lastStreakDate,

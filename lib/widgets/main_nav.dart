@@ -158,7 +158,6 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _handlePendingNotificationTab();
     });
-    final isLevelUp = app.levelUpTo != null;
 
     return PopScope(
       canPop: false,
@@ -186,16 +185,8 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
       child: Scaffold(
         backgroundColor: context.bgColor,
         body: Stack(children: [
-          // 화면 콘텐츠 — 레벨업 시 딤 처리
-          AnimatedOpacity(
-            duration: const Duration(milliseconds: 300),
-            opacity: isLevelUp ? 0.3 : 1.0,
-            child: IgnorePointer(
-              // 레벨업 모달 표시 중 body 터치 차단
-              ignoring: isLevelUp,
-              child: IndexedStack(index: _currentIndex, children: _screens),
-            ),
-          ),
+          // 화면 콘텐츠
+          IndexedStack(index: _currentIndex, children: _screens),
           // 토스트 메시지 — 화면 하단 중앙에 표시
           if (app.toast != null)
             Positioned(
@@ -215,39 +206,31 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
               ),
             ),
         ]),
-        // 하단 네비게이션 바 — 레벨업 시 함께 딤 처리
-        bottomNavigationBar: AnimatedOpacity(
-          duration: const Duration(milliseconds: 300),
-          opacity: isLevelUp ? 0.3 : 1.0,
-          child: IgnorePointer(
-            // 레벨업 모달 표시 중 하단바 터치 차단
-            ignoring: isLevelUp,
-            child: Container(
-              decoration: BoxDecoration(
-                color: context.surfaceColor,
-                border: Border(top: BorderSide(color: context.borderColor, width: 0.5)),
-              ),
-              child: SafeArea(
-                child: SizedBox(
-                  height: 56,
-                  child: Row(children: [
-                    _NavItem(icon: Icons.home_rounded, label: '홈', index: 0,
-                        current: _currentIndex, onTap: switchTab),
-                    _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1,
-                        current: _currentIndex, onTap: switchTab),
-                    _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2,
-                        current: _currentIndex, onTap: switchTab),
-                    _NavItem(
-                      icon: Icons.people_rounded, label: '소셜', index: 3,
-                      current: _currentIndex, onTap: switchTab,
-                      // 소셜 탭 배지 = 활동 알림 + 채팅 미읽음
-                      badge: app.unreadSocialCount,
-                    ),
-                    _NavItem(icon: Icons.person_rounded, label: '마이', index: 4,
-                        current: _currentIndex, onTap: switchTab),
-                  ]),
+        // 하단 네비게이션 바
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            border: Border(top: BorderSide(color: context.borderColor, width: 0.5)),
+          ),
+          child: SafeArea(
+            child: SizedBox(
+              height: 56,
+              child: Row(children: [
+                _NavItem(icon: Icons.home_rounded, label: '홈', index: 0,
+                    current: _currentIndex, onTap: switchTab),
+                _NavItem(icon: Icons.flag_rounded, label: '목표', index: 1,
+                    current: _currentIndex, onTap: switchTab),
+                _NavItem(icon: Icons.timer_rounded, label: '집중', index: 2,
+                    current: _currentIndex, onTap: switchTab),
+                _NavItem(
+                  icon: Icons.people_rounded, label: '소셜', index: 3,
+                  current: _currentIndex, onTap: switchTab,
+                  // 소셜 탭 배지 = 활동 알림 + 채팅 미읽음
+                  badge: app.unreadSocialCount,
                 ),
-              ),
+                _NavItem(icon: Icons.person_rounded, label: '마이', index: 4,
+                    current: _currentIndex, onTap: switchTab),
+              ]),
             ),
           ),
         ),
