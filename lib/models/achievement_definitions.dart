@@ -59,7 +59,7 @@ class Achievements {
     Achievement(id: 'focus_50h',     emoji: '🌊',  title: '집중 고수',         description: '누적 50시간 집중했어요',             category: 'focus',  difficulty: 'hard',   xpReward: 300),
     Achievement(id: 'focus_100h',    emoji: '🧠',  title: '집중 마스터',       description: '누적 100시간 집중했어요',            category: 'focus',  difficulty: 'legend', xpReward: 600),
     Achievement(id: 'focus_200h',    emoji: '🌌',  title: '집중의 신',         description: '누적 200시간 집중했어요',            category: 'focus',  difficulty: 'legend', xpReward: 600),
-    Achievement(id: 'focus_session_10',  emoji: '🎯', title: '집중 10회',      description: '집중 세션을 10회 완료했어요',        category: 'focus',  difficulty: 'normal', xpReward: 100),
+    Achievement(id: 'focus_session_10',  emoji: '🧘‍♂', title: '집중 10회',      description: '집중 세션을 10회 완료했어요',        category: 'focus',  difficulty: 'normal', xpReward: 100),
     Achievement(id: 'focus_session_50',  emoji: '🎪', title: '집중 50회',      description: '집중 세션을 50회 완료했어요',        category: 'focus',  difficulty: 'hard',   xpReward: 300),
 
     // 레벨 (level)

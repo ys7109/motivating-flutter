@@ -35,7 +35,7 @@ const _achieveSkinDefs = <Map<String, String>>[
 
 // 레벨 기반 기본 스킨 정의
 const _levelSkins = [
-  {'id': 'default',  'label': '기본',   'emoji': '🧑', 'lv': 1,  'unlock': '기본 제공'},
+  {'id': 'default',  'label': '기본',   'emoji': '👤', 'lv': 1,  'unlock': '기본 제공'},
   {'id': 'warrior',  'label': '전사',   'emoji': '⚔️', 'lv': 3,  'unlock': 'Lv.3 달성 시 해금'},
   {'id': 'scholar',  'label': '학자',   'emoji': '📚', 'lv': 6,  'unlock': 'Lv.6 달성 시 해금'},
   {'id': 'explorer', 'label': '탐험가', 'emoji': '🧭', 'lv': 10, 'unlock': 'Lv.10 달성 시 해금'},
