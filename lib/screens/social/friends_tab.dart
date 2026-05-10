@@ -111,7 +111,12 @@ class FriendsTabState extends State<FriendsTab> {
             Text('참여할 친구 선택 (${selected.length}명)',
                 style: TextStyle(fontSize: 13, color: ctx.textSecondary)),
             const SizedBox(height: 8),
-            ..._friends.map((friend) {
+            // 친구 목록 스크롤 가능하게 — 키보드 올라올 때 오버플로우 방지
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: _friends.map((friend) {
               final uid = friend['uid'] as String;
               final isSelected = selected.contains(uid);
               return GestureDetector(
@@ -138,7 +143,10 @@ class FriendsTabState extends State<FriendsTab> {
                   ]),
                 ),
               );
-            }),
+            }).toList(),
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
             GestureDetector(
               onTap: selected.isEmpty || nameCtrl.text.trim().isEmpty ? null : () async {
@@ -165,11 +173,12 @@ class FriendsTabState extends State<FriendsTab> {
                       ? ctx.borderColor : ctx.primaryColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
+                // 그룹 채팅 만들기 버튼 — onPrimary로 대비 자동 계산
                 child: Center(child: Text('그룹 채팅 만들기',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
                         color: selected.isEmpty || nameCtrl.text.trim().isEmpty
                             ? ctx.textSecondary
-                            : (ctx.isDark ? Colors.black : Colors.white)))),
+                            : ctx.onPrimary))),
               ),
             ),
           ]),
@@ -290,8 +299,9 @@ class FriendsTabState extends State<FriendsTab> {
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                     decoration: BoxDecoration(color: context.primaryColor,
                                         borderRadius: BorderRadius.circular(99)),
+                                    // 친구 추가 버튼 — onPrimary로 대비 자동 계산
                                     child: Text('친구 추가', style: TextStyle(fontSize: 12,
-                                        color: context.isDark ? Colors.black : Colors.white)),
+                                        color: context.onPrimary)),
                                   ),
                                 ),
                     );
@@ -343,8 +353,9 @@ class FriendsTabState extends State<FriendsTab> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(color: context.primaryColor,
                         borderRadius: BorderRadius.circular(99)),
+                    // 수락 버튼 — onPrimary로 대비 자동 계산
                     child: Text('수락', style: TextStyle(fontSize: 12,
-                        color: context.isDark ? Colors.black : Colors.white)),
+                        color: context.onPrimary)),
                   ),
                 ),
               ]),
@@ -372,9 +383,9 @@ class FriendsTabState extends State<FriendsTab> {
                     color: isSelected ? context.primaryColor : context.subtleBg,
                     borderRadius: BorderRadius.circular(99),
                   ),
+                  // 랭킹 탭 버튼 — onPrimary로 대비 자동 계산
                   child: Text(t[1], style: TextStyle(fontSize: 11,
-                      color: isSelected ? (context.isDark ? Colors.black : Colors.white)
-                          : context.textSecondary)),
+                      color: isSelected ? context.onPrimary : context.textSecondary)),
                 ),
               );
             }).toList()),

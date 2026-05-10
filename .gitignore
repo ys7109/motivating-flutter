@@ -50,3 +50,7 @@ lib/firebase_options.dart
 
 # 제미나이 API 키 보안
 lib/config.dart
+
+# 구글 플레이 키 보안
+android/key.properties
+*.jks

@@ -313,6 +313,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  
   Future<void> _showAddMemberDialog(BuildContext context) async {
     final app = context.read<AppProvider>();
     final chatSnap = await FirebaseFirestore.instance
@@ -396,7 +397,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   child: Center(child: Text('추가하기',
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
                           color: selected.isEmpty ? ctx.textSecondary
-                              : (ctx.isDark ? Colors.black : Colors.white)))),
+                              : (ctx.onPrimary)))),
                 ),
               ),
             ]),
@@ -541,10 +542,10 @@ class _ChatInputBarState extends State<_ChatInputBar> {
             child: _sending
                 ? Padding(padding: const EdgeInsets.all(10),
                     child: CircularProgressIndicator(strokeWidth: 2,
-                        color: context.isDark ? Colors.black : Colors.white))
+                        color: context.onPrimary))
                 : Icon(Icons.send_rounded, size: 18,
                     color: isEmpty ? context.textSecondary
-                        : (context.isDark ? Colors.black : Colors.white)),
+                        : (context.onPrimary)),
           ),
         ),
       ]),
@@ -564,7 +565,8 @@ class _MessageBubble extends StatelessWidget {
     required this.chatId, required this.chatService,
   });
 
-void _showReactionPicker(BuildContext context) {
+  // 반응 추가 바텀시트 — isScrollControlled로 키보드 위에 표시
+  void _showReactionPicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: context.modalBg,
@@ -572,35 +574,36 @@ void _showReactionPicker(BuildContext context) {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
+        // viewInsets.bottom: 키보드 높이 포함
         final bottomPad = MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom;
         return Padding(
-        padding: EdgeInsets.fromLTRB(24, 20, 24, bottomPad + 24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('반응 추가', style: TextStyle(fontSize: 15,
-              fontWeight: FontWeight.w600, color: context.textPrimary)),
-          const SizedBox(height: 16),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: kReactionEmojis.map((emoji) {
-              final reacted = (message.reactions[emoji] ?? []).contains(myUid);
-              return GestureDetector(
-                onTap: () {
-                  chatService.toggleReaction(chatId, message.id, myUid, emoji);
-                  Navigator.pop(context);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: reacted ? context.primaryColor.withOpacity(0.12) : context.subtleBg,
-                    shape: BoxShape.circle,
-                    border: reacted ? Border.all(color: context.primaryColor.withOpacity(0.4)) : null,
+          padding: EdgeInsets.fromLTRB(24, 20, 24, bottomPad + 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('반응 추가', style: TextStyle(fontSize: 15,
+                fontWeight: FontWeight.w600, color: context.textPrimary)),
+            const SizedBox(height: 16),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: kReactionEmojis.map((emoji) {
+                final reacted = (message.reactions[emoji] ?? []).contains(myUid);
+                return GestureDetector(
+                  onTap: () {
+                    chatService.toggleReaction(chatId, message.id, myUid, emoji);
+                    Navigator.pop(context);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: reacted ? context.primaryColor.withOpacity(0.12) : context.subtleBg,
+                      shape: BoxShape.circle,
+                      border: reacted ? Border.all(color: context.primaryColor.withOpacity(0.4)) : null,
+                    ),
+                    child: Text(emoji, style: const TextStyle(fontSize: 28)),
                   ),
-                  child: Text(emoji, style: const TextStyle(fontSize: 28)),
-                ),
-              );
-            }).toList(),
-          ),
-        ]),
+                );
+              }).toList(),
+            ),
+          ]),
         );
       },
     );
@@ -652,7 +655,7 @@ void _showReactionPicker(BuildContext context) {
                     ),
                   ),
                   child: Text(message.content, style: TextStyle(fontSize: 14,
-                      height: 1.4, color: context.isDark ? Colors.black : Colors.white)),
+                      height: 1.4, color: context.onPrimary)),
                 ),
               ] else ...[
                 Container(

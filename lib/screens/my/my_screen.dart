@@ -226,7 +226,7 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
                 indicator: BoxDecoration(color: context.primaryColor,
                     borderRadius: BorderRadius.circular(10)),
                 indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: context.isDark ? Colors.black : Colors.white,
+                labelColor: context.onPrimary,
                 unselectedLabelColor: context.textSecondary,
                 labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: const TextStyle(fontSize: 13),
@@ -336,8 +336,7 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
           decoration: BoxDecoration(color: context.primaryColor,
               borderRadius: BorderRadius.circular(99)),
           child: Text(_nameSaving ? '...' : '저장',
-              style: TextStyle(color: context.isDark ? Colors.black : Colors.white,
-                  fontSize: 12)),
+              style: TextStyle(color: context.onPrimary, fontSize: 12)),
         ),
       ),
       const SizedBox(width: 4),
@@ -471,9 +470,7 @@ class _AchievementsTab extends StatelessWidget {
                 ),
                 child: Text('${cat['emoji']} ${cat['label']} $catDone/${catList.length}',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                        color: isSelected
-                            ? (context.isDark ? Colors.black : Colors.white)
-                            : context.textSecondary)),
+                        color: isSelected ? context.onPrimary : context.textSecondary)),
               ),
             );
           }).toList()),
@@ -537,7 +534,7 @@ class _AchievementsTab extends StatelessWidget {
                         decoration: BoxDecoration(color: context.primaryColor,
                             borderRadius: BorderRadius.circular(99)),
                         child: Text('보상', style: TextStyle(fontSize: 11,
-                            color: context.isDark ? Colors.black : Colors.white,
+                            color: context.onPrimary,
                             fontWeight: FontWeight.w600)),
                       )
                     else if (claimed)
@@ -624,7 +621,7 @@ class _AchievementsTab extends StatelessWidget {
             if (unlocked && !claimed)
               _FullBtn(
                 label: '🎁 보상 수령하기', color: ctx.primaryColor,
-                textColor: ctx.isDark ? Colors.black : Colors.white,
+                textColor: ctx.onPrimary,
                 onTap: () async { Navigator.pop(ctx); await onClaim(a.id); },
               )
             else if (claimed && !isEquipped)
@@ -762,7 +759,7 @@ class _StatsTab extends StatelessWidget {
                       color: unlocked ? context.primaryColor : context.subtleBg),
                   child: Center(child: unlocked
                       ? Icon(Icons.check,
-                          color: context.isDark ? Colors.black : Colors.white, size: 14)
+                          color: context.onPrimary, size: 14)
                       : Text('$lv', style: TextStyle(fontSize: 11,
                           color: context.textSecondary, fontWeight: FontWeight.w500))),
                 ),
@@ -826,7 +823,7 @@ class _CharacterTab extends StatelessWidget {
               child: Text(labels[e.key], style: TextStyle(fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: isActive
-                      ? (context.isDark ? Colors.black : Colors.white)
+                      ? (context.onPrimary)
                       : context.textSecondary)),
             ),
           );
@@ -865,7 +862,7 @@ class _CharacterTab extends StatelessWidget {
                       Text(item['label'] as String, style: TextStyle(fontSize: 11,
                           fontWeight: FontWeight.w500,
                           color: isActive
-                              ? (context.isDark ? Colors.black : Colors.white)
+                              ? (context.onPrimary)
                               : context.textPrimary)),
                       const SizedBox(height: 2),
                       Text(
@@ -918,7 +915,7 @@ class _CharacterTab extends StatelessWidget {
                       Text(achieveName, textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500,
                               color: isActive
-                                  ? (context.isDark ? Colors.black : Colors.white)
+                                  ? (context.onPrimary)
                                   : context.textPrimary),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 2),
@@ -967,14 +964,14 @@ class _CharacterTab extends StatelessWidget {
                       Text(item['label'] as String, style: TextStyle(fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: isActive
-                              ? (context.isDark ? Colors.black : Colors.white)
+                              ? (context.onPrimary)
                               : context.textPrimary)),
                       if (!unlocked)
                         Text('Lv.${item['lv']}',
                             style: TextStyle(fontSize: 10, color: context.textSecondary))
                       else if (isActive)
                         Text('착용 중', style: TextStyle(fontSize: 10,
-                            color: context.isDark ? Colors.black54 : Colors.white70)),
+                            color: context.onPrimary.withOpacity(0.6))),
                     ]),
                   ),
                 ),
@@ -1022,14 +1019,14 @@ class _CharacterTab extends StatelessWidget {
                       Text(item['label'] as String, style: TextStyle(fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: isActive
-                              ? (context.isDark ? Colors.black : Colors.white)
+                              ? (context.onPrimary)
                               : context.textPrimary)),
                       if (!unlocked)
                         Text('Lv.${item['lv']}',
                             style: TextStyle(fontSize: 10, color: context.textSecondary))
                       else if (isActive)
                         Text('착용 중', style: TextStyle(fontSize: 10,
-                            color: context.isDark ? Colors.black54 : Colors.white70)),
+                            color: context.onPrimary.withOpacity(0.6))),
                     ]),
                   ),
                 ),

@@ -315,7 +315,7 @@ class _FilterBtn extends StatelessWidget {
         child: Text(label, style: TextStyle(
           fontSize: 13, fontWeight: FontWeight.w500,
           color: isSelected
-              ? (context.isDark ? Colors.black : Colors.white)
+              ? (context.onPrimary)
               : context.textSecondary,
         )),
       ),
@@ -405,7 +405,7 @@ class _ChatTile extends StatelessWidget {
                   ),
                   child: Text('$unread', style: TextStyle(fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: context.isDark ? Colors.black : Colors.white)),
+                      color: context.onPrimary)),
                 ),
             ]),
           ])),

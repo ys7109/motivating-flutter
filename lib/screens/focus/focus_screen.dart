@@ -52,12 +52,20 @@ class _FocusScreenState extends State<FocusScreen> {
           _wasRunningBeforeBackground = true;
           _timer?.cancel();
           _elapsedAtStartMs = _elapsedMs;
-          if (mounted) setState(() => _phase = 'paused_by_switch');
+          if (mounted) {
+            setState(() => _phase = 'paused_by_switch');
+            // 앱 전환 시에도 isFocusing false (탭 전환 경고 비활성화)
+            context.read<AppProvider>().isFocusing = false;
+          }
         }
       } else if (event == 'resumed') {
         if (_wasRunningBeforeBackground && _phase == 'paused_by_switch') {
           _wasRunningBeforeBackground = false;
-          if (mounted) setState(() => _phase = 'running');
+          if (mounted) {
+            setState(() => _phase = 'running');
+            // 앱 복귀 시 isFocusing true 복원
+            context.read<AppProvider>().isFocusing = true;
+          }
           _tick();
         }
       }
@@ -116,8 +124,19 @@ class _FocusScreenState extends State<FocusScreen> {
     _tick();
   }
 
-  void _pause() { _timer?.cancel(); _elapsedAtStartMs = _elapsedMs; setState(() => _phase = 'paused'); context.read<AppProvider>().isFocusing = false; }
-  void _resume() { setState(() => _phase = 'running'); context.read<AppProvider>().isFocusing = true; _tick(); }
+  void _pause() {
+    _timer?.cancel();
+    _elapsedAtStartMs = _elapsedMs;
+    setState(() => _phase = 'paused');
+    // 일시정지 시 isFocusing false — 탭 전환 경고 비활성화
+    context.read<AppProvider>().isFocusing = false;
+  }
+  void _resume() {
+    setState(() => _phase = 'running');
+    // 재시작 시 isFocusing true — 탭 전환 경고 재활성화
+    context.read<AppProvider>().isFocusing = true;
+    _tick();
+  }
 
   void _onDone() {
     _timer?.cancel();
@@ -257,7 +276,7 @@ class _FocusScreenState extends State<FocusScreen> {
                               borderRadius: BorderRadius.circular(99),
                             ),
                             child: Text(p['label'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-                                color: isActive ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary)),
+                                color: isActive ? (context.onPrimary) : context.textSecondary)),
                           ),
                         );
                       }).toList(),
@@ -459,7 +478,7 @@ class _BigBtn extends StatelessWidget {
       width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15),
       decoration: BoxDecoration(color: disabled ? context.borderColor : context.primaryColor, borderRadius: BorderRadius.circular(99)),
       child: Center(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-          color: disabled ? context.textSecondary : (context.isDark ? Colors.black : Colors.white)))),
+          color: disabled ? context.textSecondary : (context.onPrimary)))),
     ),
   );
 }
@@ -509,7 +528,7 @@ class _ExitModal extends StatelessWidget {
                 child: Container(padding: const EdgeInsets.symmetric(vertical: 13),
                   decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(12)),
                   child: Center(child: Text('종료하기', style: TextStyle(
-                      color: context.isDark ? Colors.black : Colors.white, fontSize: 15, fontWeight: FontWeight.w500)))))),
+                      color: context.onPrimary, fontSize: 15, fontWeight: FontWeight.w500)))))),
             ]),
           ]),
         ),
@@ -577,7 +596,7 @@ class _AddTimeModal extends StatelessWidget {
                     child: Container(padding: const EdgeInsets.symmetric(vertical: 13),
                       decoration: BoxDecoration(color: hasAdd ? context.primaryColor : context.borderColor, borderRadius: BorderRadius.circular(12)),
                       child: Center(child: Text('추가하기', style: TextStyle(
-                          color: hasAdd ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary,
+                          color: hasAdd ? (context.onPrimary) : context.textSecondary,
                           fontSize: 15, fontWeight: FontWeight.w500)))))),
                 ]),
               ]),

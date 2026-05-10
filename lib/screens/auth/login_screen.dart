@@ -119,9 +119,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           textAlign: TextAlign.center),
                     ),
 
-                  // Google
+                  // Google 로그인
                   _LoginButton(
-                    onTap: () => _handle(() async { await auth.signInWithGoogle(); }, 'google'),
+                    onTap: () => _handle(
+                        () async { await auth.signInWithGoogle(); }, 'google'),
                     loading: _loading == 'google',
                     isLast: _lastMethod == 'google',
                     backgroundColor: context.surfaceColor,
@@ -141,7 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // 카카오
+                  // 카카오 로그인
                   _LoginButton(
                     onTap: () => _handle(
                         () async { await auth.signInWithKakao(context); }, 'kakao'),
@@ -171,7 +172,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(
                               color: context.textSecondary, fontSize: 11, height: 1.6)),
                       GestureDetector(
-                        onTap: () => _openUrl('https://motivating-5a036.web.app/terms.html'),
+                        onTap: () =>
+                            _openUrl('https://motivating-5a036.web.app/terms.html'),
                         child: Text('이용약관',
                             style: TextStyle(
                                 color: context.textSecondary,
@@ -289,7 +291,7 @@ class _LoginButton extends StatelessWidget {
                     borderRadius: BorderRadius.circular(99)),
                 child: Text('마지막 로그인',
                     style: TextStyle(
-                        color: context.isDark ? Colors.black : Colors.white,
+                        color: context.onPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.w500)),
               ),
@@ -300,11 +302,11 @@ class _LoginButton extends StatelessWidget {
   }
 }
 
-// ── 구글 아이콘 ──────────────────────────────────────────
 class _GoogleIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: 18, height: 18, child: CustomPaint(painter: _GoogleIconPainter()));
+    return SizedBox(width: 18, height: 18,
+        child: CustomPaint(painter: _GoogleIconPainter()));
   }
 }
 
@@ -367,12 +369,12 @@ class _GoogleIconPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ── 카카오 아이콘 ────────────────────────────────────────
 class _KakaoIcon extends StatelessWidget {
   const _KakaoIcon();
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: 18, height: 18, child: CustomPaint(painter: _KakaoIconPainter()));
+    return SizedBox(width: 18, height: 18,
+        child: CustomPaint(painter: _KakaoIconPainter()));
   }
 }
 

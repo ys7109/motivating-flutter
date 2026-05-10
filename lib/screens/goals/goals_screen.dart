@@ -94,7 +94,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
-                      child: Text('+ 추가', style: TextStyle(color: context.isDark ? Colors.black : Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                      child: Text('+ 추가', style: TextStyle(color: context.onPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ]),
@@ -156,7 +156,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                               child: Center(child: Text('$day', style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
-                                color: isSelected ? (context.isDark ? Colors.black : Colors.white)
+                                color: isSelected ? (context.onPrimary)
                                     : isToday ? context.primaryColor
                                     : dow == 0 ? AppTheme.danger
                                     : dow == 6 ? const Color(0xFF3949ab)
@@ -169,7 +169,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: hasGoals
-                                    ? (isSelected ? (context.isDark ? Colors.black : Colors.white)
+                                    ? (isSelected ? (context.onPrimary)
                                         : allDone ? const Color(0xFF1b8a5a) : const Color(0xFFf9a825))
                                     : Colors.transparent,
                               ),
@@ -200,7 +200,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           border: Border.all(color: _filter == f[0] ? context.primaryColor : context.borderColor),
                           borderRadius: BorderRadius.circular(99),
                         ),
-                        child: Text(f[1], style: TextStyle(fontSize: 11, color: _filter == f[0] ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary)),
+                        child: Text(f[1], style: TextStyle(fontSize: 11, color: _filter == f[0] ? (context.onPrimary) : context.textSecondary)),
                       ),
                     )
                   ).toList()),
@@ -335,7 +335,7 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                 duration: const Duration(milliseconds: 200),
                 width: 24, height: 24, margin: const EdgeInsets.only(top: 1),
                 decoration: BoxDecoration(shape: BoxShape.circle, color: g.done ? context.primaryColor : Colors.transparent, border: g.done ? null : Border.all(color: context.borderColor, width: 1.5)),
-                child: g.done ? Icon(Icons.check, color: context.isDark ? Colors.black : Colors.white, size: 13) : null,
+                child: g.done ? Icon(Icons.check, color: context.onPrimary, size: 13) : null,
               ),
             ),
           ),

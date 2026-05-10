@@ -23,6 +23,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 기기 최대 주사율 사용 (120fps 지원 기기)
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // 백그라운드 메시지 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -55,12 +57,26 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => AppProvider()..init(),
       child: Consumer<AppProvider>(
-        builder: (_, app, __) => MaterialApp(
+        builder: (_, app, __) => AppPrimaryColor(
+          // 커스텀 테마가 아니면 기본 포인트 색상 사용
+          color: app.isCustomTheme ? app.userPrimaryColor : AppTheme.defaultPrimary,
+          bgColor: app.isCustomTheme ? app.userBgColor : AppTheme.background,
+          isCustom: app.isCustomTheme,
+          child: Builder(builder: (ctx) {
+            // 커스텀 테마이면 custom() 사용, 아니면 기본 light/dark
+            final customLight = app.isCustomTheme
+                ? AppTheme.custom(bgColor: app.userBgColor, primary: app.userPrimaryColor, brightness: Brightness.light)
+                : AppTheme.light(app.userPrimaryColor);
+            final customDark = app.isCustomTheme
+                ? AppTheme.custom(bgColor: app.userBgColor, primary: app.userPrimaryColor, brightness: Brightness.dark)
+                : AppTheme.dark(app.userPrimaryColor);
+            return MaterialApp(
           title: 'Motivating',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode: app.themeMode,
+          theme: customLight,
+          darkTheme: customDark,
+          // 커스텀 테마일 때 themeMode를 light로 고정 — theme(customLight)가 적용되도록
+          themeMode: app.isCustomTheme ? ThemeMode.light : app.themeMode,
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
@@ -85,9 +101,11 @@ class MyApp extends StatelessWidget {
           },
           home: const RootScreen(),
           navigatorKey: AppProvider.navigatorKey,
-        ),
-      ),
-    );
+        ); // MaterialApp
+          }), // Builder
+        ), // AppPrimaryColor
+      ), // Consumer
+    ); // ChangeNotifierProvider
   }
 }
 

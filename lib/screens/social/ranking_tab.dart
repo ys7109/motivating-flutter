@@ -107,7 +107,7 @@ class _RankingTabState extends State<RankingTab> {
               ),
               child: Text(t[1], style: TextStyle(
                   fontSize: 13, fontWeight: FontWeight.w500,
-                  color: _tab == t[0] ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary)),
+                  color: _tab == t[0] ? (context.onPrimary) : context.textSecondary)),
             ),
           )).toList()),
         ),
@@ -276,7 +276,7 @@ class _ProfileModal extends StatelessWidget {
                           child: Text(
                             friendStatus == 'accepted' ? '친구 삭제' : friendStatus == 'pending' ? '요청 중' : '친구 추가',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                                color: friendStatus == 'accepted' ? context.textSecondary : (context.isDark ? Colors.black : Colors.white)),
+                                color: friendStatus == 'accepted' ? context.textSecondary : (context.onPrimary)),
                           ),
                         ),
                       ),

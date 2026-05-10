@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../utils/theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,6 +42,18 @@ class AppProvider extends ChangeNotifier {
   int? levelUpTo;
   bool showAttendModal = false;
   String? streakModalType;
+
+  // 사용자 포인트 색상 — 기본값은 검정
+  Color _primaryColor = AppTheme.defaultPrimary;
+  Color get userPrimaryColor => _primaryColor;
+
+  // 사용자 배경 색상 — 기본값은 라이트 배경
+  Color _bgColor = AppTheme.background;
+  Color get userBgColor => _bgColor;
+
+  // 커스텀 테마 사용 여부 — 사용자 설정 테마 모드
+  bool _isCustomTheme = false;
+  bool get isCustomTheme => _isCustomTheme;
   int brokenStreakPrev = 0;
   Map<String, dynamic>? currentMilestone;
 
@@ -559,6 +572,40 @@ class AppProvider extends ChangeNotifier {
     themeMode = mode;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('themeMode', mode == ThemeMode.light ? 'light' : mode == ThemeMode.dark ? 'dark' : 'system');
+    notifyListeners();
+  }
+
+  // 커스텀 테마 모드 설정
+  Future<void> setCustomTheme(bool enabled) async {
+    _isCustomTheme = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isCustomTheme', enabled);
+    notifyListeners();
+  }
+
+  // 포인트 색상 변경 — SharedPreferences에 저장
+  Future<void> setPrimaryColor(Color color) async {
+    _primaryColor = color;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('primaryColor', color.value);
+    notifyListeners();
+  }
+
+  // 배경 색상 변경 — SharedPreferences에 저장
+  Future<void> setBgColor(Color color) async {
+    _bgColor = color;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('bgColor', color.value);
+    notifyListeners();
+  }
+
+  // 커스텀 테마 색상 초기화
+  Future<void> resetCustomColors() async {
+    _primaryColor = AppTheme.defaultPrimary;
+    _bgColor = AppTheme.background;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('primaryColor');
+    await prefs.remove('bgColor');
     notifyListeners();
   }
 

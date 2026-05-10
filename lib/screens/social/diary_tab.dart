@@ -75,28 +75,28 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
               MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 20),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(editing == null ? '다이어리 작성' : '다이어리 수정',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
+              Text(editing == null ? '게시글 작성' : '게시글 수정',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ctx.textPrimary)),
               GestureDetector(onTap: () => Navigator.pop(ctx),
-                  child: Text('×', style: TextStyle(fontSize: 24, color: context.textSecondary))),
+                  child: Text('×', style: TextStyle(fontSize: 24, color: ctx.textSecondary))),
             ]),
             const SizedBox(height: 16),
             Container(
-              decoration: BoxDecoration(color: context.surfaceColor,
-                  border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: ctx.surfaceColor,
+                  border: Border.all(color: ctx.borderColor), borderRadius: BorderRadius.circular(12)),
               child: TextField(
                 controller: contentCtrl, maxLines: 6,
-                style: TextStyle(fontSize: 14, color: context.textPrimary),
+                style: TextStyle(fontSize: 14, color: ctx.textPrimary),
                 decoration: InputDecoration(
                   hintText: '오늘 하루를 기록해보세요...',
-                  hintStyle: TextStyle(color: context.textSecondary),
+                  hintStyle: TextStyle(color: ctx.textSecondary),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.all(14),
                 ),
               ),
             ),
             const SizedBox(height: 12),
-            Text('공개 설정', style: TextStyle(fontSize: 13, color: context.textSecondary)),
+            Text('공개 설정', style: TextStyle(fontSize: 13, color: ctx.textSecondary)),
             const SizedBox(height: 8),
             Row(children: [
               ['private', '🔒 비공개'],
@@ -111,11 +111,11 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: isSelected ? context.primaryColor : context.subtleBg,
+                    color: isSelected ? ctx.primaryColor : ctx.subtleBg,
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(v[1], style: TextStyle(fontSize: 12,
-                      color: isSelected ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary)),
+                      color: isSelected ? ctx.onPrimary : ctx.textSecondary)),
                 ),
               );
             }).toList()),
@@ -144,7 +144,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(12)),
                 child: Center(child: Text(editing == null ? '작성하기' : '수정하기',
-                    style: TextStyle(color: context.isDark ? Colors.black : Colors.white,
+                    style: TextStyle(color: context.onPrimary,
                         fontSize: 15, fontWeight: FontWeight.w600))),
               ),
             ),
@@ -154,6 +154,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
     );
   }
 
+  // 게시글 터치 시 상세 팝업 — 게시글 내용 + 좋아요 + 댓글
   void _openComments(DiaryModel diary) {
     showModalBottomSheet(
       context: context,
@@ -185,6 +186,7 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
               unselectedLabelColor: context.textSecondary,
               labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               unselectedLabelStyle: const TextStyle(fontSize: 13),
+              // 탭 이름 — 내 게시글, 친구, 전체
               tabs: const [Tab(text: '내 게시글'), Tab(text: '친구'), Tab(text: '전체')],
             ),
           ),
@@ -195,10 +197,10 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.edit_outlined, size: 14, color: context.isDark ? Colors.black : Colors.white),
+                Icon(Icons.edit_outlined, size: 14, color: context.onPrimary),
                 const SizedBox(width: 4),
                 Text('작성', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                    color: context.isDark ? Colors.black : Colors.white)),
+                    color: context.onPrimary)),
               ]),
             ),
           ),
@@ -209,17 +211,18 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
         child: _loading
             ? Center(child: CircularProgressIndicator(color: context.primaryColor))
             : TabBarView(controller: _tabCtrl, children: [
+                // 내 게시글 탭 — 수정/삭제 가능
                 _DiaryList(diaries: _myDiaries, myUid: myUid, onRefresh: _load,
                     onEdit: (d) => _openWriteDialog(editing: d),
                     onDelete: (d) async { await _diaryService.deleteDiary(d.id); await _load(); },
                     onComment: _openComments),
+                // 친구 탭
                 _DiaryList(diaries: _friendDiaries, myUid: myUid, onRefresh: _load,
-                    onLike: (d) async { final app = context.read<AppProvider>(); await _diaryService.toggleLike(myUid, d.id, myUserData: {'name': app.userData!.name, 'character': app.userData!.character.toMap()}); await _load(); },
                     onComment: _openComments),
+                // 전체 탭
                 _DiaryList(diaries: _publicDiaries, myUid: myUid, onRefresh: _load,
                     onEdit: (d) => _openWriteDialog(editing: d),
                     onDelete: (d) async { await _diaryService.deleteDiary(d.id); await _load(); },
-                    onLike: (d) async { final app = context.read<AppProvider>(); await _diaryService.toggleLike(myUid, d.id, myUserData: {'name': app.userData!.name, 'character': app.userData!.character.toMap()}); await _load(); },
                     onComment: _openComments),
               ]),
       ),
@@ -227,18 +230,17 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
   }
 }
 
-// ── 다이어리 목록 ──
+// ── 게시글 목록 ──
 class _DiaryList extends StatelessWidget {
   final List<DiaryModel> diaries;
   final String myUid;
   final Future<void> Function() onRefresh;
   final void Function(DiaryModel)? onEdit;
   final Future<void> Function(DiaryModel)? onDelete;
-  final Future<void> Function(DiaryModel)? onLike;
   final void Function(DiaryModel) onComment;
 
   const _DiaryList({required this.diaries, required this.myUid, required this.onRefresh,
-      this.onEdit, this.onDelete, this.onLike, required this.onComment});
+      this.onEdit, this.onDelete, required this.onComment});
 
   @override
   Widget build(BuildContext context) {
@@ -246,7 +248,7 @@ class _DiaryList extends StatelessWidget {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('📔', style: TextStyle(fontSize: 40)),
         const SizedBox(height: 12),
-        Text('아직 다이어리가 없어요', style: TextStyle(fontSize: 14, color: context.textSecondary)),
+        Text('아직 게시글이 없어요', style: TextStyle(fontSize: 14, color: context.textSecondary)),
       ]));
     }
     return RefreshIndicator(
@@ -262,8 +264,8 @@ class _DiaryList extends StatelessWidget {
             diary: d, isMe: isMe,
             onEdit: isMe && onEdit != null ? () => onEdit!(d) : null,
             onDelete: isMe && onDelete != null ? () => onDelete!(d) : null,
-            onLike: !isMe && onLike != null ? () => onLike!(d) : null,
-            onComment: () => onComment(d),
+            // 카드 터치 시 상세 팝업 열기
+            onTap: () => onComment(d),
           );
         },
       ),
@@ -271,80 +273,83 @@ class _DiaryList extends StatelessWidget {
   }
 }
 
-// ── 다이어리 카드 ──
+// ── 게시글 카드 — 터치하면 상세 팝업 열림 ──
 class _DiaryCard extends StatelessWidget {
   final DiaryModel diary;
   final bool isMe;
-  final VoidCallback? onEdit, onDelete, onLike, onComment;
+  final VoidCallback? onEdit, onDelete, onTap;
+
   const _DiaryCard({required this.diary, required this.isMe,
-      this.onEdit, this.onDelete, this.onLike, this.onComment});
+      this.onEdit, this.onDelete, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final achievement = diary.authorEquippedAchievement != null
         ? Achievements.findById(diary.authorEquippedAchievement!) : null;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: context.borderColor, width: 0.5)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          CharacterAvatar(character: diary.authorCharacter, size: 36),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(diary.authorName,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
-            if (achievement != null) ...[
-              const SizedBox(height: 2),
-              _TitleChip(achievement: achievement),
-              const SizedBox(height: 2),
-            ],
-            Row(children: [
-              Text('Lv.${diary.authorLevel}', style: TextStyle(fontSize: 11, color: context.textSecondary)),
-              const SizedBox(width: 6),
-              Text('·', style: TextStyle(fontSize: 11, color: context.textSecondary)),
-              const SizedBox(width: 6),
-              Text(diary.timeAgo, style: TextStyle(fontSize: 11, color: context.textSecondary)),
-            ]),
-          ])),
-          if (isMe) ...[
-            if (onEdit != null) GestureDetector(onTap: onEdit,
-                child: Icon(Icons.edit_outlined, size: 18, color: context.textSecondary)),
-            const SizedBox(width: 10),
-            if (onDelete != null) GestureDetector(onTap: onDelete,
-                child: Icon(Icons.delete_outline, size: 18, color: context.textSecondary)),
-          ],
-        ]),
-        const SizedBox(height: 10),
-        Text(diary.content, style: TextStyle(fontSize: 14, color: context.textPrimary, height: 1.5)),
-        const SizedBox(height: 10),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(diary.visibilityLabel, style: TextStyle(fontSize: 11, color: context.textSecondary)),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: context.borderColor, width: 0.5)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            // 댓글 버튼
-            GestureDetector(
-              onTap: onComment,
-              child: Row(children: [
-                Icon(Icons.chat_bubble_outline_rounded, size: 15, color: context.textSecondary),
-                const SizedBox(width: 4),
-                Text('${diary.commentCount}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+            CharacterAvatar(character: diary.authorCharacter, size: 36),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(diary.authorName,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
+              if (achievement != null) ...[
+                const SizedBox(height: 2),
+                _TitleChip(achievement: achievement),
+                const SizedBox(height: 2),
+              ],
+              Row(children: [
+                Text('Lv.${diary.authorLevel}', style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                const SizedBox(width: 6),
+                Text('·', style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                const SizedBox(width: 6),
+                Text(diary.timeAgo, style: TextStyle(fontSize: 11, color: context.textSecondary)),
               ]),
-            ),
-            const SizedBox(width: 14),
-            // 좋아요 버튼
-            GestureDetector(
-              onTap: onLike,
-              child: Row(children: [
-                Icon(diary.likedByMe ? Icons.favorite : Icons.favorite_border,
-                    size: 15, color: diary.likedByMe ? AppTheme.danger : context.textSecondary),
-                const SizedBox(width: 4),
-                Text('${diary.likeCount}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
-              ]),
-            ),
+            ])),
+            // 내 게시글일 때 수정/삭제 버튼
+            if (isMe) ...[
+              if (onEdit != null) GestureDetector(
+                onTap: onEdit,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.edit_outlined, size: 18, color: context.textSecondary))),
+              const SizedBox(width: 6),
+              if (onDelete != null) GestureDetector(
+                onTap: onDelete,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.delete_outline, size: 18, color: context.textSecondary))),
+            ],
+          ]),
+          const SizedBox(height: 10),
+          // 본문 — 최대 3줄 미리보기
+          Text(diary.content, style: TextStyle(fontSize: 14, color: context.textPrimary, height: 1.5),
+              maxLines: 3, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 10),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(diary.visibilityLabel, style: TextStyle(fontSize: 11, color: context.textSecondary)),
+            Row(children: [
+              // 댓글 수
+              Icon(Icons.chat_bubble_outline_rounded, size: 15, color: context.textSecondary),
+              const SizedBox(width: 4),
+              Text('${diary.commentCount}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+              const SizedBox(width: 12),
+              // 좋아요 수
+              Icon(diary.likedByMe ? Icons.favorite : Icons.favorite_border,
+                  size: 15, color: diary.likedByMe ? AppTheme.danger : context.textSecondary),
+              const SizedBox(width: 4),
+              Text('${diary.likeCount}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+            ]),
           ]),
         ]),
-      ]),
+      ),
     );
   }
 }
@@ -365,7 +370,7 @@ class _TitleChip extends StatelessWidget {
   }
 }
 
-// ── 댓글 바텀시트 ──
+// ── 게시글 상세 팝업 — 내용 + 좋아요 + 댓글 ──
 class _CommentSheet extends StatefulWidget {
   final DiaryModel diary;
   final DiaryService diaryService;
@@ -381,15 +386,26 @@ class _CommentSheetState extends State<_CommentSheet> {
   bool _sending = false;
   final _commentCtrl = TextEditingController();
 
-  // 대댓글 입력 상태
-  String? _replyingToCommentId;   // 현재 대댓글 작성 중인 댓글 ID
-  String? _replyingToName;        // "@닉네임" 표시용
-  String? _replyingToAuthorUid;   // 댓글 작성자 uid (알림용)
-  String? _replyingToContent;     // 댓글 내용 (알림용)
+  // 좋아요 상태 — 즉시 반영용
+  late bool _likedByMe;
+  late int _likeCount;
+  late int _commentCount;
+
+  // 답글 입력 상태
+  String? _replyingToCommentId;
+  String? _replyingToName;
+  String? _replyingToAuthorUid;
+  String? _replyingToContent;
   final _replyCtrl = TextEditingController();
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _likedByMe = widget.diary.likedByMe;
+    _likeCount = widget.diary.likeCount;
+    _commentCount = widget.diary.commentCount;
+    _load();
+  }
 
   @override
   void dispose() { _commentCtrl.dispose(); _replyCtrl.dispose(); super.dispose(); }
@@ -399,9 +415,24 @@ class _CommentSheetState extends State<_CommentSheet> {
     setState(() => _loading = true);
     try {
       _comments = await widget.diaryService.getComments(widget.diary.id);
+      // 댓글 + 답글 수 합산
+      if (mounted) setState(() => _commentCount = _comments.fold(0, (s, c) => s + 1 + c.replies.length));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  // 좋아요 토글 — 즉시 UI 반영
+  Future<void> _toggleLike() async {
+    final app = context.read<AppProvider>();
+    final myUid = app.authUser!.uid;
+    setState(() {
+      _likedByMe = !_likedByMe;
+      _likeCount += _likedByMe ? 1 : -1;
+    });
+    await widget.diaryService.toggleLike(myUid, widget.diary.id,
+        myUserData: {'name': app.userData!.name, 'character': app.userData!.character.toMap()});
+    widget.onChanged();
   }
 
   void _startReply(String commentId, String authorName, String authorUid, String commentContent) {
@@ -412,10 +443,6 @@ class _CommentSheetState extends State<_CommentSheet> {
       _replyingToContent = commentContent;
     });
     _replyCtrl.clear();
-    FocusScope.of(context).requestFocus(FocusNode());
-    Future.delayed(const Duration(milliseconds: 100), () {
-      FocusScope.of(context).requestFocus(FocusNode());
-    });
   }
 
   void _cancelReply() {
@@ -490,53 +517,154 @@ class _CommentSheetState extends State<_CommentSheet> {
     final myUid = context.read<AppProvider>().authUser!.uid;
     final bottomPad = MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom;
     final isReplying = _replyingToCommentId != null;
+    final achievement = widget.diary.authorEquippedAchievement != null
+        ? Achievements.findById(widget.diary.authorEquippedAchievement!) : null;
 
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.78,
+      height: MediaQuery.of(context).size.height * 0.88,
       child: Column(children: [
         // 헤더
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('댓글 ${widget.diary.commentCount}',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
+            Text('게시글', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
             GestureDetector(onTap: () => Navigator.pop(context),
                 child: Text('×', style: TextStyle(fontSize: 24, color: context.textSecondary))),
           ]),
         ),
         const Divider(height: 1),
 
-        // 댓글 목록
+        // 스크롤 가능한 본문 + 댓글 영역
         Expanded(
-          child: _loading
-              ? Center(child: CircularProgressIndicator(color: context.primaryColor))
-              : _comments.isEmpty
-                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Text('💬', style: TextStyle(fontSize: 36)),
-                      const SizedBox(height: 10),
-                      Text('첫 댓글을 남겨보세요!',
-                          style: TextStyle(fontSize: 14, color: context.textSecondary)),
-                    ]))
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      itemCount: _comments.length,
-                      itemBuilder: (_, i) {
-                        final c = _comments[i];
-                        return _CommentItem(
-                          comment: c,
-                          myUid: myUid,
-                          isReplyingToThis: _replyingToCommentId == c.id,
-                          onReply: () => _startReply(c.id, c.authorName, c.uid, c.content),
-                          onDelete: () => _deleteComment(c),
-                          onDeleteReply: (rId) => _deleteReply(c.id, rId),
-                        );
-                      },
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              // 게시글 내용
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // 작성자 정보
+                  Row(children: [
+                    CharacterAvatar(character: widget.diary.authorCharacter, size: 38),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(widget.diary.authorName, style: TextStyle(fontSize: 14,
+                          fontWeight: FontWeight.w600, color: context.textPrimary)),
+                      if (achievement != null) ...[
+                        const SizedBox(height: 2),
+                        _TitleChip(achievement: achievement),
+                        const SizedBox(height: 2),
+                      ],
+                      Row(children: [
+                        Text('Lv.${widget.diary.authorLevel}',
+                            style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                        const SizedBox(width: 6),
+                        Text('·', style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                        const SizedBox(width: 6),
+                        Text(widget.diary.timeAgo,
+                            style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                      ]),
+                    ])),
+                  ]),
+                  const SizedBox(height: 12),
+                  // 게시글 본문 — 전체 표시
+                  Text(widget.diary.content,
+                      style: TextStyle(fontSize: 15, color: context.textPrimary, height: 1.6)),
+                  const SizedBox(height: 14),
+                  // 좋아요 + 댓글 수 버튼
+                  Row(children: [
+                    GestureDetector(
+                      onTap: _toggleLike,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _likedByMe ? AppTheme.danger.withOpacity(0.1) : context.subtleBg,
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                              color: _likedByMe ? AppTheme.danger.withOpacity(0.3) : context.borderColor),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(_likedByMe ? Icons.favorite : Icons.favorite_border,
+                              size: 15, color: _likedByMe ? AppTheme.danger : context.textSecondary),
+                          const SizedBox(width: 5),
+                          Text('$_likeCount', style: TextStyle(fontSize: 13,
+                              color: _likedByMe ? AppTheme.danger : context.textSecondary,
+                              fontWeight: _likedByMe ? FontWeight.w600 : FontWeight.normal)),
+                        ]),
+                      ),
                     ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: context.subtleBg,
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: context.borderColor),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.chat_bubble_outline_rounded, size: 15, color: context.textSecondary),
+                        const SizedBox(width: 5),
+                        Text('$_commentCount',
+                            style: TextStyle(fontSize: 13, color: context.textSecondary)),
+                      ]),
+                    ),
+                  ]),
+                  const SizedBox(height: 14),
+                ]),
+              ),
+              const Divider(height: 1),
+
+              // 댓글 헤더
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Text('댓글 $_commentCount',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
+              ),
+
+              // 댓글 목록
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_comments.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('💬', style: TextStyle(fontSize: 36)),
+                    const SizedBox(height: 10),
+                    Text('첫 댓글을 남겨보세요!',
+                        style: TextStyle(fontSize: 14, color: context.textSecondary)),
+                  ])),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  itemCount: _comments.length,
+                  itemBuilder: (_, i) {
+                    final c = _comments[i];
+                    return _CommentItem(
+                      comment: c,
+                      myUid: myUid,
+                      isReplyingToThis: _replyingToCommentId == c.id,
+                      onReply: () => _startReply(c.id, c.authorName, c.uid, c.content),
+                      onDelete: () => _deleteComment(c),
+                      onDeleteReply: (rId) => _deleteReply(c.id, rId),
+                    );
+                  },
+                ),
+              // 입력창 높이만큼 하단 여백
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
 
         const Divider(height: 1),
 
-        // 대댓글 작성 중 표시
+        // 답글 작성 중 표시
         if (isReplying)
           Container(
             color: context.primaryColor.withOpacity(0.08),
@@ -544,14 +672,14 @@ class _CommentSheetState extends State<_CommentSheet> {
             child: Row(children: [
               Icon(Icons.reply, size: 14, color: context.primaryColor),
               const SizedBox(width: 6),
-              Expanded(child: Text('$_replyingToName 님에게 대댓글 작성 중',
+              Expanded(child: Text('$_replyingToName 님에게 답글 작성 중',
                   style: TextStyle(fontSize: 12, color: context.primaryColor))),
               GestureDetector(onTap: _cancelReply,
                   child: Icon(Icons.close, size: 16, color: context.textSecondary)),
             ]),
           ),
 
-        // 입력창
+        // 댓글/답글 입력창
         Padding(
           padding: EdgeInsets.fromLTRB(16, 10, 16, bottomPad + 10),
           child: Row(children: [
@@ -566,7 +694,7 @@ class _CommentSheetState extends State<_CommentSheet> {
                   maxLines: 1, maxLength: 200,
                   style: TextStyle(fontSize: 14, color: context.textPrimary),
                   decoration: InputDecoration(
-                    hintText: isReplying ? '대댓글을 입력하세요...' : '댓글을 입력하세요...',
+                    hintText: isReplying ? '답글을 입력하세요...' : '댓글을 입력하세요...',
                     hintStyle: TextStyle(color: context.textSecondary, fontSize: 14),
                     border: InputBorder.none, counterText: '',
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -584,10 +712,8 @@ class _CommentSheetState extends State<_CommentSheet> {
                 decoration: BoxDecoration(shape: BoxShape.circle, color: context.primaryColor),
                 child: _sending
                     ? Padding(padding: const EdgeInsets.all(10),
-                        child: CircularProgressIndicator(strokeWidth: 2,
-                            color: context.isDark ? Colors.black : Colors.white))
-                    : Icon(Icons.send_rounded, size: 18,
-                        color: context.isDark ? Colors.black : Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: context.onPrimary))
+                    : Icon(Icons.send_rounded, size: 18, color: context.onPrimary),
               ),
             ),
           ]),
@@ -597,7 +723,7 @@ class _CommentSheetState extends State<_CommentSheet> {
   }
 }
 
-// ── 댓글 아이템 (대댓글 포함) ──
+// ── 댓글 아이템 (답글 포함) ──
 class _CommentItem extends StatelessWidget {
   final CommentModel comment;
   final String myUid;
@@ -638,29 +764,26 @@ class _CommentItem extends StatelessWidget {
               Text(comment.timeAgo, style: TextStyle(fontSize: 11, color: context.textSecondary)),
             ]),
             const SizedBox(height: 4),
-            // 내용
             Text(comment.content, style: TextStyle(fontSize: 14, color: context.textPrimary, height: 1.4)),
             const SizedBox(height: 6),
-            // 액션 버튼
-            Row(children: [
-              GestureDetector(
-                onTap: onReply,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: isReplyingToThis ? context.primaryColor.withOpacity(0.1) : context.subtleBg,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.reply, size: 13,
-                        color: isReplyingToThis ? context.primaryColor : context.textSecondary),
-                    const SizedBox(width: 3),
-                    Text('답글', style: TextStyle(fontSize: 12,
-                        color: isReplyingToThis ? context.primaryColor : context.textSecondary)),
-                  ]),
+            // 답글 버튼
+            GestureDetector(
+              onTap: onReply,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isReplyingToThis ? context.primaryColor.withOpacity(0.1) : context.subtleBg,
+                  borderRadius: BorderRadius.circular(99),
                 ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.reply, size: 13,
+                      color: isReplyingToThis ? context.primaryColor : context.textSecondary),
+                  const SizedBox(width: 3),
+                  Text('답글', style: TextStyle(fontSize: 12,
+                      color: isReplyingToThis ? context.primaryColor : context.textSecondary)),
+                ]),
               ),
-            ]),
+            ),
           ])),
           if (isMyComment)
             GestureDetector(onTap: onDelete,
@@ -668,7 +791,7 @@ class _CommentItem extends StatelessWidget {
                     child: Icon(Icons.delete_outline, size: 16, color: context.textSecondary))),
         ]),
 
-        // 대댓글 목록
+        // 답글 목록
         if (comment.replies.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(left: 44, top: 8),
@@ -679,13 +802,11 @@ class _CommentItem extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  // 대댓글 인덴트 선
+                  // 답글 인덴트 선
                   Container(
                     width: 2, height: 34, margin: const EdgeInsets.only(right: 10),
                     decoration: BoxDecoration(
-                      color: context.borderColor,
-                      borderRadius: BorderRadius.circular(1),
-                    ),
+                        color: context.borderColor, borderRadius: BorderRadius.circular(1)),
                   ),
                   CharacterAvatar(character: r.authorCharacter, size: 28),
                   const SizedBox(width: 8),

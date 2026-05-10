@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -194,7 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _LinkItem(label: '이용약관', onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const InAppWebView(
                         url: 'https://motivating-5a036.web.app/terms.html', title: '이용약관')))),
-                _LinkItem(label: '오픈소스 라이선스', onTap: () {}),
+                // _LinkItem(label: '오픈소스 라이선스', onTap: () {}),
                 _LinkItem(label: '문의하기', onTap: () async {
                   final uri = Uri.parse('mailto:cmarco4065@gmail.com?subject=Motivating 문의');
                   if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -203,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               // 앱 정보 섹션
               _Section(title: '앱 정보', children: [
-                const _InfoItem(label: '버전', value: '1.8.1'),
+                const _InfoItem(label: '버전', value: '1.0.0'),
                 const _InfoItem(label: '빌드', value: '2026.05.10'),
               ]),
 
@@ -253,23 +254,168 @@ class _ThemeItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
     final current = app.themeMode;
+    final isCustom = app.isCustomTheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: context.dividerColor))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('테마', style: TextStyle(fontSize: 15, color: context.textPrimary)),
         const SizedBox(height: 12),
-        Row(children: [
-          _ThemeOption(label: '시스템', icon: Icons.brightness_auto_rounded,
-              selected: current == ThemeMode.system, onTap: () => app.setThemeMode(ThemeMode.system)),
-          const SizedBox(width: 8),
-          _ThemeOption(label: '라이트', icon: Icons.light_mode_rounded,
-              selected: current == ThemeMode.light, onTap: () => app.setThemeMode(ThemeMode.light)),
-          const SizedBox(width: 8),
-          _ThemeOption(label: '다크', icon: Icons.dark_mode_rounded,
-              selected: current == ThemeMode.dark, onTap: () => app.setThemeMode(ThemeMode.dark)),
+        // 2x2 그리드 테마 선택
+        Column(children: [
+          Row(children: [
+            // 시스템
+            _ThemeOption(
+              label: '시스템', icon: Icons.brightness_auto_rounded,
+              selected: current == ThemeMode.system && !isCustom,
+              onTap: () { app.setThemeMode(ThemeMode.system); app.setCustomTheme(false); },
+            ),
+            const SizedBox(width: 8),
+            // 사용자 설정 — themeMode를 light로 고정해서 custom theme 적용
+            _ThemeOption(
+              label: '사용자 설정', icon: Icons.palette_rounded,
+              selected: isCustom,
+              onTap: () { app.setCustomTheme(true); app.setThemeMode(ThemeMode.light); },
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            // 라이트
+            _ThemeOption(
+              label: '라이트', icon: Icons.light_mode_rounded,
+              selected: current == ThemeMode.light && !isCustom,
+              onTap: () { app.setThemeMode(ThemeMode.light); app.setCustomTheme(false); },
+            ),
+            const SizedBox(width: 8),
+            // 다크
+            _ThemeOption(
+              label: '다크', icon: Icons.dark_mode_rounded,
+              selected: current == ThemeMode.dark && !isCustom,
+              onTap: () { app.setThemeMode(ThemeMode.dark); app.setCustomTheme(false); },
+            ),
+          ]),
         ]),
+        // 사용자 설정 선택 시 색상 옵션 표시
+        if (isCustom) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: context.subtleBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: context.borderColor),
+            ),
+            child: Column(children: [
+              // 배경 색상 행
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Row(children: [
+                  Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(
+                      color: app.userBgColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: context.borderColor, width: 1.5),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('배경 색상', style: TextStyle(fontSize: 14, color: context.textPrimary)),
+                ]),
+                GestureDetector(
+                  onTap: () => _showColorPicker(context, app, isBg: true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: context.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text('변경', style: TextStyle(fontSize: 13, color: context.primaryColor, fontWeight: FontWeight.w500)),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              // 포인트 색상 행
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Row(children: [
+                  Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(
+                      color: app.userPrimaryColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: context.borderColor, width: 1.5),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('포인트 색상', style: TextStyle(fontSize: 14, color: context.textPrimary)),
+                ]),
+                GestureDetector(
+                  onTap: () => _showColorPicker(context, app, isBg: false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: context.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text('변경', style: TextStyle(fontSize: 13, color: context.primaryColor, fontWeight: FontWeight.w500)),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              // 초기화 버튼
+              GestureDetector(
+                onTap: () => app.resetCustomColors(),
+                child: Center(
+                  child: Text('기본값으로 초기화',
+                      style: TextStyle(fontSize: 12, color: context.textSecondary,
+                          decoration: TextDecoration.underline)),
+                ),
+              ),
+            ]),
+          ),
+        ],
       ]),
+    );
+  }
+
+  // 컬러 피커 다이얼로그 — isBg: true면 배경색, false면 포인트색
+  void _showColorPicker(BuildContext context, AppProvider app, {required bool isBg}) {
+    Color tempColor = isBg ? app.userBgColor : app.userPrimaryColor;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: ctx.modalBg,
+          title: Text(isBg ? '배경 색상 선택' : '포인트 색상 선택',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ctx.textPrimary)),
+          content: SingleChildScrollView(
+            child: ColorPicker(
+              pickerColor: tempColor,
+              onColorChanged: (color) => setS(() => tempColor = color),
+              pickerAreaHeightPercent: 0.8,
+              enableAlpha: false,
+              displayThumbColor: true,
+              labelTypes: const [],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('취소', style: TextStyle(color: ctx.textSecondary)),
+            ),
+            TextButton(
+              onPressed: () {
+                // 배경색 또는 포인트색 저장
+                if (isBg) {
+                  app.setBgColor(tempColor);
+                } else {
+                  app.setPrimaryColor(tempColor);
+                }
+                Navigator.pop(ctx);
+              },
+              child: Text('적용', style: TextStyle(color: ctx.primaryColor)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -298,10 +444,10 @@ class _ThemeOption extends StatelessWidget {
           ),
           child: Column(children: [
             Icon(icon, size: 20,
-                color: selected ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary),
+                color: selected ? (context.onPrimary) : context.textSecondary),
             const SizedBox(height: 4),
             Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                color: selected ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary)),
+                color: selected ? (context.onPrimary) : context.textSecondary)),
           ]),
         ),
       ),
@@ -348,7 +494,8 @@ class _ToggleItemState extends State<_ToggleItem> {
     final trackColor = widget.value
         ? context.primaryColor
         : (context.isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE0E0E0));
-    final thumbColor = (context.isDark && widget.value) ? Colors.black : Colors.white;
+    // 토글 썸 색상 — 포인트 색상과 대비되는 색 자동 계산
+    final thumbColor = widget.value ? context.onPrimary : Colors.white;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -456,7 +603,7 @@ class _ConfirmModal extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(12)),
                   child: Center(child: Text(confirmLabel, style: TextStyle(
-                      color: context.isDark ? Colors.black : Colors.white,
+                      color: context.onPrimary,
                       fontSize: 15, fontWeight: FontWeight.w500))),
                 ),
               )),

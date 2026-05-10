@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Center(child: Icon(Icons.mail_outline_rounded, size: 18, color: context.textSecondary)),
                             ),
                             if (app.unreadMailCount > 0)
-                              Positioned(top: -3, right: 0, child: Container(
+                              Positioned(top: -3, right: -3, child: Container(
                                 constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
                                 padding: const EdgeInsets.symmetric(horizontal: 3),
                                 decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
@@ -118,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Center(child: Icon(Icons.notifications_outlined, size: 18, color: context.textSecondary)),
                             ),
                             if (app.unreadNotifCount > 0)
-                              Positioned(top: -3, right: 0, child: Container(
+                              Positioned(top: -3, right: -3, child: Container(
                                 constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
                                 padding: const EdgeInsets.symmetric(horizontal: 3),
                                 decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
@@ -152,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         width: 46, height: 46,
                         decoration: BoxDecoration(color: context.primaryColor, shape: BoxShape.circle),
                         child: Center(child: Text('${userData.level}',
-                            style: TextStyle(color: context.isDark ? Colors.black : Colors.white,
+                            style: TextStyle(color: context.onPrimary,
                                 fontSize: 17, fontWeight: FontWeight.w600))),
                       ),
                       const SizedBox(width: 12),
@@ -196,14 +196,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(children: [
                   _StatCard(label: '달성 목표', value: '${app.goalsThisMonth}', sub: '이번 달'),
                   const SizedBox(width: 10),
-                  _StatCard(label: '최고 스트릭', value: '${userData.maxStreak}일', sub: '최고 기록'),
+                  _StatCard(label: '최고 출석', value: '\${userData.maxStreak}일', sub: '최고 기록'),
                   const SizedBox(width: 10),
                   _StatCard(label: '집중 시간', value: '${focusHours}h', sub: '누적'),
                 ]),
               ),
               const SizedBox(height: 12),
 
-              // 연속 출석 카드 — 스트릭 및 마일스톤 진행률
+              // 연속 출석 카드 — 출석 현황 및 마일스톤 진행률
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -325,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
                         child: Text('시작',
-                            style: TextStyle(color: context.isDark ? Colors.black : Colors.white,
+                            style: TextStyle(color: context.onPrimary,
                                 fontSize: 14, fontWeight: FontWeight.w600)),
                       ),
                     ),
@@ -342,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // 출석 모달
         if (app.showAttendModal)
           AttendanceModal(onClose: () => app.dismissAttendModal()),
-        // 스트릭 모달 (마일스톤 / 끊김)
+        // 연속 출석 모달 (마일스톤 / 끊김)
         if (app.streakModalType != null)
           StreakModal(type: app.streakModalType!, onClose: () => app.dismissStreakModal()),
       ]),
@@ -359,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// 통계 카드 위젯 — 달성 목표 / 최고 스트릭 / 집중 시간
+// 통계 카드 위젯 — 달성 목표 / 최고 출석 / 집중 시간
 class _StatCard extends StatelessWidget {
   final String label, value, sub;
   const _StatCard({required this.label, required this.value, required this.sub});
@@ -384,7 +384,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// 스트릭 마일스톤 진행률 바 — 다음 마일스톤까지 남은 일수 표시
+// 연속 출석 마일스톤 진행률 바 — 다음 마일스톤까지 남은 일수 표시
 class _StreakMilestone extends StatelessWidget {
   final int streak;
   const _StreakMilestone({required this.streak});
@@ -493,7 +493,7 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
                 border: g.done ? null : Border.all(color: context.borderColor, width: 1.5),
               ),
               child: g.done
-                  ? Icon(Icons.check, color: context.isDark ? Colors.black : Colors.white, size: 13)
+                  ? Icon(Icons.check, color: context.onPrimary, size: 13)
                   : null,
             ),
             const SizedBox(width: 12),

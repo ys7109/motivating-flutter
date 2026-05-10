@@ -60,7 +60,7 @@ class _InAppWebViewState extends State<InAppWebView> {
             WebViewWidget(controller: _ctrl),
             if (_loading)
               const Center(
-                  child: CircularProgressIndicator(color: AppTheme.primary)),
+                  child: CircularProgressIndicator(color: AppTheme.defaultPrimary)),
           ],
         ),
       ),

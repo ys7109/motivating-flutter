@@ -93,7 +93,7 @@ class _ActivityNotificationScreenState extends State<ActivityNotificationScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
                     child: Text('$unread', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                        color: context.isDark ? Colors.black : Colors.white)),
+                        color: context.onPrimary)),
                   ),
                 ],
               ]),

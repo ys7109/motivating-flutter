@@ -176,7 +176,7 @@ class _FocusStatsScreenState extends State<FocusStatsScreen> with SingleTickerPr
                 dividerColor: Colors.transparent,
                 indicator: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(10)),
                 indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: context.isDark ? Colors.black : Colors.white,
+                labelColor: context.onPrimary,
                 unselectedLabelColor: context.textSecondary,
                 labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: const TextStyle(fontSize: 13),
