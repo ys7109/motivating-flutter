@@ -508,10 +508,20 @@ class AppProvider extends ChangeNotifier {
       equippedAchievement: userData!.equippedAchievement,
       achievementUnlockedAt: userData!.achievementUnlockedAt,
     );
-    // 레벨업 발생 시 모달 표시 및 공개 프로필 업데이트
+    // 업적 스킨 해금 후 공개 프로필 + 다이어리 작성자 정보 업데이트
+    await _db.updatePublicProfile(authUser!.uid, {
+      'name': userData!.name,
+      'level': newLevel,
+      'character': userData!.character.toMap(),
+      'equippedAchievement': userData!.equippedAchievement,
+    });
+    await _diaryService.updateAuthorInfo(
+      authUser!.uid, userData!.name, userData!.character.toMap(), newLevel,
+      equippedAchievement: userData!.equippedAchievement,
+    );
+    // 레벨업 발생 시 모달 표시
     if (newLevel > prevLevel) {
       levelUpTo = newLevel;
-      await _db.updatePublicProfile(authUser!.uid, {'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap()});
       await _handleLevelUpReward(prevLevel, newLevel);
     }
     showToast('🎁 보상 수령! +${a.xpReward} XP · ${a.emoji} 스킨 해금');

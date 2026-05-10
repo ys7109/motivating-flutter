@@ -24,15 +24,28 @@ const kFrames = [
   {'id': 'rainbow', 'color': 0xFFe040fb},
 ];
 
-// 업적 전용 스킨 이모지 맵
+// 업적 전용 스킨 이모지 맵 — achievement_definitions.dart와 동기화
 const kAchieveSkins = <String, String>{
-  'goal_first':   '🎯', 'goal_10':      '🏅', 'goal_50':    '🥈',
-  'goal_100':     '🥇', 'repeat_first': '🔄', 'streak_7':   '🔥',
-  'streak_30':    '🌙', 'streak_100':   '💫', 'streak_365': '🌟',
-  'focus_1h':     '⏱',  'focus_10h':    '⚡', 'focus_50h':  '🔮',
-  'focus_100h':   '🧠', 'level_5':      '🌱', 'level_10':   '🌿',
-  'level_20':     '🌳', 'friend_first': '🤝', 'diary_first':'📔',
-  'diary_10':     '📖',
+  // 목표
+  'goal_first':    '🎯', 'goal_10':       '🏅', 'goal_50':       '🥈',
+  'goal_100':      '🥇', 'goal_300':      '👑', 'repeat_first':  '🔄',
+  'repeat_10':     '♾️', 'short_goal_50': '⚡', 'long_goal_10':  '🏔️',
+  // 스트릭
+  'streak_3':      '✨', 'streak_7':      '🔥', 'streak_14':     '🌙',
+  'streak_30':     '🌕', 'streak_60':     '💫', 'streak_100':    '🌟',
+  'streak_365':    '🏆',
+  // 집중
+  'focus_1h':      '⏱️', 'focus_5h':      '⚡', 'focus_10h':     '🔮',
+  'focus_30h':     '🧘', 'focus_50h':     '🌊', 'focus_100h':    '🧠',
+  'focus_200h':    '🌌', 'focus_session_10': '🎯', 'focus_session_50': '🎪',
+  // 레벨
+  'level_5':       '🌱', 'level_10':      '🌿', 'level_20':      '🌳',
+  'level_30':      '🦅', 'level_50':      '💎', 'level_75':      '🌠',
+  'level_100':     '👑',
+  // 소셜
+  'friend_first':  '🤝', 'friend_5':      '👥', 'friend_10':     '🌐',
+  'diary_first':   '📔', 'diary_10':      '📖', 'diary_50':      '📚',
+  'chat_first':    '💬', 'ranking_top3':  '🥉', 'ranking_top1':  '🥇',
 };
 
 String skinEmoji(String? skin) {

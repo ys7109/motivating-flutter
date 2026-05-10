@@ -181,7 +181,15 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
                 const SizedBox(width: 6),
                 GestureDetector(
                   onTap: () { _nameCtrl.text = userData.name; setState(() => _editName = true); },
-                  child: const Text('✏️', style: TextStyle(fontSize: 13)),
+                  child: Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                      color: context.subtleBg,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: context.borderColor),
+                    ),
+                    child: Icon(Icons.edit_rounded, size: 14, color: context.textSecondary),
+                  ),
                 ),
               ]),
               if (equippedAchievement != null) ...[

@@ -6,7 +6,7 @@ const kReactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // 1:1 채팅방 ID (작은 uid가 앞으로 정렬)
+  // 1:1 채팅방 ID — 작은 uid가 앞으로 정렬해서 항상 동일한 ID 생성
   String directChatId(String a, String b) =>
       a.compareTo(b) < 0 ? '${a}_$b' : '${b}_$a';
 
@@ -54,7 +54,7 @@ class ChatService {
     return id;
   }
 
-  // 그룹 채팅방 생성
+  // 그룹 채팅방 생성 — 모든 멤버 unreadCount/lastReadAt 초기화
   Future<String> createGroupChat(String myUid, List<String> memberUids, String name) async {
     final allUsers = [myUid, ...memberUids];
     final unreadCount = {for (final uid in allUsers) uid: 0};
@@ -72,7 +72,7 @@ class ChatService {
     return ref.id;
   }
 
-  // 메시지 전송 — 수신자 unread 카운트 +1
+  // 메시지 전송 — 수신자 unreadCount +1, 마지막 메시지 업데이트
   Future<void> sendMessage(String chatId, String senderUid, List<String> receiverUids, String content) async {
     final batch = _db.batch();
     final msgRef = _db.collection('chats').doc(chatId).collection('messages').doc();
@@ -93,7 +93,7 @@ class ChatService {
     await batch.commit();
   }
 
-  // 이모지 반응 토글
+  // 이모지 반응 토글 — 이미 반응했으면 취소, 아니면 추가
   Future<void> toggleReaction(String chatId, String msgId, String myUid, String emoji) async {
     final ref = _db.collection('chats').doc(chatId).collection('messages').doc(msgId);
     final snap = await ref.get();
@@ -113,7 +113,7 @@ class ChatService {
     await ref.update({'reactions': reactions});
   }
 
-  // 메시지 실시간 스트림
+  // 메시지 실시간 스트림 — 오래된 순으로 정렬
   Stream<QuerySnapshot> messagesStream(String chatId) {
     return _db
         .collection('chats').doc(chatId).collection('messages')
@@ -121,7 +121,7 @@ class ChatService {
         .snapshots();
   }
 
-  // 채팅방 문서 실시간 스트림 (lastReadAt 변경 감지용)
+  // 채팅방 문서 실시간 스트림 — lastReadAt 변경 감지용
   Stream<DocumentSnapshot> chatRoomStream(String chatId) {
     return _db.collection('chats').doc(chatId).snapshots();
   }
@@ -134,7 +134,7 @@ class ChatService {
     });
   }
 
-  // 특정 친구와의 미읽음 수 (친구 목록 배지용)
+  // 특정 친구와의 미읽음 수 — 친구 목록 채팅 배지용
   Future<int> getTotalUnreadCountForUser(String myUid, String otherUid) async {
     final id = directChatId(myUid, otherUid);
     final snap = await _db.collection('chats').doc(id).get();
@@ -143,7 +143,7 @@ class ChatService {
     return unread[myUid] as int? ?? 0;
   }
 
-  // 전체 미읽음 수
+  // 전체 미읽음 수 — 내가 참여한 모든 채팅방의 합계
   Future<int> getTotalUnreadCount(String uid) async {
     final snap = await _db.collection('chats').where('users', arrayContains: uid).get();
     int total = 0;
@@ -154,14 +154,14 @@ class ChatService {
     return total;
   }
 
-  // 내가 참여한 채팅방 목록 실시간 스트림 (클라이언트에서 정렬)
+  // 내가 참여한 채팅방 목록 실시간 스트림
   Stream<QuerySnapshot> chatListStream(String uid) {
     return _db.collection('chats')
         .where('users', arrayContains: uid)
         .snapshots();
   }
 
-  // 채팅방 나가기 — users 배열에서 제거, 비면 문서 삭제
+  // 채팅방 나가기 — users 배열에서 제거, 마지막 멤버면 채팅방 + 메시지 삭제
   Future<void> leaveChat(String chatId, String myUid) async {
     final ref = _db.collection('chats').doc(chatId);
     final snap = await ref.get();
@@ -189,7 +189,7 @@ class ChatService {
     await _db.collection('chats').doc(chatId).update({'name': newName});
   }
 
-  // 그룹 채팅 멤버 추가
+  // 그룹 채팅 멤버 추가 — unreadCount/lastReadAt 초기화
   Future<void> addMembers(String chatId, List<String> newUids) async {
     if (newUids.isEmpty) return;
     final updates = <String, dynamic>{
@@ -202,7 +202,7 @@ class ChatService {
     await _db.collection('chats').doc(chatId).update(updates);
   }
 
-  // 전체 미읽음 실시간 스트림
+  // 전체 미읽음 실시간 스트림 — 소셜 탭 배지용
   Stream<int> unreadCountStream(String uid) {
     return _db.collection('chats').where('users', arrayContains: uid).snapshots().map((snap) {
       int total = 0;
@@ -241,6 +241,7 @@ class MessageModel {
     );
   }
 
+  // 시간 문자열 — 오전/오후 HH:MM 형식
   String get timeStr {
     if (createdAt == null) return '';
     final h = createdAt!.hour;

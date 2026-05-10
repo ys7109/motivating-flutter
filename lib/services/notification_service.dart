@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../widgets/main_nav.dart';
@@ -9,7 +10,8 @@ import 'package:timezone/data/latest.dart' as tz_data;
 // 백그라운드 메시지 핸들러 — 최상위 함수여야 함 (Firebase 요구사항)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // 백그라운드에서는 FCM이 자동으로 시스템 알림을 표시해줌
+  // 백그라운드에서 채팅 알림을 인박스 스타일로 표시
+  await NotificationService._showLocalNotification(message);
 }
 
 // 현재 열려있는 채팅방 ID — 포그라운드 알림 필터링용
@@ -94,13 +96,27 @@ class NotificationService {
 
     // 채팅 알림 — 인박스 스타일로 메시지 누적 표시
     if (type == 'chat' && msgChatId.isNotEmpty) {
-      _chatMessages.putIfAbsent(msgChatId, () => []);
-      _chatMessages[msgChatId]!.add(notification.body ?? '');
-      // 최대 5개까지만 유지
-      if (_chatMessages[msgChatId]!.length > 5) {
-        _chatMessages[msgChatId]!.removeAt(0);
+      // inboxLines: FCM data에서 서버가 보내준 최근 메시지 목록
+      List<String> lines;
+      final inboxJson = message.data['inboxLines'];
+      if (inboxJson != null && inboxJson.isNotEmpty) {
+        // 서버에서 받은 최근 메시지 목록 사용
+        try {
+          lines = List<String>.from(
+            (jsonDecode(inboxJson) as List).map((e) => e.toString()));
+        } catch (_) {
+          lines = [notification.body ?? ''];
+        }
+      } else {
+        // fallback — 로컬 누적 메시지 사용 (포그라운드)
+        _chatMessages.putIfAbsent(msgChatId, () => []);
+        _chatMessages[msgChatId]!.add(notification.body ?? '');
+        if (_chatMessages[msgChatId]!.length > 5) {
+          _chatMessages[msgChatId]!.removeAt(0);
+        }
+        lines = _chatMessages[msgChatId]!;
       }
-      final lines = _chatMessages[msgChatId]!;
+
       await _plugin.show(
         msgChatId.hashCode.abs(),
         notification.title,
