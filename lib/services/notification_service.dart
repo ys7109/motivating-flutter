@@ -92,8 +92,41 @@ class NotificationService {
     final channelId = type == 'chat' ? 'chat' : 'activity';
     final channelName = type == 'chat' ? '채팅 알림' : '활동 알림';
 
+    // 채팅 알림 — 인박스 스타일로 메시지 누적 표시
+    if (type == 'chat' && msgChatId.isNotEmpty) {
+      _chatMessages.putIfAbsent(msgChatId, () => []);
+      _chatMessages[msgChatId]!.add(notification.body ?? '');
+      // 최대 5개까지만 유지
+      if (_chatMessages[msgChatId]!.length > 5) {
+        _chatMessages[msgChatId]!.removeAt(0);
+      }
+      final lines = _chatMessages[msgChatId]!;
+      await _plugin.show(
+        msgChatId.hashCode.abs(),
+        notification.title,
+        lines.last,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelId, channelName,
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            tag: msgChatId,
+            // 인박스 스타일 — 여러 메시지를 펼쳐서 보여줌
+            styleInformation: InboxStyleInformation(
+              lines,
+              contentTitle: notification.title,
+              summaryText: '메시지 ${lines.length}개',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 활동 알림은 각각 별도 알림으로 표시
     await _plugin.show(
-      notification.hashCode,
+      notification.hashCode.abs(),
       notification.title,
       notification.body,
       NotificationDetails(
@@ -128,6 +161,9 @@ class NotificationService {
 
   // onTokenRefresh 중복 등록 방지용 플래그
   static bool _tokenRefreshRegistered = false;
+
+  // 채팅방별 누적 메시지 목록 — 인박스 스타일 알림용
+  static final Map<String, List<String>> _chatMessages = {};
 
   // FCM 토큰 조회 및 Firestore에 저장
   // 토큰이 null이면 권한 재요청 후 재시도

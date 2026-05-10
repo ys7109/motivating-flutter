@@ -50,12 +50,14 @@ class FriendsTabState extends State<FriendsTab> {
   void _startStreams() {
     final uid = context.read<AppProvider>().authUser!.uid;
 
+    // 친구 목록 스트림 구독 — friendships 변경 시 자동 갱신
     _friendsSub = _friendService.friendsStream(uid).listen((friends) {
       if (mounted) setState(() { _friends = friends; _loading = false; });
     }, onError: (_) {
       if (mounted) setState(() => _loading = false);
     });
 
+    // 친구 요청 스트림 구독
     _requestsSub = _friendService.requestsStream(uid).listen((requests) {
       if (mounted) setState(() => _requests = requests);
     });
@@ -197,6 +199,7 @@ class FriendsTabState extends State<FriendsTab> {
     final uid = app.authUser!.uid;
     await _friendService.acceptRequest(uid, fromUid);
     if (mounted) app.showToast('친구 요청을 수락했어요!');
+    // 업적 체크 — 친구 추가 달성 여부 확인
     await app.onFriendAdded();
   }
 
@@ -299,7 +302,7 @@ class FriendsTabState extends State<FriendsTab> {
           ],
           const SizedBox(height: 20),
 
-          // 친구 요청
+          // 친구 요청 목록
           if (_requests.isNotEmpty) ...[
             Text('친구 요청 ${_requests.length}', style: TextStyle(fontSize: 13,
                 fontWeight: FontWeight.w600, color: context.textPrimary)),
@@ -443,7 +446,7 @@ class FriendsTabState extends State<FriendsTab> {
             }),
           const SizedBox(height: 20),
 
-          // 그룹 채팅 생성 버튼
+          // 그룹 채팅 생성 버튼 — 친구가 있을 때만 표시
           if (_friends.isNotEmpty) ...[
             GestureDetector(
               onTap: () => _openGroupChatDialog(context, myUid),
@@ -484,6 +487,7 @@ class FriendsTabState extends State<FriendsTab> {
               ])),
             )
           else
+            // 친구 타일 — 각각 presence 실시간 구독
             ..._friends.map((friend) => _FriendTile(
                 friend: friend, myUid: myUid, onRemove: () => _removeFriend(friend['uid']))),
           const SizedBox(height: 40),
@@ -504,6 +508,40 @@ class _FriendTile extends StatefulWidget {
 
 class _FriendTileState extends State<_FriendTile> {
   bool _navigating = false;
+
+  // presence 실시간 구독 — 접속 상태 즉시 반영
+  StreamSubscription? _presenceSub;
+  String _presenceStatus = 'offline';
+  dynamic _lastSeen;
+
+  @override
+  void initState() {
+    super.initState();
+    // 초기값은 friendsStream에서 넘어온 값 사용
+    _presenceStatus = widget.friend['presenceStatus'] as String? ?? 'offline';
+    _lastSeen = widget.friend['lastSeen'];
+    // presence 스트림 구독 시작
+    _subscribePres();
+  }
+
+  void _subscribePres() {
+    final friendUid = widget.friend['uid'] as String;
+    // presence 컬렉션 실시간 구독 — 변경 즉시 UI 갱신
+    _presenceSub = FriendService().presenceStream(friendUid).listen((data) {
+      if (!mounted) return;
+      setState(() {
+        _presenceStatus = data['presenceStatus'] as String? ?? 'offline';
+        _lastSeen = data['lastSeen'];
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    // presence 구독 해제
+    _presenceSub?.cancel();
+    super.dispose();
+  }
 
   Future<void> _openChat() async {
     if (_navigating) return;
@@ -534,10 +572,10 @@ class _FriendTileState extends State<_FriendTile> {
   @override
   Widget build(BuildContext context) {
     final friend = widget.friend;
-    final presenceStatus = friend['presenceStatus'] as String? ?? 'offline';
-    final isOnline = presenceStatus == 'online';
-    final isFocusing = presenceStatus == 'focusing';
-    final lastSeen = friend['lastSeen'];
+
+    // presence 스트림에서 받은 최신 상태 사용
+    final isOnline = _presenceStatus == 'online';
+    final isFocusing = _presenceStatus == 'focusing';
 
     String statusText;
     Color statusColor;
@@ -547,8 +585,8 @@ class _FriendTileState extends State<_FriendTile> {
     } else if (isOnline) {
       statusText = '접속 중';
       statusColor = const Color(0xFF4CAF50);
-    } else if (lastSeen != null) {
-      final dt = (lastSeen as dynamic).toDate() as DateTime;
+    } else if (_lastSeen != null) {
+      final dt = (_lastSeen as dynamic).toDate() as DateTime;
       final diff = DateTime.now().difference(dt);
       if (diff.inMinutes < 1) statusText = '방금 전 접속';
       else if (diff.inMinutes < 60) statusText = '${diff.inMinutes}분 전 접속';
@@ -573,6 +611,7 @@ class _FriendTileState extends State<_FriendTile> {
       child: Row(children: [
         Stack(children: [
           CharacterAvatar(character: friend['character'] as Map<String, dynamic>?, size: 40),
+          // 접속 상태 도트
           Positioned(bottom: 0, right: 0, child: Container(
             width: 12, height: 12,
             decoration: BoxDecoration(
@@ -607,6 +646,7 @@ class _FriendTileState extends State<_FriendTile> {
             Text(statusText, style: TextStyle(fontSize: 12, color: statusColor)),
           ]),
         ])),
+        // 채팅 버튼 — 미읽음 배지 포함
         GestureDetector(
           onTap: _navigating ? null : _openChat,
           behavior: HitTestBehavior.opaque,
@@ -627,6 +667,7 @@ class _FriendTileState extends State<_FriendTile> {
                       return Stack(clipBehavior: Clip.none, children: [
                         Center(child: Icon(Icons.chat_bubble_outline_rounded,
                             size: 16, color: context.textSecondary)),
+                        // 미읽음 배지
                         if (unread > 0)
                           Positioned(top: -3, right: -3, child: Container(
                             width: 14, height: 14,
@@ -641,6 +682,7 @@ class _FriendTileState extends State<_FriendTile> {
                   ),
           ),
         ),
+        // 친구 삭제 버튼
         GestureDetector(
           onTap: widget.onRemove,
           behavior: HitTestBehavior.opaque,
@@ -651,6 +693,7 @@ class _FriendTileState extends State<_FriendTile> {
   }
 }
 
+// 분을 시간/분 형식으로 변환
 String _formatMin(dynamic min) {
   if (min == null || min == 0) return '0분';
   final h = (min as int) ~/ 60;

@@ -38,6 +38,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="motivating" android:host="kakao-callback" />
             </intent-filter>
+
+            <!-- FCM 알림 탭 시 앱 실행 -->        ← 여기 추가
+            <intent-filter>
+                <action android:name="FLUTTER_NOTIFICATION_CLICK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <!-- flutter_local_notifications 스케줄 알림 수신 -->

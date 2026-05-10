@@ -4,7 +4,7 @@ import '../../utils/theme.dart';
 import '../../models/achievement_definitions.dart';
 
 const kSkins = [
-  {'id': 'default',  'emoji': '🧑'},
+  {'id': 'default',  'emoji': '👤'},
   {'id': 'warrior',  'emoji': '⚔️'},
   {'id': 'scholar',  'emoji': '📚'},
   {'id': 'explorer', 'emoji': '🧭'},
@@ -36,10 +36,10 @@ const kAchieveSkins = <String, String>{
 };
 
 String skinEmoji(String? skin) {
-  if (skin == null) return '🧑';
+  if (skin == null) return '👤';
   // 업적 스킨 먼저 확인
   if (kAchieveSkins.containsKey(skin)) return kAchieveSkins[skin]!;
-  return (kSkins.firstWhere((s) => s['id'] == skin, orElse: () => kSkins[0])['emoji'] as String?) ?? '🧑';
+  return (kSkins.firstWhere((s) => s['id'] == skin, orElse: () => kSkins[0])['emoji'] as String?) ?? '👤';
 }
 
 String badgeEmoji(String? badge) =>

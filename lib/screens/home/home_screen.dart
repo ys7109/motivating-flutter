@@ -91,11 +91,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Center(child: Icon(Icons.mail_outline_rounded, size: 18, color: context.textSecondary)),
                             ),
                             if (app.unreadMailCount > 0)
-                              Positioned(top: -3, right: -3, child: Container(
-                                width: 15, height: 15,
+                              Positioned(top: -3, right: 0, child: Container(
+                                constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
                                 decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
                                 child: Center(child: Text(
-                                  app.unreadMailCount > 9 ? '9+' : '${app.unreadMailCount}',
+                                  app.unreadMailCount > 99 ? '99+' : '${app.unreadMailCount}',
                                   style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
                                 )),
                               )),
@@ -117,11 +118,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Center(child: Icon(Icons.notifications_outlined, size: 18, color: context.textSecondary)),
                             ),
                             if (app.unreadNotifCount > 0)
-                              Positioned(top: -3, right: -3, child: Container(
-                                width: 15, height: 15,
+                              Positioned(top: -3, right: 0, child: Container(
+                                constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
                                 decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
                                 child: Center(child: Text(
-                                  app.unreadNotifCount > 9 ? '9+' : '${app.unreadNotifCount}',
+                                  app.unreadNotifCount > 99 ? '99+' : '${app.unreadNotifCount}',
                                   style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
                                 )),
                               )),

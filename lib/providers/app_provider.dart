@@ -527,11 +527,13 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 업적 칭호 장착/해제
+  // 업적 칭호 장착/해제 — 공개 프로필 + 다이어리 글 작성자 정보 동시 업데이트
   Future<void> equipAchievement(String? achievementId) async {
     if (authUser == null || userData == null) return;
     await _db.updateUser(authUser!.uid, {'equippedAchievement': achievementId});
     await _db.updatePublicProfile(authUser!.uid, {'equippedAchievement': achievementId, 'name': userData!.name, 'level': userData!.level, 'character': userData!.character.toMap()});
+    // 게시판 글 작성자 칭호도 업데이트
+    await _diaryService.updateAuthorInfo(authUser!.uid, userData!.name, userData!.character.toMap(), userData!.level, equippedAchievement: achievementId);
     userData = userData!.copyWith(equippedAchievement: achievementId);
     notifyListeners();
   }
@@ -661,41 +663,41 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 부활 아이템으로 스트릭 복구 — 복구 후 오늘 출석 보상 즉시 지급
+  // 부활 아이템으로 스트릭 복구 — 복구 후 출석 모달 표시 + 보상 우편 발송
   Future<void> reviveStreakByItem() async {
     if (authUser == null || userData == null) return;
     final revivedStreak = brokenStreakPrev;
     await _db.updateUser(authUser!.uid, {'streak': revivedStreak, 'reviveItem': userData!.reviveItem - 1});
     userData = userData!.copyWith(streak: revivedStreak, reviveItem: userData!.reviveItem - 1);
-    // 출석 보상 우편 발송
     await _db.sendAttendanceMail(authUser!.uid, revivedStreak);
     await loadMailbox();
-    // 스트릭 위기 알림 재스케줄
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('notif_streak') ?? true) {
       await NotificationService.cancelNotification(2);
       await NotificationService.scheduleStreakRiskReminder(revivedStreak);
     }
     streakModalType = null;
+    // 복구 후 출석 모달 표시
+    showAttendModal = true;
     notifyListeners();
   }
 
-  // 광고 시청으로 스트릭 복구 — 복구 후 오늘 출석 보상 즉시 지급
+  // 광고 시청으로 스트릭 복구 — 복구 후 출석 모달 표시 + 보상 우편 발송
   Future<void> reviveStreakByAd() async {
     if (authUser == null || userData == null) return;
     final revivedStreak = brokenStreakPrev;
     await _db.updateUser(authUser!.uid, {'streak': revivedStreak});
     userData = userData!.copyWith(streak: revivedStreak);
-    // 출석 보상 우편 발송
     await _db.sendAttendanceMail(authUser!.uid, revivedStreak);
     await loadMailbox();
-    // 스트릭 위기 알림 재스케줄
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('notif_streak') ?? true) {
       await NotificationService.cancelNotification(2);
       await NotificationService.scheduleStreakRiskReminder(revivedStreak);
     }
     streakModalType = null;
+    // 복구 후 출석 모달 표시
+    showAttendModal = true;
     notifyListeners();
   }
 

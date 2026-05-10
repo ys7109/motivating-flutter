@@ -10,30 +10,55 @@ import 'mailbox_screen.dart';
 import 'settings_screen.dart';
 import 'focus_stats_screen.dart';
 
-// ── 업적 전용 스킨 정의 (id, emoji, 잠금 조건 설명)
 const _achieveSkinDefs = <Map<String, String>>[
-  {'id': 'goal_first',   'emoji': '🎯', 'unlock': '\'첫 걸음\' 업적 달성 시 해금'},
-  {'id': 'goal_10',      'emoji': '🏅', 'unlock': '\'목표 달인\' 업적 달성 시 해금'},
-  {'id': 'goal_50',      'emoji': '🥈', 'unlock': '\'목표 고수\' 업적 달성 시 해금'},
-  {'id': 'goal_100',     'emoji': '🥇', 'unlock': '\'목표 마스터\' 업적 달성 시 해금'},
-  {'id': 'repeat_first', 'emoji': '🔄', 'unlock': '\'꾸준함의 시작\' 업적 달성 시 해금'},
-  {'id': 'streak_7',     'emoji': '🔥', 'unlock': '\'7일의 불꽃\' 업적 달성 시 해금'},
-  {'id': 'streak_30',    'emoji': '🌙', 'unlock': '\'한 달의 여정\' 업적 달성 시 해금'},
-  {'id': 'streak_100',   'emoji': '💫', 'unlock': '\'100일의 기적\' 업적 달성 시 해금'},
-  {'id': 'streak_365',   'emoji': '🌟', 'unlock': '\'1년의 전설\' 업적 달성 시 해금'},
-  {'id': 'focus_1h',     'emoji': '⏱',  'unlock': '\'집중 입문\' 업적 달성 시 해금'},
-  {'id': 'focus_10h',    'emoji': '⚡', 'unlock': '\'집중 수련자\' 업적 달성 시 해금'},
-  {'id': 'focus_50h',    'emoji': '🔮', 'unlock': '\'집중 고수\' 업적 달성 시 해금'},
-  {'id': 'focus_100h',   'emoji': '🧠', 'unlock': '\'집중 마스터\' 업적 달성 시 해금'},
-  {'id': 'level_5',      'emoji': '🌱', 'unlock': '\'성장하는 모험가\' 업적 달성 시 해금'},
-  {'id': 'level_10',     'emoji': '🌿', 'unlock': '\'베테랑 모험가\' 업적 달성 시 해금'},
-  {'id': 'level_20',     'emoji': '🌳', 'unlock': '\'전설의 모험가\' 업적 달성 시 해금'},
-  {'id': 'friend_first', 'emoji': '🤝', 'unlock': '\'첫 친구\' 업적 달성 시 해금'},
-  {'id': 'diary_first',  'emoji': '📔', 'unlock': '\'첫 기록\' 업적 달성 시 해금'},
-  {'id': 'diary_10',     'emoji': '📖', 'unlock': '\'기록의 습관\' 업적 달성 시 해금'},
+  // 목표
+  {'id': 'goal_first',    'emoji': '🎯', 'unlock': "'첫 걸음' 업적 달성 시 해금"},
+  {'id': 'goal_10',       'emoji': '🏅', 'unlock': "'목표 달인' 업적 달성 시 해금"},
+  {'id': 'goal_50',       'emoji': '🥈', 'unlock': "'목표 고수' 업적 달성 시 해금"},
+  {'id': 'goal_100',      'emoji': '🥇', 'unlock': "'목표 마스터' 업적 달성 시 해금"},
+  {'id': 'goal_300',      'emoji': '👑', 'unlock': "'목표의 왕' 업적 달성 시 해금"},
+  {'id': 'repeat_first',  'emoji': '🔄', 'unlock': "'꾸준함의 시작' 업적 달성 시 해금"},
+  {'id': 'repeat_10',     'emoji': '♾️', 'unlock': "'반복의 달인' 업적 달성 시 해금"},
+  {'id': 'short_goal_50', 'emoji': '⚡', 'unlock': "'단기 집중러' 업적 달성 시 해금"},
+  {'id': 'long_goal_10',  'emoji': '🏔️', 'unlock': "'장기 전략가' 업적 달성 시 해금"},
+  // 스트릭
+  {'id': 'streak_3',      'emoji': '✨', 'unlock': "'3일의 시작' 업적 달성 시 해금"},
+  {'id': 'streak_7',      'emoji': '🔥', 'unlock': "'7일의 불꽃' 업적 달성 시 해금"},
+  {'id': 'streak_14',     'emoji': '🌙', 'unlock': "'2주의 열정' 업적 달성 시 해금"},
+  {'id': 'streak_30',     'emoji': '🌕', 'unlock': "'한 달의 여정' 업적 달성 시 해금"},
+  {'id': 'streak_60',     'emoji': '💫', 'unlock': "'두 달의 의지' 업적 달성 시 해금"},
+  {'id': 'streak_100',    'emoji': '🌟', 'unlock': "'100일의 기적' 업적 달성 시 해금"},
+  {'id': 'streak_365',    'emoji': '🏆', 'unlock': "'1년의 전설' 업적 달성 시 해금"},
+  // 집중
+  {'id': 'focus_1h',      'emoji': '⏱️',  'unlock': "'집중 입문' 업적 달성 시 해금"},
+  {'id': 'focus_5h',      'emoji': '⚡',  'unlock': "'집중 훈련생' 업적 달성 시 해금"},
+  {'id': 'focus_10h',     'emoji': '🔮',  'unlock': "'집중 수련자' 업적 달성 시 해금"},
+  {'id': 'focus_30h',     'emoji': '🧘',  'unlock': "'집중 전문가' 업적 달성 시 해금"},
+  {'id': 'focus_50h',     'emoji': '🌊',  'unlock': "'집중 고수' 업적 달성 시 해금"},
+  {'id': 'focus_100h',    'emoji': '🧠',  'unlock': "'집중 마스터' 업적 달성 시 해금"},
+  {'id': 'focus_200h',    'emoji': '🌌',  'unlock': "'집중의 신' 업적 달성 시 해금"},
+  {'id': 'focus_session_10', 'emoji': '🎯', 'unlock': "'집중 10회' 업적 달성 시 해금"},
+  {'id': 'focus_session_50', 'emoji': '🎪', 'unlock': "'집중 50회' 업적 달성 시 해금"},
+  // 레벨
+  {'id': 'level_5',       'emoji': '🌱', 'unlock': "'성장의 시작' 업적 달성 시 해금"},
+  {'id': 'level_10',      'emoji': '🌿', 'unlock': "'베테랑 모험가' 업적 달성 시 해금"},
+  {'id': 'level_20',      'emoji': '🌳', 'unlock': "'탐험가의 길' 업적 달성 시 해금"},
+  {'id': 'level_30',      'emoji': '🦅', 'unlock': "'영웅의 탄생' 업적 달성 시 해금"},
+  {'id': 'level_50',      'emoji': '💎', 'unlock': "'전설의 입문' 업적 달성 시 해금"},
+  {'id': 'level_75',      'emoji': '🌠', 'unlock': "'신화에 가까운 자' 업적 달성 시 해금"},
+  {'id': 'level_100',     'emoji': '👑', 'unlock': "'불멸의 존재' 업적 달성 시 해금"},
+  // 소셜
+  {'id': 'friend_first',  'emoji': '🤝', 'unlock': "'첫 친구' 업적 달성 시 해금"},
+  {'id': 'friend_5',      'emoji': '👥', 'unlock': "'인기쟁이' 업적 달성 시 해금"},
+  {'id': 'friend_10',     'emoji': '🌐', 'unlock': "'소셜 고수' 업적 달성 시 해금"},
+  {'id': 'diary_first',   'emoji': '📔', 'unlock': "'첫 기록' 업적 달성 시 해금"},
+  {'id': 'diary_10',      'emoji': '📖', 'unlock': "'기록의 습관' 업적 달성 시 해금"},
+  {'id': 'diary_50',      'emoji': '📚', 'unlock': "'이야기꾼' 업적 달성 시 해금"},
+  {'id': 'chat_first',    'emoji': '💬', 'unlock': "'첫 대화' 업적 달성 시 해금"},
+  {'id': 'ranking_top3',  'emoji': '🥉', 'unlock': "'랭킹 3위' 업적 달성 시 해금"},
+  {'id': 'ranking_top1',  'emoji': '🥇', 'unlock': "'랭킹 1위' 업적 달성 시 해금"},
 ];
 
-// 레벨 기반 기본 스킨 정의
 const _levelSkins = [
   {'id': 'default',  'label': '기본',   'emoji': '👤', 'lv': 1,  'unlock': '기본 제공'},
   {'id': 'warrior',  'label': '전사',   'emoji': '⚔️', 'lv': 3,  'unlock': 'Lv.3 달성 시 해금'},
@@ -69,10 +94,6 @@ const _achieveCategories = [
   {'id': 'focus',  'label': '집중',      'emoji': '⏱'},
   {'id': 'level',  'label': '레벨',      'emoji': '⭐'},
   {'id': 'social', 'label': '소셜',      'emoji': '👥'},
-];
-const _rainbowColors = [
-  Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
-  Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
 ];
 
 class MyScreen extends StatefulWidget {
@@ -118,7 +139,9 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
     final activeBadge = character.badge;
     final currentSkin = _levelSkins.any((s) => s['id'] == activeSkin)
         ? _levelSkins.firstWhere((s) => s['id'] == activeSkin)
-        : (_achieveSkinDefs.any((s) => s['id'] == activeSkin) ? _achieveSkinDefs.firstWhere((s) => s['id'] == activeSkin) : _levelSkins[0]);
+        : (_achieveSkinDefs.any((s) => s['id'] == activeSkin)
+            ? _achieveSkinDefs.firstWhere((s) => s['id'] == activeSkin)
+            : _levelSkins[0]);
     final currentBadge = _badges.firstWhere((b) => b['id'] == activeBadge, orElse: () => _badges[0]);
     final achievements = userData.achievements;
     final achieveCount = achievements.length;
@@ -131,12 +154,12 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
       backgroundColor: context.bgColor,
       body: SafeArea(
         child: Column(children: [
-          // 헤더
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('마이', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: context.textPrimary)),
-Row(children: [
+              Text('마이', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600,
+                  color: context.textPrimary)),
+              Row(children: [
                 _IconBtn(
                   onTap: () => Navigator.push(context, SlideRightRoute(page: const SettingsScreen())),
                   child: Icon(Icons.settings_outlined, size: 18, color: context.textSecondary),
@@ -145,20 +168,16 @@ Row(children: [
             ]),
           ),
           const SizedBox(height: 20),
-
-          // 캐릭터 미리보기
           _buildAvatar(context, character, currentSkin, currentBadge),
           const SizedBox(height: 10),
-
-          // 닉네임
           if (_editName)
             _buildNameEdit(context, app)
           else
             Column(children: [
               Row(mainAxisSize: MainAxisSize.min, children: [
-                // 닉네임 표시 — 공백이 포함된 닉네임도 자르지 않고 전체 표시
-                Text('${userData.name} 님',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                Text('${userData.name.split(' ').first} 님',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
+                        color: context.textPrimary)),
                 const SizedBox(width: 6),
                 GestureDetector(
                   onTap: () { _nameCtrl.text = userData.name; setState(() => _editName = true); },
@@ -170,29 +189,34 @@ Row(children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Color(Achievements.difficultyColor[equippedAchievement.difficulty]!).withOpacity(0.15),
+                    color: Color(Achievements.difficultyColor[equippedAchievement.difficulty]!)
+                        .withOpacity(0.15),
                     borderRadius: BorderRadius.circular(99),
-                    border: Border.all(color: Color(Achievements.difficultyColor[equippedAchievement.difficulty]!).withOpacity(0.4)),
+                    border: Border.all(
+                        color: Color(Achievements.difficultyColor[equippedAchievement.difficulty]!)
+                            .withOpacity(0.4)),
                   ),
                   child: Text(equippedAchievement.title,
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                          color: Color(Achievements.difficultyColor[equippedAchievement.difficulty]!))),
+                          color: Color(
+                              Achievements.difficultyColor[equippedAchievement.difficulty]!))),
                 ),
               ],
             ]),
           const SizedBox(height: 4),
-          Text('Lv.$level · ${AppProvider.levelTitle(level)}', style: TextStyle(fontSize: 13, color: context.textSecondary)),
+          Text('Lv.$level · ${AppProvider.levelTitle(level)}',
+              style: TextStyle(fontSize: 13, color: context.textSecondary)),
           const SizedBox(height: 16),
-
-          // 탭바
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
-              decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: context.subtleBg,
+                  borderRadius: BorderRadius.circular(12)),
               child: TabBar(
                 controller: _tabCtrl,
                 dividerColor: Colors.transparent,
-                indicator: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(10)),
+                indicator: BoxDecoration(color: context.primaryColor,
+                    borderRadius: BorderRadius.circular(10)),
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelColor: context.isDark ? Colors.black : Colors.white,
                 unselectedLabelColor: context.textSecondary,
@@ -208,7 +232,6 @@ Row(children: [
             ),
           ),
           const SizedBox(height: 12),
-
           Expanded(
             child: TabBarView(
               controller: _tabCtrl,
@@ -246,7 +269,8 @@ Row(children: [
     );
   }
 
-  Widget _buildAvatar(BuildContext context, dynamic character, dynamic currentSkin, dynamic currentBadge) {
+  Widget _buildAvatar(BuildContext context, dynamic character,
+      dynamic currentSkin, dynamic currentBadge) {
     final skinEmoji = currentSkin['emoji'] as String? ?? '🧑';
     Widget inner = Container(
       width: 82, height: 82,
@@ -255,20 +279,27 @@ Row(children: [
     );
     Widget frame;
     if (character.frame == 'none') {
-      frame = Container(width: 90, height: 90, decoration: BoxDecoration(shape: BoxShape.circle, color: context.subtleBg), child: Center(child: inner));
+      frame = Container(width: 90, height: 90,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: context.subtleBg),
+          child: Center(child: inner));
     } else if (character.frame == 'rainbow') {
       frame = _RainbowFrame(child: inner);
     } else {
-      final color = character.frame == 'silver' ? const Color(0xFF9e9e9e) : const Color(0xFFf9a825);
-      frame = Container(width: 90, height: 90, decoration: BoxDecoration(shape: BoxShape.circle, color: color), child: Center(child: inner));
+      final color = character.frame == 'silver'
+          ? const Color(0xFF9e9e9e) : const Color(0xFFf9a825);
+      frame = Container(width: 90, height: 90,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+          child: Center(child: inner));
     }
     return Stack(children: [
       frame,
       if (character.badge != 'none')
         Positioned(bottom: 2, right: 2, child: Container(
           width: 26, height: 26,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: context.surfaceColor, border: Border.all(color: context.borderColor)),
-          child: Center(child: Text(currentBadge['emoji'] as String, style: const TextStyle(fontSize: 14))),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: context.surfaceColor,
+              border: Border.all(color: context.borderColor)),
+          child: Center(child: Text(currentBadge['emoji'] as String,
+              style: const TextStyle(fontSize: 14))),
         )),
     ]);
   }
@@ -282,8 +313,10 @@ Row(children: [
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.textPrimary),
           decoration: InputDecoration(counterText: '', isDense: true,
               border: const UnderlineInputBorder(),
-              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: context.borderColor)),
-              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: context.primaryColor))),
+              enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: context.borderColor)),
+              focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: context.primaryColor))),
           onSubmitted: (_) => _saveName(app),
         ),
       ),
@@ -292,8 +325,11 @@ Row(children: [
         onTap: _nameSaving ? null : () => _saveName(app),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
-          child: Text(_nameSaving ? '...' : '저장', style: TextStyle(color: context.isDark ? Colors.black : Colors.white, fontSize: 12)),
+          decoration: BoxDecoration(color: context.primaryColor,
+              borderRadius: BorderRadius.circular(99)),
+          child: Text(_nameSaving ? '...' : '저장',
+              style: TextStyle(color: context.isDark ? Colors.black : Colors.white,
+                  fontSize: 12)),
         ),
       ),
       const SizedBox(width: 4),
@@ -301,7 +337,8 @@ Row(children: [
         onTap: () => setState(() => _editName = false),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(99)),
+          decoration: BoxDecoration(color: context.subtleBg,
+              borderRadius: BorderRadius.circular(99)),
           child: Text('취소', style: TextStyle(color: context.textSecondary, fontSize: 12)),
         ),
       ),
@@ -316,7 +353,6 @@ Row(children: [
   }
 }
 
-// ── 무지개 프레임 ──
 class _RainbowFrame extends StatefulWidget {
   final Widget child;
   const _RainbowFrame({required this.child});
@@ -353,17 +389,12 @@ class _RainbowPainter extends CustomPainter {
     canvas.translate(center.dx, center.dy);
     canvas.rotate(progress * 2 * pi);
     canvas.translate(-center.dx, -center.dy);
-    const gradient = SweepGradient(
-      colors: [
-        Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
-        Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
-        Color(0xFFFF0000),
-      ],
-    );
+    const gradient = SweepGradient(colors: [
+      Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
+      Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF), Color(0xFFFF0000),
+    ]);
     final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.butt
+      ..style = PaintingStyle.stroke ..strokeWidth = 4 ..strokeCap = StrokeCap.butt
       ..shader = gradient.createShader(rect);
     canvas.drawCircle(center, radius, paint);
     canvas.restore();
@@ -372,7 +403,6 @@ class _RainbowPainter extends CustomPainter {
   bool shouldRepaint(_RainbowPainter old) => old.progress != progress;
 }
 
-// ── 업적 탭 ──
 class _AchievementsTab extends StatelessWidget {
   final Set<String> achievements;
   final Set<String> claimedAchievements;
@@ -402,7 +432,8 @@ class _AchievementsTab extends StatelessWidget {
       children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('전체 달성', style: TextStyle(fontSize: 13, color: context.textSecondary)),
-          Text('$achieveCount / $achieveTotal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textPrimary)),
+          Text('$achieveCount / $achieveTotal', style: TextStyle(fontSize: 13,
+              fontWeight: FontWeight.w500, color: context.textPrimary)),
         ]),
         const SizedBox(height: 6),
         ClipRRect(
@@ -432,7 +463,9 @@ class _AchievementsTab extends StatelessWidget {
                 ),
                 child: Text('${cat['emoji']} ${cat['label']} $catDone/${catList.length}',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                        color: isSelected ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary)),
+                        color: isSelected
+                            ? (context.isDark ? Colors.black : Colors.white)
+                            : context.textSecondary)),
               ),
             );
           }).toList()),
@@ -457,7 +490,8 @@ class _AchievementsTab extends StatelessWidget {
                   color: unlocked ? context.surfaceColor : context.subtleBg,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isEquipped ? diffColor : unlocked ? diffColor.withOpacity(0.3) : context.borderColor,
+                    color: isEquipped ? diffColor
+                        : unlocked ? diffColor.withOpacity(0.3) : context.borderColor,
                     width: isEquipped ? 2 : unlocked ? 1.5 : 0.5,
                   ),
                 ),
@@ -466,20 +500,25 @@ class _AchievementsTab extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Text(a.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                      Text(a.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                          color: context.textPrimary)),
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(color: diffColor.withOpacity(0.15), borderRadius: BorderRadius.circular(99)),
+                        decoration: BoxDecoration(color: diffColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(99)),
                         child: Text(Achievements.difficultyLabel[a.difficulty]!,
-                            style: TextStyle(fontSize: 10, color: diffColor, fontWeight: FontWeight.w600)),
+                            style: TextStyle(fontSize: 10, color: diffColor,
+                                fontWeight: FontWeight.w600)),
                       ),
                     ]),
                     const SizedBox(height: 2),
                     Row(children: [
-                      Expanded(child: Text(a.description, style: TextStyle(fontSize: 12, color: context.textSecondary))),
+                      Expanded(child: Text(a.description,
+                          style: TextStyle(fontSize: 12, color: context.textSecondary))),
                       if (pct != null)
-                        Text('${pct.toStringAsFixed(1)}% 달성', style: TextStyle(fontSize: 10, color: context.textSecondary)),
+                        Text('${pct.toStringAsFixed(1)}% 달성',
+                            style: TextStyle(fontSize: 10, color: context.textSecondary)),
                     ]),
                   ])),
                   const SizedBox(width: 8),
@@ -487,14 +526,20 @@ class _AchievementsTab extends StatelessWidget {
                     if (unlocked && !claimed)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
-                        child: Text('보상', style: TextStyle(fontSize: 11, color: context.isDark ? Colors.black : Colors.white, fontWeight: FontWeight.w600)),
+                        decoration: BoxDecoration(color: context.primaryColor,
+                            borderRadius: BorderRadius.circular(99)),
+                        child: Text('보상', style: TextStyle(fontSize: 11,
+                            color: context.isDark ? Colors.black : Colors.white,
+                            fontWeight: FontWeight.w600)),
                       )
                     else if (claimed)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: const Color(0xFF1b8a5a).withOpacity(0.12), borderRadius: BorderRadius.circular(99)),
-                        child: const Text('달성', style: TextStyle(fontSize: 11, color: Color(0xFF1b8a5a), fontWeight: FontWeight.w600)),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFF1b8a5a).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(99)),
+                        child: const Text('달성', style: TextStyle(fontSize: 11,
+                            color: Color(0xFF1b8a5a), fontWeight: FontWeight.w600)),
                       ),
                     if (isEquipped) ...[
                       const SizedBox(height: 4),
@@ -511,68 +556,93 @@ class _AchievementsTab extends StatelessWidget {
     );
   }
 
-  void _showDetail(BuildContext context, Achievement a, bool unlocked, bool claimed, bool isEquipped, DateTime? unlockedAt) {
+  void _showDetail(BuildContext context, Achievement a, bool unlocked,
+      bool claimed, bool isEquipped, DateTime? unlockedAt) {
     final diffColor = Color(Achievements.difficultyColor[a.difficulty]!);
-    final skinDef = _achieveSkinDefs.firstWhere((s) => s['id'] == a.id, orElse: () => {'emoji': a.emoji});
+    final skinDef = _achieveSkinDefs.firstWhere(
+        (s) => s['id'] == a.id, orElse: () => {'emoji': a.emoji});
     final skinEmoji = skinDef['emoji'] ?? a.emoji;
     showModalBottomSheet(
       context: context,
       backgroundColor: context.modalBg,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).padding.bottom + 24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(unlocked ? a.emoji : '🔒', style: const TextStyle(fontSize: 52)),
-          const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(a.title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: context.textPrimary)),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: diffColor.withOpacity(0.15), borderRadius: BorderRadius.circular(99)),
-              child: Text(Achievements.difficultyLabel[a.difficulty]!,
-                  style: TextStyle(fontSize: 11, color: diffColor, fontWeight: FontWeight.w600)),
-            ),
-          ]),
-          const SizedBox(height: 6),
-          Text(a.description, style: TextStyle(fontSize: 14, color: context.textSecondary)),
-          if (unlocked && unlockedAt != null) ...[
-            const SizedBox(height: 4),
-            Text('달성: ${_fmtDate(unlockedAt)}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
-          ],
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity, padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(14)),
-            child: Column(children: [
-              Text('보상', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textPrimary)),
-              const SizedBox(height: 10),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                _RewardChip(emoji: '✨', label: '+${a.xpReward} XP'),
-                _RewardChip(emoji: skinEmoji!, label: '전용 스킨'),
-              ]),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        // builder 안에서 padding 계산 — 시스템 바 정확히 반영
+        final bottomPad = MediaQuery.of(ctx).padding.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, bottomPad + 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(unlocked ? a.emoji : '🔒', style: const TextStyle(fontSize: 52)),
+            const SizedBox(height: 12),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(a.title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+                  color: ctx.textPrimary)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: diffColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(99)),
+                child: Text(Achievements.difficultyLabel[a.difficulty]!,
+                    style: TextStyle(fontSize: 11, color: diffColor,
+                        fontWeight: FontWeight.w600)),
+              ),
             ]),
-          ),
-          const SizedBox(height: 16),
-          if (unlocked && !claimed)
-            _FullBtn(label: '🎁 보상 수령하기', color: context.primaryColor,
-                textColor: context.isDark ? Colors.black : Colors.white,
-                onTap: () async { Navigator.pop(ctx); await onClaim(a.id); })
-          else if (claimed && !isEquipped)
-            _FullBtn(label: '🏅 칭호 장착하기', color: diffColor.withOpacity(0.15), textColor: diffColor,
-                onTap: () async { Navigator.pop(ctx); await onEquip(a.id); })
-          else if (isEquipped)
-            _FullBtn(label: '칭호 해제', color: context.subtleBg, textColor: context.textSecondary,
-                onTap: () async { Navigator.pop(ctx); await onUnequip(); })
-          else
+            const SizedBox(height: 6),
+            Text(a.description,
+                style: TextStyle(fontSize: 14, color: ctx.textSecondary)),
+            if (unlocked && unlockedAt != null) ...[
+              const SizedBox(height: 4),
+              Text('달성: ${_fmtDate(unlockedAt)}',
+                  style: TextStyle(fontSize: 12, color: ctx.textSecondary)),
+            ],
+            const SizedBox(height: 16),
             Container(
-              width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(12)),
-              child: Center(child: Text('업적을 달성하면 보상을 수령할 수 있어요',
-                  style: TextStyle(fontSize: 13, color: context.textSecondary))),
+              width: double.infinity, padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: ctx.subtleBg,
+                  borderRadius: BorderRadius.circular(14)),
+              child: Column(children: [
+                Text('보상', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: ctx.textPrimary)),
+                const SizedBox(height: 10),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                  _RewardChip(emoji: '✨', label: '+${a.xpReward} XP'),
+                  _RewardChip(emoji: skinEmoji!, label: '전용 스킨'),
+                ]),
+              ]),
             ),
-        ]),
-      ),
+            const SizedBox(height: 16),
+            // 버튼 — bottomPad로 시스템 바 가림 방지
+            if (unlocked && !claimed)
+              _FullBtn(
+                label: '🎁 보상 수령하기', color: ctx.primaryColor,
+                textColor: ctx.isDark ? Colors.black : Colors.white,
+                onTap: () async { Navigator.pop(ctx); await onClaim(a.id); },
+              )
+            else if (claimed && !isEquipped)
+              _FullBtn(
+                label: '🏅 칭호 장착하기',
+                color: diffColor.withOpacity(0.15), textColor: diffColor,
+                onTap: () async { Navigator.pop(ctx); await onEquip(a.id); },
+              )
+            else if (isEquipped)
+              _FullBtn(
+                label: '칭호 해제', color: ctx.subtleBg,
+                textColor: ctx.textSecondary,
+                onTap: () async { Navigator.pop(ctx); await onUnequip(); },
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(color: ctx.subtleBg,
+                    borderRadius: BorderRadius.circular(12)),
+                child: Center(child: Text('업적을 달성하면 보상을 수령할 수 있어요',
+                    style: TextStyle(fontSize: 13, color: ctx.textSecondary))),
+              ),
+          ]),
+        );
+      },
     );
   }
 }
@@ -587,7 +657,8 @@ class _RewardChip extends StatelessWidget {
   Widget build(BuildContext context) => Column(children: [
     Text(emoji, style: const TextStyle(fontSize: 28)),
     const SizedBox(height: 4),
-    Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: context.textPrimary)),
+    Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
+        color: context.textPrimary)),
   ]);
 }
 
@@ -595,19 +666,20 @@ class _FullBtn extends StatelessWidget {
   final String label;
   final Color color, textColor;
   final VoidCallback onTap;
-  const _FullBtn({required this.label, required this.color, required this.textColor, required this.onTap});
+  const _FullBtn({required this.label, required this.color,
+      required this.textColor, required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
       width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
-      child: Center(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor))),
+      child: Center(child: Text(label, style: TextStyle(fontSize: 15,
+          fontWeight: FontWeight.w600, color: textColor))),
     ),
   );
 }
 
-// ── 통계 탭 ──
 class _StatsTab extends StatelessWidget {
   final dynamic userData;
   final VoidCallback onGoToFocusStats;
@@ -623,14 +695,18 @@ class _StatsTab extends StatelessWidget {
           onTap: onGoToFocusStats,
           child: Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: context.borderColor, width: 0.5)),
+            decoration: BoxDecoration(color: context.surfaceColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: context.borderColor, width: 0.5)),
             child: Row(children: [
               const Text('⏱', style: TextStyle(fontSize: 28)),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('집중 통계', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                Text('집중 통계', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                    color: context.textPrimary)),
                 const SizedBox(height: 2),
-                Text('누적 ${focusHours}시간 ${focusMins}분', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+                Text('누적 ${focusHours}시간 ${focusMins}분',
+                    style: TextStyle(fontSize: 12, color: context.textSecondary)),
               ])),
               Icon(Icons.chevron_right, color: context.textSecondary, size: 20),
             ]),
@@ -639,19 +715,24 @@ class _StatsTab extends StatelessWidget {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: context.borderColor, width: 0.5)),
+          decoration: BoxDecoration(color: context.surfaceColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: context.borderColor, width: 0.5)),
           child: Row(children: [
             const Text('🔥', style: TextStyle(fontSize: 28)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('연속 출석 일수', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
+              Text('연속 출석 일수', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                  color: context.textPrimary)),
               const SizedBox(height: 2),
-              Text('현재 ${userData.streak}일 · 최고 ${userData.maxStreak}일', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+              Text('현재 ${userData.streak}일 · 최고 ${userData.maxStreak}일',
+                  style: TextStyle(fontSize: 12, color: context.textSecondary)),
             ])),
           ]),
         ),
         const SizedBox(height: 16),
-        Text('레벨 보상 로드맵', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: context.textPrimary)),
+        Text('레벨 보상 로드맵', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500,
+            color: context.textPrimary)),
         const SizedBox(height: 10),
         ..._roadmap.map((r) {
           final lv = r['lv'] as int;
@@ -662,22 +743,33 @@ class _StatsTab extends StatelessWidget {
             child: Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.borderColor, width: 0.5)),
+              decoration: BoxDecoration(color: context.surfaceColor,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: context.borderColor, width: 0.5)),
               child: Row(children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   width: 32, height: 32,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: unlocked ? context.primaryColor : context.subtleBg),
+                  decoration: BoxDecoration(shape: BoxShape.circle,
+                      color: unlocked ? context.primaryColor : context.subtleBg),
                   child: Center(child: unlocked
-                      ? Icon(Icons.check, color: context.isDark ? Colors.black : Colors.white, size: 14)
-                      : Text('$lv', style: TextStyle(fontSize: 11, color: context.textSecondary, fontWeight: FontWeight.w500))),
+                      ? Icon(Icons.check,
+                          color: context.isDark ? Colors.black : Colors.white, size: 14)
+                      : Text('$lv', style: TextStyle(fontSize: 11,
+                          color: context.textSecondary, fontWeight: FontWeight.w500))),
                 ),
                 const SizedBox(width: 12),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(r['reward'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textPrimary)),
-                  Text('레벨 $lv 달성 시', style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                  Text(r['reward'] as String, style: TextStyle(fontSize: 13,
+                      fontWeight: FontWeight.w500, color: context.textPrimary)),
+                  Text('레벨 $lv 달성 시',
+                      style: TextStyle(fontSize: 11, color: context.textSecondary)),
                 ]),
-                if (unlocked) ...[const Spacer(), const Text('해금됨', style: TextStyle(fontSize: 12, color: Color(0xFF1b8a5a), fontWeight: FontWeight.w500))],
+                if (unlocked) ...[
+                  const Spacer(),
+                  const Text('해금됨', style: TextStyle(fontSize: 12,
+                      color: Color(0xFF1b8a5a), fontWeight: FontWeight.w500)),
+                ],
               ]),
             ),
           );
@@ -688,7 +780,6 @@ class _StatsTab extends StatelessWidget {
   }
 }
 
-// ── 캐릭터 탭 ──
 class _CharacterTab extends StatelessWidget {
   final int level;
   final dynamic character;
@@ -704,7 +795,6 @@ class _CharacterTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = characterTab == 'badge' ? _badges : characterTab == 'frame' ? _frames : <Map>[];
     final activeId = characterTab == 'skin' ? character.skin
         : characterTab == 'badge' ? character.badge
         : character.frame;
@@ -712,7 +802,6 @@ class _CharacterTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
-        // 탭 (스킨 / 뱃지 / 프레임)
         Row(children: ['skin', 'badge', 'frame'].asMap().entries.map((e) {
           final labels = ['스킨', '뱃지', '프레임'];
           final isActive = characterTab == e.value;
@@ -726,21 +815,24 @@ class _CharacterTab extends StatelessWidget {
                 color: isActive ? context.primaryColor : context.subtleBg,
                 borderRadius: BorderRadius.circular(99),
               ),
-              child: Text(labels[e.key], style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-                  color: isActive ? (context.isDark ? Colors.black : Colors.white) : context.textSecondary)),
+              child: Text(labels[e.key], style: TextStyle(fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isActive
+                      ? (context.isDark ? Colors.black : Colors.white)
+                      : context.textSecondary)),
             ),
           );
         }).toList()),
         const SizedBox(height: 14),
 
         if (characterTab == 'skin') ...[
-          // ── 레벨 기반 스킨 ──
-          Text('레벨 스킨', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
+          Text('레벨 스킨', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+              color: context.textSecondary)),
           const SizedBox(height: 8),
           GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.85,
+            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10,
+            childAspectRatio: 0.85,
             children: _levelSkins.map((item) {
               final unlocked = level >= (item['lv'] as int);
               final isActive = activeId == item['id'];
@@ -750,23 +842,31 @@ class _CharacterTab extends StatelessWidget {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                   decoration: BoxDecoration(
-                    color: isActive ? context.primaryColor : unlocked ? context.surfaceColor : context.subtleBg,
+                    color: isActive ? context.primaryColor
+                        : unlocked ? context.surfaceColor : context.subtleBg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: isActive ? context.primaryColor : context.borderColor, width: isActive ? 2 : 1),
+                    border: Border.all(
+                        color: isActive ? context.primaryColor : context.borderColor,
+                        width: isActive ? 2 : 1),
                   ),
                   child: Opacity(
                     opacity: unlocked ? 1.0 : 0.5,
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Text(item['emoji'] as String, style: const TextStyle(fontSize: 24)),
                       const SizedBox(height: 4),
-                      Text(item['label'] as String, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500,
-                          color: isActive ? (context.isDark ? Colors.black : Colors.white) : context.textPrimary)),
+                      Text(item['label'] as String, style: TextStyle(fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: isActive
+                              ? (context.isDark ? Colors.black : Colors.white)
+                              : context.textPrimary)),
                       const SizedBox(height: 2),
                       Text(
                         unlocked ? (isActive ? '착용 중' : '') : item['unlock'] as String,
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 9,
-                            color: isActive ? (context.isDark ? Colors.black54 : Colors.white70) : context.textSecondary),
+                            color: isActive
+                                ? (context.isDark ? Colors.black54 : Colors.white70)
+                                : context.textSecondary),
                         maxLines: 2, overflow: TextOverflow.ellipsis,
                       ),
                     ]),
@@ -776,14 +876,13 @@ class _CharacterTab extends StatelessWidget {
             }).toList(),
           ),
           const SizedBox(height: 20),
-
-          // ── 업적 스킨 ──
-          Text('업적 스킨', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textSecondary)),
+          Text('업적 스킨', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+              color: context.textSecondary)),
           const SizedBox(height: 8),
           GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.85,
+            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10,
+            childAspectRatio: 0.85,
             children: _achieveSkinDefs.map((item) {
               final skinId = item['id']!;
               final unlocked = unlockedAchieveSkins.contains(skinId);
@@ -795,25 +894,33 @@ class _CharacterTab extends StatelessWidget {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                   decoration: BoxDecoration(
-                    color: isActive ? context.primaryColor : unlocked ? context.surfaceColor : context.subtleBg,
+                    color: isActive ? context.primaryColor
+                        : unlocked ? context.surfaceColor : context.subtleBg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: isActive ? context.primaryColor : context.borderColor, width: isActive ? 2 : 1),
+                    border: Border.all(
+                        color: isActive ? context.primaryColor : context.borderColor,
+                        width: isActive ? 2 : 1),
                   ),
                   child: Opacity(
                     opacity: unlocked ? 1.0 : 0.4,
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Text(unlocked ? item['emoji']! : '🔒', style: const TextStyle(fontSize: 24)),
+                      Text(unlocked ? item['emoji']! : '🔒',
+                          style: const TextStyle(fontSize: 24)),
                       const SizedBox(height: 4),
                       Text(achieveName, textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500,
-                              color: isActive ? (context.isDark ? Colors.black : Colors.white) : context.textPrimary),
+                              color: isActive
+                                  ? (context.isDark ? Colors.black : Colors.white)
+                                  : context.textPrimary),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 2),
                       Text(
                         unlocked ? (isActive ? '착용 중' : '') : item['unlock']!,
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 9,
-                            color: isActive ? (context.isDark ? Colors.black54 : Colors.white70) : context.textSecondary),
+                            color: isActive
+                                ? (context.isDark ? Colors.black54 : Colors.white70)
+                                : context.textSecondary),
                         maxLines: 2, overflow: TextOverflow.ellipsis,
                       ),
                     ]),
@@ -825,9 +932,9 @@ class _CharacterTab extends StatelessWidget {
 
         ] else if (characterTab == 'badge') ...[
           GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.9,
+            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10,
+            childAspectRatio: 0.9,
             children: _badges.map((item) {
               final unlocked = level >= (item['lv'] as int);
               final isActive = activeId == item['id'];
@@ -837,19 +944,29 @@ class _CharacterTab extends StatelessWidget {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                   decoration: BoxDecoration(
-                    color: isActive ? context.primaryColor : unlocked ? context.surfaceColor : context.subtleBg,
+                    color: isActive ? context.primaryColor
+                        : unlocked ? context.surfaceColor : context.subtleBg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: isActive ? context.primaryColor : context.borderColor, width: isActive ? 2 : 1),
+                    border: Border.all(
+                        color: isActive ? context.primaryColor : context.borderColor,
+                        width: isActive ? 2 : 1),
                   ),
                   child: Opacity(
                     opacity: unlocked ? 1.0 : 0.5,
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Text(item['emoji'] as String, style: const TextStyle(fontSize: 26)),
                       const SizedBox(height: 6),
-                      Text(item['label'] as String, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                          color: isActive ? (context.isDark ? Colors.black : Colors.white) : context.textPrimary)),
-                      if (!unlocked) Text('Lv.${item['lv']}', style: TextStyle(fontSize: 10, color: context.textSecondary))
-                      else if (isActive) Text('착용 중', style: TextStyle(fontSize: 10, color: context.isDark ? Colors.black54 : Colors.white70)),
+                      Text(item['label'] as String, style: TextStyle(fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: isActive
+                              ? (context.isDark ? Colors.black : Colors.white)
+                              : context.textPrimary)),
+                      if (!unlocked)
+                        Text('Lv.${item['lv']}',
+                            style: TextStyle(fontSize: 10, color: context.textSecondary))
+                      else if (isActive)
+                        Text('착용 중', style: TextStyle(fontSize: 10,
+                            color: context.isDark ? Colors.black54 : Colors.white70)),
                     ]),
                   ),
                 ),
@@ -859,9 +976,9 @@ class _CharacterTab extends StatelessWidget {
 
         ] else if (characterTab == 'frame') ...[
           GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.9,
+            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10,
+            childAspectRatio: 0.9,
             children: _frames.map((item) {
               final unlocked = level >= (item['lv'] as int);
               final isActive = activeId == item['id'];
@@ -871,25 +988,40 @@ class _CharacterTab extends StatelessWidget {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                   decoration: BoxDecoration(
-                    color: isActive ? context.primaryColor : unlocked ? context.surfaceColor : context.subtleBg,
+                    color: isActive ? context.primaryColor
+                        : unlocked ? context.surfaceColor : context.subtleBg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: isActive ? context.primaryColor : context.borderColor, width: isActive ? 2 : 1),
+                    border: Border.all(
+                        color: isActive ? context.primaryColor : context.borderColor,
+                        width: isActive ? 2 : 1),
                   ),
                   child: Opacity(
                     opacity: unlocked ? 1.0 : 0.5,
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       if (item['id'] == 'rainbow')
-                        SizedBox(width: 34, height: 34, child: CustomPaint(painter: _RainbowCirclePainter()))
+                        SizedBox(width: 34, height: 34,
+                            child: CustomPaint(painter: _RainbowCirclePainter()))
                       else if (item['id'] == 'none')
-                        Container(width: 34, height: 34, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: context.borderColor, width: 2)))
+                        Container(width: 34, height: 34,
+                            decoration: BoxDecoration(shape: BoxShape.circle,
+                                border: Border.all(color: context.borderColor, width: 2)))
                       else
-                        Container(width: 34, height: 34, decoration: BoxDecoration(shape: BoxShape.circle,
-                            color: item['id'] == 'silver' ? const Color(0xFF9e9e9e) : const Color(0xFFf9a825))),
+                        Container(width: 34, height: 34, decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: item['id'] == 'silver'
+                                ? const Color(0xFF9e9e9e) : const Color(0xFFf9a825))),
                       const SizedBox(height: 6),
-                      Text(item['label'] as String, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                          color: isActive ? (context.isDark ? Colors.black : Colors.white) : context.textPrimary)),
-                      if (!unlocked) Text('Lv.${item['lv']}', style: TextStyle(fontSize: 10, color: context.textSecondary))
-                      else if (isActive) Text('착용 중', style: TextStyle(fontSize: 10, color: context.isDark ? Colors.black54 : Colors.white70)),
+                      Text(item['label'] as String, style: TextStyle(fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: isActive
+                              ? (context.isDark ? Colors.black : Colors.white)
+                              : context.textPrimary)),
+                      if (!unlocked)
+                        Text('Lv.${item['lv']}',
+                            style: TextStyle(fontSize: 10, color: context.textSecondary))
+                      else if (isActive)
+                        Text('착용 중', style: TextStyle(fontSize: 10,
+                            color: context.isDark ? Colors.black54 : Colors.white70)),
                     ]),
                   ),
                 ),
@@ -909,17 +1041,12 @@ class _RainbowCirclePainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
-    final gradient = const SweepGradient(
-      colors: [
-        Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
-        Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
-        Color(0xFFFF0000),
-      ],
-    );
+    const gradient = SweepGradient(colors: [
+      Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
+      Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF), Color(0xFFFF0000),
+    ]);
     final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.butt
+      ..style = PaintingStyle.stroke ..strokeWidth = 4 ..strokeCap = StrokeCap.butt
       ..shader = gradient.createShader(rect);
     canvas.drawCircle(center, radius, paint);
   }
@@ -936,7 +1063,8 @@ class _IconBtn extends StatelessWidget {
     onTap: onTap,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(99)),
+      decoration: BoxDecoration(border: Border.all(color: context.borderColor),
+          borderRadius: BorderRadius.circular(99)),
       child: child,
     ),
   );

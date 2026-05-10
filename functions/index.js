@@ -20,18 +20,22 @@ async function getNotifSettings(uid) {
 }
 
 // FCM 발송 헬퍼
-async function sendPush(token, title, body, data = {}) {
+// tag가 있으면 같은 tag의 이전 알림을 덮어씀 (채팅방별 알림 합치기)
+async function sendPush(token, title, body, data = {}, tag = null) {
   if (!token) return;
   try {
     await getMessaging().send({
       token,
       notification: { title, body },
-      data: { ...data },
+      // FCM data 필드는 문자열만 허용 — 모든 값을 String으로 변환
+      data: Object.fromEntries(Object.entries({ ...data }).map(([k, v]) => [k, String(v)])),
       android: {
         priority: "high",
         notification: {
           sound: "default",
           clickAction: "FLUTTER_NOTIFICATION_CLICK",
+          // tag가 같으면 이전 알림을 새 알림으로 교체
+          ...(tag ? { tag: String(tag) } : {}),
         },
       },
     });
@@ -139,7 +143,7 @@ exports.onChatMessage = onDocumentCreated(
             type: "chat",
             chatId,
             senderUid,
-          });
+          }, chatId);  // tag = chatId → 같은 채팅방 알림은 하나로 합침
         } catch (e) {
           console.error(`채팅 알림 발송 실패 (uid: ${uid}):`, e);
         }

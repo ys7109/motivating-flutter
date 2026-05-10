@@ -8,6 +8,7 @@ import '../screens/goals/goals_screen.dart';
 import '../screens/focus/focus_screen.dart';
 import '../screens/social/social_screen.dart';
 import '../screens/my/my_screen.dart';
+import '../screens/social/chat_room_screen.dart';
 import '../services/firestore_service.dart';
 import '../services/friend_service.dart';
 import '../services/notification_service.dart';
@@ -101,11 +102,33 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
   }
 
   // 예약된 알림 탭 이동 처리 — 앱 시작/재개 후 MainNav가 준비되면 해당 탭으로 이동
+  // 채팅 알림이면 소셜 탭 전환 후 해당 채팅방으로 직접 이동
   void _handlePendingNotificationTab() {
     final pendingTab = NotificationService.pendingTab;
     if (pendingTab == null) return;
     NotificationService.pendingTab = null;
+
+    // 채팅방 이동 정보 — 채팅 알림인 경우에만 존재
+    final chatId = NotificationService.pendingChatId;
+    final chatTitle = NotificationService.pendingChatTitle;
+    NotificationService.pendingChatId = null;
+    NotificationService.pendingChatTitle = null;
+
+    // 소셜 탭으로 전환
     switchTab(pendingTab);
+
+    // 채팅 알림이면 탭 전환 후 다음 프레임에 채팅방 화면 push
+    if (chatId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => ChatRoomScreen(
+            chatId: chatId,
+            title: chatTitle ?? '채팅',
+          ),
+        ));
+      });
+    }
   }
 
   @override
@@ -120,6 +143,7 @@ class _MainNavState extends State<MainNav> with WidgetsBindingObserver {
       _activeUid = uid;
       // 앱 진입 시 온라인 상태로 설정
       if (uid != null) FriendService().setOnline(uid);
+      // 알림 탭으로 앱 실행 시 해당 화면으로 이동
       _handlePendingNotificationTab();
       // FCM 토큰 없는 기존 유저 대응 — UI 마운트 완료 후 저장 시도
       if (uid != null) NotificationService.saveFcmToken(uid);

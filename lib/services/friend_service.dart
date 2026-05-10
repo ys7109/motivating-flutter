@@ -41,6 +41,16 @@ class FriendService {
       fromCharacter: Map<String, dynamic>.from(
           myData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
     );
+    // 친구 수락 시 해당 friend_request 알림 읽음 처리 — 배지에서 사라지도록
+    final notifSnap = await _db
+        .collection('users').doc(myUid).collection('notifications')
+        .where('type', isEqualTo: 'friend_request')
+        .where('fromUid', isEqualTo: fromUid)
+        .where('read', isEqualTo: false)
+        .get();
+    for (final doc in notifSnap.docs) {
+      await doc.reference.update({'read': true});
+    }
   }
 
   Future<void> removeFriend(String myUid, String otherUid) async {
@@ -83,13 +93,16 @@ class FriendService {
     final isFocusing = presenceData['isFocusing'] == true;
     if (isFocusing) return 'focusing';
 
+    // isOnline: false면 즉시 오프라인 (로그아웃/앱 종료 시 명시적으로 설정)
+    if (presenceData['isOnline'] == false) return 'offline';
+
     final lastActivity = presenceData['lastActivity'];
     if (lastActivity == null) return 'offline';
 
     final lastActivityTime = (lastActivity as Timestamp).toDate();
     final diff = DateTime.now().difference(lastActivityTime);
-    // 3분 이상 활동 없으면 오프라인
-    if (diff.inMinutes >= 3) return 'offline';
+    // 일정 시간동안 활동 없으면 오프라인
+    if (diff.inMinutes >= 1) return 'offline';
     return 'online';
   }
 
@@ -109,6 +122,8 @@ class FriendService {
   }
 
   // 친구 목록 실시간 스트림
+  // 친구 목록 실시간 스트림 — friendships + presence 동시 구독
+  // presence 변경 시에도 즉시 반영
   Stream<List<Map<String, dynamic>>> friendsStream(String uid) {
     return _db.collection('friendships')
         .where('users', arrayContains: uid)
@@ -126,6 +141,9 @@ class FriendService {
             final userSnap = await _db.collection('users').doc(fUid).get();
             // 탈퇴 유저는 문서가 없으므로 null 반환 후 필터링
             if (!userSnap.exists) return null;
+            // presence는 실시간 스트림 대신 get()으로 조회하되
+            // presence 컬렉션 변경 시 friendships 스트림이 재발화되도록
+            // friends_tab에서 주기적으로 rebuild 트리거
             final presenceSnap = await _db.collection('presence').doc(fUid).get();
             final userData = userSnap.data() ?? {};
             final presenceData = presenceSnap.data() ?? {};
@@ -148,6 +166,18 @@ class FriendService {
       } catch (_) {
         return <Map<String, dynamic>>[];
       }
+    });
+  }
+
+  // presence 실시간 스트림 — 친구 탭에서 접속 상태 실시간 반영용
+  Stream<Map<String, dynamic>> presenceStream(String uid) {
+    return _db.collection('presence').doc(uid).snapshots().map((snap) {
+      final data = snap.data() ?? {};
+      return {
+        'uid': uid,
+        'presenceStatus': _calcPresenceStatus(data),
+        'lastSeen': data['lastSeen'],
+      };
     });
   }
 
@@ -195,6 +225,7 @@ class FriendService {
   // 온라인 상태 설정 — lastActivity 타임스탬프 갱신
   Future<void> setOnline(String uid) async {
     await _db.collection('presence').doc(uid).set({
+      'isOnline': true,
       'lastSeen': FieldValue.serverTimestamp(),
       'lastActivity': FieldValue.serverTimestamp(),
       'isFocusing': false,
@@ -226,17 +257,13 @@ class FriendService {
     }, SetOptions(merge: true));
   }
 
+  // 오프라인 상태 설정 — isOnline: false로 즉시 오프라인 처리
   Future<void> setOffline(String uid) async {
     await _db.collection('presence').doc(uid).set({
+      'isOnline': false,
       'lastSeen': FieldValue.serverTimestamp(),
-      'lastActivity': FieldValue.serverTimestamp(),
       'isFocusing': false,
     }, SetOptions(merge: true));
-  }
-
-  Stream<Map<String, dynamic>> presenceStream(String uid) {
-    return _db.collection('presence').doc(uid).snapshots()
-        .map((s) => s.data() ?? {});
   }
 
   Future<List<Map<String, dynamic>>> getFriendRankings(String uid, String type) async {

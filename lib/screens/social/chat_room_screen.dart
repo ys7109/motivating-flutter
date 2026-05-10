@@ -240,6 +240,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: context.modalBg,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
@@ -563,14 +564,16 @@ class _MessageBubble extends StatelessWidget {
     required this.chatId, required this.chatService,
   });
 
-  void _showReactionPicker(BuildContext context) {
-    final bottomPad = MediaQuery.of(context).padding.bottom;
+void _showReactionPicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: context.modalBg,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
+      builder: (ctx) {
+        final bottomPad = MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom;
+        return Padding(
         padding: EdgeInsets.fromLTRB(24, 20, 24, bottomPad + 24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('반응 추가', style: TextStyle(fontSize: 15,
@@ -598,7 +601,8 @@ class _MessageBubble extends StatelessWidget {
             }).toList(),
           ),
         ]),
-      ),
+        );
+      },
     );
   }
 
