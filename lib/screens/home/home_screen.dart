@@ -196,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(children: [
                   _StatCard(label: '달성 목표', value: '${app.goalsThisMonth}', sub: '이번 달'),
                   const SizedBox(width: 10),
-                  _StatCard(label: '최고 출석', value: '\${userData.maxStreak}일', sub: '최고 기록'),
+                  _StatCard(label: '최고 출석', value: '${userData.maxStreak}일', sub: '최고 기록'),
                   const SizedBox(width: 10),
                   _StatCard(label: '집중 시간', value: '${focusHours}h', sub: '누적'),
                 ]),
