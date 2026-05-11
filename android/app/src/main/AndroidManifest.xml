@@ -65,6 +65,21 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- FCM 백그라운드 메시지 처리 서비스 -->
+        <service
+            android:name="com.google.firebase.messaging.FirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- FCM 백그라운드 핸들러 -->
+        <service
+            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingBackgroundService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 
     <queries>

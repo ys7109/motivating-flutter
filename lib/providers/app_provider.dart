@@ -238,6 +238,14 @@ class AppProvider extends ChangeNotifier {
     themeMode = savedTheme == 'light' ? ThemeMode.light
         : savedTheme == 'dark' ? ThemeMode.dark
         : ThemeMode.system;
+    // 커스텀 테마 로드
+    _isCustomTheme = prefs.getBool('isCustomTheme') ?? false;
+    // 포인트 색상 로드
+    final colorVal = prefs.getInt('primaryColor');
+    if (colorVal != null) _primaryColor = Color(colorVal);
+    // 배경 색상 로드
+    final bgVal = prefs.getInt('bgColor');
+    if (bgVal != null) _bgColor = Color(bgVal);
     notifyListeners();
 
     await _authSub?.cancel();

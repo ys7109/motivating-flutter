@@ -16,17 +16,22 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   Future<User?> signInWithGoogle() async {
-    await _googleSignIn.signOut();
-    final googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null;
-    final googleAuth = await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-    final result = await _auth.signInWithCredential(credential);
-    await FirestoreService().ensureUserDoc(result.user!);
-    return result.user;
+    try {
+      await _googleSignIn.signOut();
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null;
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      final result = await _auth.signInWithCredential(credential);
+      await FirestoreService().ensureUserDoc(result.user!);
+      return result.user;
+    } catch (e) {
+      // print('Google 로그인 에러: $e');
+      rethrow;
+    }
   }
 
   Future<User?> signInWithKakao(BuildContext context) async {

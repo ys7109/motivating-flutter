@@ -139,24 +139,11 @@ exports.onChatMessage = onDocumentCreated(
           const title = isGroup ? `${chatName} · ${senderName}` : senderName;
           const body = content.length > 30 ? `${content.substring(0, 30)}...` : content;
 
-          // 최근 메시지 최대 5개 조회 — 인박스 스타일 알림용
-          const recentMsgs = await db.collection("chats").doc(chatId)
-            .collection("messages")
-            .orderBy("createdAt", "desc")
-            .limit(5)
-            .get();
-          const lines = recentMsgs.docs
-            .reverse()
-            .map(d => {
-              const msgBody = d.data().content ?? '';
-              return msgBody.length > 30 ? `${msgBody.substring(0, 30)}...` : msgBody;
-            });
-
-          await sendPushInbox(token, title, body, {
+          await sendPush(token, title, body, {
             type: "chat",
             chatId,
             senderUid,
-          }, chatId, lines);  // tag = chatId → 같은 채팅방 알림은 하나로 합침
+          }, chatId);  // tag = chatId → 같은 채팅방 알림은 하나로 합침
         } catch (e) {
           console.error(`채팅 알림 발송 실패 (uid: ${uid}):`, e);
         }
