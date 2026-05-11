@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/diary_service.dart';
 import 'friends_tab.dart';
 import 'feed_tab.dart';
 import 'diary_tab.dart';
@@ -17,7 +18,8 @@ class SocialScreen extends StatefulWidget {
 
 class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
-  String? _lastHash;
+  String _lastHash = '';
+  bool _syncing = false;
 
   final _friendsKey = GlobalKey<FriendsTabState>();
   final _feedKey = GlobalKey<FeedTabState>();
@@ -27,25 +29,70 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 5, vsync: this);
+    // 탭 전환 시 해당 탭 reload
+    _tabCtrl.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (_tabCtrl.indexIsChanging) return;
+    // 탭 전환 시 해당 탭 즉시 reload — 변경사항 반영
+    switch (_tabCtrl.index) {
+      case 0: _friendsKey.currentState?.reload(); break;
+      case 2: _feedKey.currentState?.reload(); break;
+      case 3: _diaryKey.currentState?.reload(); break;
+    }
   }
 
   Future<void> _syncAndReload() async {
-    final app = context.read<AppProvider>();
-    if (app.userData != null && app.authUser != null) {
-      await FirestoreService().updatePublicProfile(app.authUser!.uid, {
-        'name': app.userData!.name,
-        'level': app.userData!.level,
-        'character': app.userData!.character.toMap(),
-        'equippedAchievement': app.userData!.equippedAchievement,
-      });
+    if (_syncing) return;
+    _syncing = true;
+    try {
+      final app = context.read<AppProvider>();
+      if (app.userData == null || app.authUser == null) return;
+      final uid = app.authUser!.uid;
+      final userData = app.userData!;
+
+      // rankings + 게시글 작성자 정보 동기화
+      await Future.wait([
+        FirestoreService().updatePublicProfile(uid, {
+          'name': userData.name,
+          'level': userData.level,
+          'character': userData.character.toMap(),
+          'equippedAchievement': userData.equippedAchievement,
+          'profileImageUrl': userData.profileImageUrl,
+        }),
+        DiaryService().updateAuthorInfo(
+          uid, userData.name, userData.character.toMap(), userData.level,
+          equippedAchievement: userData.equippedAchievement,
+          profileImageUrl: userData.profileImageUrl,
+        ),
+      ]);
+
+      if (!mounted) return;
+
+      // 모든 탭 reload — sync 완료 후 최신 데이터 표시
+      await Future.wait([
+        _friendsKey.currentState?.reload() ?? Future.value(),
+        _feedKey.currentState?.reload() ?? Future.value(),
+        _diaryKey.currentState?.reload() ?? Future.value(),
+      ]);
+    } finally {
+      _syncing = false;
     }
-    _friendsKey.currentState?.reload();
-    _feedKey.currentState?.reload();
-    _diaryKey.currentState?.reload();
+  }
+
+  // 현재 탭만 빠르게 reload (sync 없이)
+  void _reloadCurrentTab() {
+    switch (_tabCtrl.index) {
+      case 0: _friendsKey.currentState?.reload(); break;
+      case 2: _feedKey.currentState?.reload(); break;
+      case 3: _diaryKey.currentState?.reload(); break;
+    }
   }
 
   @override
   void dispose() {
+    _tabCtrl.removeListener(_onTabChanged);
     _tabCtrl.dispose();
     super.dispose();
   }
@@ -58,11 +105,14 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
     if (userData != null) {
       final hash = '${userData.character.skin}_${userData.character.badge}_'
           '${userData.character.frame}_${userData.name}_${userData.level}_'
-          '${userData.equippedAchievement ?? ''}';
-      if (_lastHash != null && _lastHash != hash) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _syncAndReload());
+          '${userData.equippedAchievement ?? ''}_${userData.profileImageUrl ?? ''}';
+      if (_lastHash != hash) {
+        _lastHash = hash;
+        // userData 변경 감지 시 sync + 현재 탭 즉시 reload
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _syncAndReload();
+        });
       }
-      _lastHash = hash;
     }
 
     return Scaffold(

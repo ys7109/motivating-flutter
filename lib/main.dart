@@ -13,6 +13,7 @@ import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/withdraw/withdraw_pending_screen.dart';
 import 'widgets/main_nav.dart';
 import 'services/notification_service.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 
 // 백그라운드 FCM 핸들러 — 최상위 함수로 등록해야 함 (main 밖)
 @pragma('vm:entry-point')
@@ -26,6 +27,10 @@ void main() async {
   // 기기 최대 주사율 사용 (120fps 지원 기기)
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // App Check 초기화 — Storage 접근 시 No AppCheckProvider 에러 방지
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.debug,
+  );
   // 백그라운드 메시지 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   await NotificationService.init();

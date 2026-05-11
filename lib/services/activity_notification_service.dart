@@ -155,6 +155,31 @@ class ActivityNotificationService {
     await _db.collection('users').doc(uid).collection('notifications').doc(notifId).delete();
   }
 
+  // 특정 발신자 + 타입의 알림 즉시 삭제 — 친구 요청 수락/거절 시 호출
+  Future<void> deleteNotificationByFromUid(String uid, String fromUid, String type) async {
+    final snap = await _db
+        .collection('users').doc(uid).collection('notifications')
+        .where('fromUid', isEqualTo: fromUid)
+        .where('type', isEqualTo: type)
+        .get();
+    if (snap.docs.isEmpty) return;
+    final batch = _db.batch();
+    for (final doc in snap.docs) batch.delete(doc.reference);
+    await batch.commit();
+  }
+
+  // 특정 타입의 알림 전체 삭제 — 채팅방 입장 시 chat 알림 제거
+  Future<void> deleteNotificationsByType(String uid, String type) async {
+    final snap = await _db
+        .collection('users').doc(uid).collection('notifications')
+        .where('type', isEqualTo: type)
+        .get();
+    if (snap.docs.isEmpty) return;
+    final batch = _db.batch();
+    for (final doc in snap.docs) batch.delete(doc.reference);
+    await batch.commit();
+  }
+
   // 30일 이상 된 알림 정리
   Future<void> cleanOldNotifications(String uid) async {
     final cutoff = DateTime.now().subtract(const Duration(days: 30));

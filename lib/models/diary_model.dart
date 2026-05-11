@@ -7,6 +7,8 @@ class DiaryModel {
   final Map<String, dynamic> authorCharacter;
   final int authorLevel;
   final String? authorEquippedAchievement;
+  // 작성자 프로필 이미지 URL — 소셜 탭에서 프로필 이미지 표시용
+  final String? authorProfileImageUrl;
   final String content;
   final String visibility; // private | friends | public
   final int likeCount;
@@ -22,6 +24,7 @@ class DiaryModel {
     required this.authorCharacter,
     required this.authorLevel,
     this.authorEquippedAchievement,
+    this.authorProfileImageUrl,
     required this.content,
     required this.visibility,
     required this.likeCount,
@@ -40,6 +43,7 @@ class DiaryModel {
           map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
       authorLevel: map['authorLevel'] ?? 1,
       authorEquippedAchievement: map['authorEquippedAchievement'] as String?,
+      authorProfileImageUrl: map['authorProfileImageUrl'] as String?,
       content: map['content'] ?? '',
       visibility: map['visibility'] ?? 'private',
       likeCount: map['likeCount'] ?? 0,

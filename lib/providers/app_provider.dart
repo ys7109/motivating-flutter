@@ -618,6 +618,18 @@ class AppProvider extends ChangeNotifier {
   }
 
   // 수동 유저 데이터 리로드 — authStateChanges 완료 후 실행
+  // 강제 사용자 데이터 갱신 — 프로필 이미지 등 변경 후 호출
+  Future<void> forceReloadUser() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      userData = await _db.getUser(user.uid);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('forceReloadUser 에러: \$e');
+    }
+  }
+
   Future<void> reloadUser() async {
     // authStateChanges가 처리 중이면 완료될 때까지 대기
     if (_isInitializing) {
@@ -626,8 +638,7 @@ class AppProvider extends ChangeNotifier {
       }
       return;
     }
-    // 이미 로드 완료된 경우 스킵
-    if (!loading && userData != null) return;
+    // 이미 로드 완료된 경우 스킵 — forceReload 없을 때만
     final user = _auth.currentUser;
     if (user == null) return;
     try {

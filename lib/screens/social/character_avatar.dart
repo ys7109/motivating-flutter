@@ -3,19 +3,23 @@ import 'package:flutter/material.dart';
 import '../../utils/theme.dart';
 import '../../models/achievement_definitions.dart';
 
+// 레벨 스킨 정의 — 기본 이미지(default)만 남기고 나머지는 뱃지로 이동
 const kSkins = [
-  {'id': 'default',  'emoji': '👤'},
-  {'id': 'warrior',  'emoji': '⚔️'},
-  {'id': 'scholar',  'emoji': '📚'},
-  {'id': 'explorer', 'emoji': '🧭'},
-  {'id': 'legend',   'emoji': '🌟'},
+  {'id': 'default', 'emoji': '👤'},
 ];
+
+// 레벨 기반 뱃지 — 기존 레벨 스킨 + 기존 뱃지 통합
 const kBadges = [
   {'id': 'none',      'emoji': ''},
   {'id': 'flame',     'emoji': '🔥'},
   {'id': 'lightning', 'emoji': '⚡'},
   {'id': 'crown',     'emoji': '👑'},
   {'id': 'diamond',   'emoji': '💎'},
+  // 기존 레벨 스킨 → 뱃지로 이동
+  {'id': 'warrior',   'emoji': '⚔️'},
+  {'id': 'scholar',   'emoji': '📚'},
+  {'id': 'explorer',  'emoji': '🧭'},
+  {'id': 'legend',    'emoji': '🌟'},
 ];
 const kFrames = [
   {'id': 'none',    'color': 0x00000000},
@@ -48,21 +52,28 @@ const kAchieveSkins = <String, String>{
   'chat_first':    '💬', 'ranking_top3':  '🥉', 'ranking_top1':  '🥇',
 };
 
+// 스킨 이모지 반환 — 업적 스킨 우선 확인
 String skinEmoji(String? skin) {
   if (skin == null) return '👤';
-  // 업적 스킨 먼저 확인
   if (kAchieveSkins.containsKey(skin)) return kAchieveSkins[skin]!;
-  return (kSkins.firstWhere((s) => s['id'] == skin, orElse: () => kSkins[0])['emoji'] as String?) ?? '👤';
+  return (kSkins.firstWhere(
+          (s) => s['id'] == skin,
+          orElse: () => kSkins[0])['emoji'] as String?) ??
+      '👤';
 }
 
+// 뱃지 이모지 반환
 String badgeEmoji(String? badge) =>
-    (kBadges.firstWhere((b) => b['id'] == badge, orElse: () => kBadges[0])['emoji'] as String?) ?? '';
+    (kBadges.firstWhere((b) => b['id'] == badge,
+            orElse: () => kBadges[0])['emoji'] as String?) ??
+    '';
 
 bool isRainbowFrame(String? frame) => frame == 'rainbow';
 
 Color? frameColor(String? frame) {
   if (frame == null || frame == 'none' || frame == 'rainbow') return null;
-  final f = kFrames.firstWhere((f) => f['id'] == frame, orElse: () => kFrames[0]);
+  final f = kFrames.firstWhere((f) => f['id'] == frame,
+      orElse: () => kFrames[0]);
   final c = f['color'] as int;
   return c == 0 ? null : Color(c);
 }
@@ -72,12 +83,15 @@ const _rainbowColors = [
   Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
 ];
 
+// 캐릭터 아바타 위젯 — 프로필 이미지 우선 표시, 없으면 캐릭터 이모지
 class CharacterAvatar extends StatelessWidget {
   final Map<String, dynamic>? character;
   final double size;
-  /// 업적 칭호 ID (있으면 아바타 아래에 칭호 표시)
+  // 업적 칭호 ID (있으면 아바타 아래에 칭호 표시)
   final String? equippedAchievement;
   final bool showTitle;
+  // 사용자 업로드 프로필 이미지 URL (있으면 이모지 대신 표시)
+  final String? profileImageUrl;
 
   const CharacterAvatar({
     super.key,
@@ -85,6 +99,7 @@ class CharacterAvatar extends StatelessWidget {
     this.size = 40,
     this.equippedAchievement,
     this.showTitle = false,
+    this.profileImageUrl,
   });
 
   @override
@@ -102,10 +117,28 @@ class CharacterAvatar extends StatelessWidget {
         ? Achievements.findById(equippedAchievement!)
         : null;
 
+    // 프로필 이미지 내부 위젯 — 업로드된 사진 또는 이모지
+    Widget innerContent = profileImageUrl != null && profileImageUrl!.isNotEmpty
+        ? ClipOval(
+            child: Image.network(
+              profileImageUrl!,
+              width: innerSize, height: innerSize,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  // 이미지 로드 실패 시 이모지로 폴백
+                  Center(child: Text(se, style: TextStyle(fontSize: size * 0.42))),
+            ),
+          )
+        : Center(child: Text(se, style: TextStyle(fontSize: size * 0.42)));
+
     Widget avatar = Stack(clipBehavior: Clip.none, children: [
       // 프레임
       if (isRainbow)
-        _RainbowFrameAvatar(size: size, innerSize: innerSize, skinEmoji: se)
+        _RainbowFrameAvatar(
+            size: size,
+            innerSize: innerSize,
+            skinEmoji: se,
+            profileImageUrl: profileImageUrl)
       else
         Container(
           width: size, height: size,
@@ -113,8 +146,9 @@ class CharacterAvatar extends StatelessWidget {
           child: Center(
             child: Container(
               width: innerSize, height: innerSize,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: context.surfaceColor),
-              child: Center(child: Text(se, style: TextStyle(fontSize: size * 0.42))),
+              decoration: BoxDecoration(shape: BoxShape.circle,
+                  color: context.surfaceColor),
+              child: ClipOval(child: innerContent),
             ),
           ),
         ),
@@ -128,14 +162,16 @@ class CharacterAvatar extends StatelessWidget {
               shape: BoxShape.circle, color: context.surfaceColor,
               border: Border.all(color: context.borderColor, width: 0.5),
             ),
-            child: Center(child: Text(be, style: TextStyle(fontSize: size * 0.2))),
+            child: Center(
+                child: Text(be, style: TextStyle(fontSize: size * 0.2))),
           ),
         ),
     ]);
 
     // 칭호 표시 (showTitle=true일 때만)
     if (showTitle && achievement != null) {
-      final diffColor = Color(Achievements.difficultyColor[achievement.difficulty]!);
+      final diffColor =
+          Color(Achievements.difficultyColor[achievement.difficulty]!);
       return Column(mainAxisSize: MainAxisSize.min, children: [
         avatar,
         const SizedBox(height: 4),
@@ -147,7 +183,10 @@ class CharacterAvatar extends StatelessWidget {
             border: Border.all(color: diffColor.withOpacity(0.3)),
           ),
           child: Text(achievement.title,
-              style: TextStyle(fontSize: 9, color: diffColor, fontWeight: FontWeight.w600)),
+              style: TextStyle(
+                  fontSize: 9,
+                  color: diffColor,
+                  fontWeight: FontWeight.w600)),
         ),
       ]);
     }
@@ -156,43 +195,75 @@ class CharacterAvatar extends StatelessWidget {
   }
 }
 
-// 무지개 프레임 아바타 (애니메이션)
+// 무지개 프레임 아바타 (애니메이션) — 프로필 이미지 지원
 class _RainbowFrameAvatar extends StatefulWidget {
   final double size, innerSize;
   final String skinEmoji;
-  const _RainbowFrameAvatar({required this.size, required this.innerSize, required this.skinEmoji});
+  final String? profileImageUrl;
+  const _RainbowFrameAvatar({
+    required this.size,
+    required this.innerSize,
+    required this.skinEmoji,
+    this.profileImageUrl,
+  });
   @override
   State<_RainbowFrameAvatar> createState() => _RainbowFrameAvatarState();
 }
-class _RainbowFrameAvatarState extends State<_RainbowFrameAvatar> with SingleTickerProviderStateMixin {
+
+class _RainbowFrameAvatarState extends State<_RainbowFrameAvatar>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _anim;
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 3))
+      ..repeat();
     _anim = Tween<double>(begin: 0, end: 1).animate(_ctrl);
   }
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _anim,
-    builder: (_, __) => CustomPaint(
-      painter: _RainbowPainter(_anim.value, widget.size),
-      child: SizedBox(
-        width: widget.size, height: widget.size,
-        child: Center(
-          child: Container(
-            width: widget.innerSize, height: widget.innerSize,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: context.surfaceColor),
-            child: Center(child: Text(widget.skinEmoji, style: TextStyle(fontSize: widget.size * 0.42))),
+        animation: _anim,
+        builder: (_, __) => CustomPaint(
+          painter: _RainbowPainter(_anim.value, widget.size),
+          child: SizedBox(
+            width: widget.size, height: widget.size,
+            child: Center(
+              child: Container(
+                width: widget.innerSize, height: widget.innerSize,
+                decoration: BoxDecoration(
+                    shape: BoxShape.circle, color: context.surfaceColor),
+                child: ClipOval(
+                  child: widget.profileImageUrl != null &&
+                          widget.profileImageUrl!.isNotEmpty
+                      ? Image.network(
+                          widget.profileImageUrl!,
+                          width: widget.innerSize,
+                          height: widget.innerSize,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Center(
+                              child: Text(widget.skinEmoji,
+                                  style: TextStyle(
+                                      fontSize: widget.size * 0.42))),
+                        )
+                      : Center(
+                          child: Text(widget.skinEmoji,
+                              style:
+                                  TextStyle(fontSize: widget.size * 0.42))),
+                ),
+              ),
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
+
 class _RainbowPainter extends CustomPainter {
   final double progress, size;
   _RainbowPainter(this.progress, this.size);
@@ -207,13 +278,11 @@ class _RainbowPainter extends CustomPainter {
     canvas.translate(center.dx, center.dy);
     canvas.rotate(progress * 2 * pi);
     canvas.translate(-center.dx, -center.dy);
-    final gradient = const SweepGradient(
-      colors: [
-        Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
-        Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
-        Color(0xFFFF0000),
-      ],
-    );
+    const gradient = SweepGradient(colors: [
+      Color(0xFFFF0000), Color(0xFFFF7700), Color(0xFFFFD700),
+      Color(0xFF00CC00), Color(0xFF0000FF), Color(0xFF8B00FF),
+      Color(0xFFFF0000),
+    ]);
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeW

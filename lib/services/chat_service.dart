@@ -213,6 +213,31 @@ class ChatService {
       return total;
     });
   }
+
+  // 그룹 메시지 미읽음 수신자 수 조회
+  // 그룹 채팅에서 내 메시지를 아직 읽지 않은 수신자 수를 반환
+  // lastReadAt이 메시지 작성 시각보다 이전이면 아직 읽지 않은 것으로 판단
+  Future<int> getGroupUnreadReceiverCount(
+    String chatId,
+    String myUid,
+    DateTime? msgCreatedAt,
+    Map<String, DateTime> lastReadAt,
+    List<String> memberUids,
+  ) async {
+    if (msgCreatedAt == null) return 0;
+    // 나를 제외한 멤버 중 msgCreatedAt 이후에 lastReadAt이 없거나 이전인 경우 카운트
+    int count = 0;
+    for (final uid in memberUids) {
+      if (uid == myUid) continue;
+      final readTime = lastReadAt[uid];
+      if (readTime == null || readTime.millisecondsSinceEpoch == 0) {
+        count++;
+      } else if (readTime.isBefore(msgCreatedAt)) {
+        count++;
+      }
+    }
+    return count;
+  }
 }
 
 // 메시지 모델
@@ -224,8 +249,10 @@ class MessageModel {
   final DateTime? createdAt;
 
   MessageModel({
-    required this.id, required this.senderUid,
-    required this.content, required this.reactions,
+    required this.id,
+    required this.senderUid,
+    required this.content,
+    required this.reactions,
     this.createdAt,
   });
 
@@ -237,7 +264,9 @@ class MessageModel {
       senderUid: data['senderUid'] ?? '',
       content: data['content'] ?? '',
       reactions: rawReactions.map((k, v) => MapEntry(k, List<String>.from(v))),
-      createdAt: data['createdAt'] != null ? (data['createdAt'] as Timestamp).toDate() : null,
+      createdAt: data['createdAt'] != null
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
     );
   }
 

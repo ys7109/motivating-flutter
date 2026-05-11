@@ -56,6 +56,8 @@ class _RankingTabState extends State<RankingTab> {
         'level': app.userData!.level,
         'character': app.userData!.character.toMap(),
         'equippedAchievement': app.userData!.equippedAchievement,
+        // 랭킹에서도 프로필 이미지 표시
+        'profileImageUrl': app.userData!.profileImageUrl,
       });
     }
     await _loadRankings();
@@ -148,7 +150,7 @@ class _RankingTabState extends State<RankingTab> {
                                   ? Text(medal, style: const TextStyle(fontSize: 22))
                                   : Text('${user['rank']}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.textSecondary)))),
                               const SizedBox(width: 10),
-                              CharacterAvatar(character: user['character'] as Map<String, dynamic>?, size: 40),
+                              CharacterAvatar(character: user['character'] as Map<String, dynamic>?, size: 40, profileImageUrl: user['profileImageUrl'] as String?),
                               const SizedBox(width: 12),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(children: [
@@ -253,7 +255,7 @@ class _ProfileModal extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
                   child: Row(children: [
-                    CharacterAvatar(character: profile['character'] as Map<String, dynamic>?, size: 52),
+                    CharacterAvatar(character: profile['character'] as Map<String, dynamic>?, size: 52, profileImageUrl: profile['profileImageUrl'] as String?),
                     const SizedBox(width: 14),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(profile['name'] ?? '모험가', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),

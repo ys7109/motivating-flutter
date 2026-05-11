@@ -6,6 +6,7 @@ import '../../providers/app_provider.dart';
 import '../../models/goal_model.dart';
 import '../../widgets/tap_scale.dart';
 import '../../widgets/level_up_modal.dart' hide mainNavKey;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'add_goal_screen.dart';
 
 const _weekDays = ['일', '월', '화', '수', '목', '금', '토'];
@@ -31,7 +32,26 @@ class _GoalsScreenState extends State<GoalsScreen> {
   late int _viewMonth = DateTime.now().month;
   late String _selectedDate = _toDateStr(DateTime.now().year, DateTime.now().month, DateTime.now().day);
   String _filter = 'all';
+  String _sort = 'recent'; // 정렬: recent(최근순), alpha(가나다순)
   Map<String, dynamic>? _deleteModal;
+
+  @override
+  void initState() {
+    super.initState();
+    // 저장된 정렬 설정 로드
+    _loadSortPref();
+  }
+
+  Future<void> _loadSortPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('goals_sort') ?? 'recent';
+    if (mounted) setState(() => _sort = saved);
+  }
+
+  Future<void> _saveSortPref(String sort) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('goals_sort', sort);
+  }
 
   String get _todayStr => _toDateStr(_today.year, _today.month, _today.day);
 
@@ -66,11 +86,21 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final app = context.watch<AppProvider>();
     final goals = app.goals;
     final calDays = _calendarDays(_viewYear, _viewMonth);
-    final selectedGoals = _goalsForDate(goals, _selectedDate).where((g) {
+    final _filteredGoals = _goalsForDate(goals, _selectedDate).where((g) {
       if (_filter == 'active') return !g.done;
       if (_filter == 'done') return g.done;
       return true;
     }).toList();
+    // 정렬 — 완료 목표는 항상 하단, 그 안에서 선택 정렬 적용
+    _filteredGoals.sort((a, b) {
+      if (a.done != b.done) return a.done ? 1 : -1;
+      if (_sort == 'alpha') return a.title.compareTo(b.title);
+      // 최근순 — createdAt 내림차순
+      final at = a.createdAt ?? DateTime(0);
+      final bt = b.createdAt ?? DateTime(0);
+      return bt.compareTo(at);
+    });
+    final selectedGoals = _filteredGoals;
     final doneCount = goals.where((g) => g.done).length;
     final activeCount = goals.where((g) => !g.done).length;
 
@@ -188,22 +218,47 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(_selectedDate == _todayStr ? '오늘 목표' : _selectedDate.replaceAll('-', '.'),
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textPrimary)),
-                  Row(children: [['all', '전체'], ['active', '진행'], ['done', '완료']].map((f) =>
-                    GestureDetector(
-                      onTap: () => setState(() => _filter = f[0]),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        margin: const EdgeInsets.only(left: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: _filter == f[0] ? context.primaryColor : Colors.transparent,
-                          border: Border.all(color: _filter == f[0] ? context.primaryColor : context.borderColor),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(f[1], style: TextStyle(fontSize: 11, color: _filter == f[0] ? (context.onPrimary) : context.textSecondary)),
+                  Row(children: [
+                    // 정렬 드롭다운
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: context.borderColor),
+                        borderRadius: BorderRadius.circular(99),
                       ),
-                    )
-                  ).toList()),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _sort,
+                          isDense: true,
+                          style: TextStyle(fontSize: 11, color: context.textSecondary),
+                          dropdownColor: context.surfaceColor,
+                          icon: Icon(Icons.arrow_drop_down, size: 14, color: context.textSecondary),
+                          items: const [
+                            DropdownMenuItem(value: 'recent', child: Text('최근순')),
+                            DropdownMenuItem(value: 'alpha',  child: Text('가나다순')),
+                          ],
+                          onChanged: (v) { if (v != null) { setState(() => _sort = v); _saveSortPref(v); } },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    ...[['all', '전체'], ['active', '진행'], ['done', '완료']].map((f) =>
+                      GestureDetector(
+                        onTap: () => setState(() => _filter = f[0]),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _filter == f[0] ? context.primaryColor : Colors.transparent,
+                            border: Border.all(color: _filter == f[0] ? context.primaryColor : context.borderColor),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(f[1], style: TextStyle(fontSize: 11, color: _filter == f[0] ? (context.onPrimary) : context.textSecondary)),
+                        ),
+                      )
+                    ),
+                  ]),
                 ]),
               ),
               const SizedBox(height: 10),

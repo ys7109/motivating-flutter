@@ -52,6 +52,8 @@ class FeedTabState extends State<FeedTab> {
               'title': g.title,
               'xp': g.xp,
               'createdAt': g.completedAt,
+              // 피드에서도 프로필 이미지 표시
+              'profileImageUrl': friendInfo['profileImageUrl'],
             });
           }
         }
@@ -107,7 +109,12 @@ class _FeedItem extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.borderColor, width: 0.5)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        CharacterAvatar(character: feed['character'] as Map<String, dynamic>?, size: 40),
+        // 프로필 이미지 포함
+        CharacterAvatar(
+          character: feed['character'] as Map<String, dynamic>?,
+          size: 40,
+          profileImageUrl: feed['profileImageUrl'] as String?,
+        ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [

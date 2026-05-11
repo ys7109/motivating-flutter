@@ -6,6 +6,7 @@ import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../services/chat_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/activity_notification_service.dart';
 import '../social/character_avatar.dart';
 
 class ChatRoomScreen extends StatefulWidget {
@@ -44,13 +45,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.initState();
     _myUid = context.read<AppProvider>().authUser!.uid;
     _title = widget.title;
+    // 현재 열린 채팅방 등록 — 포그라운드 알림 차단용
     currentOpenChatId = widget.chatId;
-    _initReadStatus(); // markAsRead 전에 lastReadAt 선로드
+    // markAsRead 전에 lastReadAt 선로드 — 읽음 1 깜빡임 방지
+    _initReadStatus();
     _subscribeReadStatus();
   }
 
   Future<void> _initReadStatus() async {
-    // lastReadAt 초기값 선로드 — 1 깜빡임 방지
+    // lastReadAt 초기값 선로드
     final snap = await FirebaseFirestore.instance
         .collection('chats').doc(widget.chatId).get();
     final raw = snap.data()?['lastReadAt'] as Map<String, dynamic>? ?? {};
@@ -61,6 +64,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
     // 선로드 완료 후 읽음 처리
     _chatService.markAsRead(widget.chatId, _myUid!);
+    // 채팅 알림 즉시 삭제 — 알림 배지 갱신
+    _deleteChatNotifications();
+  }
+
+  Future<void> _deleteChatNotifications() async {
+    if (_myUid == null) return;
+    await ActivityNotificationService().deleteNotificationsByType(_myUid!, 'chat');
+    if (mounted) {
+      // ignore: use_build_context_synchronously
+      context.read<AppProvider>().reloadUnreadNotifCount();
+    }
   }
 
   void _subscribeReadStatus() {
@@ -74,7 +88,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       // 상대방 lastReadAt만 비교 — 내 uid 변경(markAsRead)은 무시해서 루프 방지
       bool changed = false;
       for (final k in updated.keys) {
-        if (k == _myUid) continue; // 내 변경 무시
+        if (k == _myUid) continue;
         if (_lastReadAt[k] != updated[k]) { changed = true; break; }
       }
       if (changed) setState(() => _lastReadAt = updated);
@@ -98,20 +112,34 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     await _chatService.sendMessage(widget.chatId, _myUid!, receivers, content);
   }
 
-  // 내 메시지를 상대방이 읽었는지 확인
-  // 상대방의 lastReadAt이 Epoch(0)보다 크면 한 번 이상 읽은 것 → 쭉 읽음 유지
-  bool _isRead(MessageModel msg) {
+  // 1:1 채팅 읽음 여부 확인
+  // 상대방 lastReadAt이 메시지 작성 시각 이후면 읽은 것으로 판단
+  bool _isReadDirect(MessageModel msg) {
     final receivers = widget.memberUids.where((uid) => uid != _myUid);
     return receivers.any((uid) {
       final readTime = _lastReadAt[uid];
       if (readTime == null) return false;
-      // Epoch(0) = 아직 한 번도 읽지 않음
       if (readTime.millisecondsSinceEpoch == 0) return false;
-      // 한 번이라도 읽었으면 이후 모든 메시지도 읽음으로 표시
       if (msg.createdAt == null) return true;
-      return readTime.isAfter(
-          msg.createdAt!.subtract(const Duration(seconds: 1)));
+      return readTime.isAfter(msg.createdAt!.subtract(const Duration(seconds: 1)));
     });
+  }
+
+  // 그룹 채팅 미읽음 수신자 수 계산
+  // 메시지를 아직 읽지 않은 수신자 수 반환 (0이면 전원 읽음)
+  int _groupUnreadCount(MessageModel msg) {
+    if (msg.createdAt == null) return 0;
+    int count = 0;
+    for (final uid in widget.memberUids) {
+      if (uid == _myUid) continue;
+      final readTime = _lastReadAt[uid];
+      if (readTime == null || readTime.millisecondsSinceEpoch == 0) {
+        count++;
+      } else if (readTime.isBefore(msg.createdAt!)) {
+        count++;
+      }
+    }
+    return count;
   }
 
   @override
@@ -122,7 +150,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       body: SafeArea(
         bottom: false,
         child: Column(children: [
-          // 헤더
+          // 채팅방 헤더 — 뒤로가기, 아바타, 제목, 설정 버튼
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             decoration: BoxDecoration(
@@ -135,10 +163,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 child: Icon(Icons.arrow_back_ios, size: 18, color: context.textSecondary),
               ),
               const SizedBox(width: 12),
+              // 그룹 아바타 또는 1:1 상대방 아바타
               if (widget.isGroup)
-                Container(width: 36, height: 36,
-                    decoration: BoxDecoration(color: context.subtleBg, shape: BoxShape.circle),
-                    child: const Center(child: Text('👥', style: TextStyle(fontSize: 18))))
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: context.subtleBg, shape: BoxShape.circle),
+                  child: const Center(child: Text('👥', style: TextStyle(fontSize: 18))),
+                )
               else
                 CharacterAvatar(character: widget.otherCharacter, size: 36),
               const SizedBox(width: 10),
@@ -176,6 +207,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   _prevMsgCount = docs.length;
                   if (docs.isNotEmpty) {
                     _chatService.markAsRead(widget.chatId, _myUid!);
+                    // 새 메시지 수신 시 채팅 알림 즉시 삭제
+                    _deleteChatNotifications();
                   }
                 }
 
@@ -199,7 +232,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         && messages[idx - 1].createdAt != null
                         && msg.createdAt!.difference(
                             messages[idx - 1].createdAt!).inMinutes < 1;
-                    final isRead = isMe ? _isRead(msg) : false;
+
+                    // 읽음 표시 — 1:1은 읽음 여부, 그룹은 미읽음 수신자 수
+                    final isRead = isMe && !widget.isGroup ? _isReadDirect(msg) : false;
+                    final groupUnread = isMe && widget.isGroup ? _groupUnreadCount(msg) : 0;
 
                     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       if (showDate && msg.createdAt != null)
@@ -216,9 +252,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           ]),
                         ),
                       _MessageBubble(
-                        message: msg, isMe: isMe, isRead: isRead,
-                        isGroup: widget.isGroup, myUid: _myUid!,
-                        isContinued: isContinued, chatId: widget.chatId,
+                        message: msg,
+                        isMe: isMe,
+                        // 1:1 읽음 여부
+                        isRead: isRead,
+                        // 그룹 미읽음 수신자 수 (0이면 전원 읽음)
+                        groupUnreadCount: groupUnread,
+                        isGroup: widget.isGroup,
+                        myUid: _myUid!,
+                        isContinued: isContinued,
+                        chatId: widget.chatId,
                         chatService: _chatService,
                       ),
                     ]);
@@ -228,7 +271,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ),
           ),
 
-          // 입력창
+          // 메시지 입력창
           _ChatInputBar(controller: _msgCtrl, onSend: _send),
         ]),
       ),
@@ -248,11 +291,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         return Padding(
           padding: EdgeInsets.fromLTRB(0, 16, 0, bottomPad + 16),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 36, height: 4,
-                decoration: BoxDecoration(color: context.borderColor,
-                    borderRadius: BorderRadius.circular(99))),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                  color: context.borderColor, borderRadius: BorderRadius.circular(99)),
+            ),
             const SizedBox(height: 16),
-            // 이름 변경 (1:1, 그룹 모두)
+            // 채팅방 이름 변경 (1:1, 그룹 모두)
             ListTile(
               leading: Icon(Icons.edit_outlined, color: context.textPrimary),
               title: Text('채팅방 이름 변경',
@@ -267,7 +312,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w500)),
                 onTap: () { Navigator.pop(ctx); _showAddMemberDialog(context); },
               ),
-            // 나가기
+            // 채팅방 나가기
             ListTile(
               leading: const Icon(Icons.exit_to_app_rounded, color: AppTheme.danger),
               title: const Text('채팅방 나가기',
@@ -294,15 +339,21 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           decoration: InputDecoration(
             hintText: '채팅방 이름을 입력하세요',
             hintStyle: TextStyle(color: context.textSecondary),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: context.borderColor)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: context.primaryColor)),
+            enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: context.borderColor)),
+            focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: context.primaryColor)),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
-              child: Text('취소', style: TextStyle(color: context.textSecondary))),
-          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-              child: Text('변경', style: TextStyle(color: context.primaryColor))),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('취소', style: TextStyle(color: context.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: Text('변경', style: TextStyle(color: context.primaryColor)),
+          ),
         ],
       ),
     );
@@ -313,12 +364,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
-  
   Future<void> _showAddMemberDialog(BuildContext context) async {
     final app = context.read<AppProvider>();
     final chatSnap = await FirebaseFirestore.instance
         .collection('chats').doc(widget.chatId).get();
-    final currentMembers = List<String>.from(chatSnap.data()?['users'] ?? widget.memberUids);
+    final currentMembers = List<String>.from(
+        chatSnap.data()?['users'] ?? widget.memberUids);
     final friendships = await FirebaseFirestore.instance
         .collection('friendships')
         .where('users', arrayContains: _myUid)
@@ -333,8 +384,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       return;
     }
     final friendDocs = await Future.wait(
-        friendUids.map((uid) => FirebaseFirestore.instance.collection('users').doc(uid).get()));
-    final friends = friendDocs.where((d) => d.exists).map((d) => {'uid': d.id, ...d.data()!}).toList();
+        friendUids.map((uid) =>
+            FirebaseFirestore.instance.collection('users').doc(uid).get()));
+    final friends = friendDocs.where((d) => d.exists)
+        .map((d) => {'uid': d.id, ...d.data()!}).toList();
     if (!mounted) return;
     final selected = <String>{};
     await showModalBottomSheet(
@@ -351,9 +404,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('멤버 추가 (${selected.length}명 선택)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ctx.textPrimary)),
-                GestureDetector(onTap: () => Navigator.pop(ctx),
-                    child: Text('×', style: TextStyle(fontSize: 24, color: ctx.textSecondary))),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
+                        color: ctx.textPrimary)),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Text('×', style: TextStyle(fontSize: 24,
+                      color: ctx.textSecondary)),
+                ),
               ]),
               const SizedBox(height: 12),
               ...friends.map((f) {
@@ -361,21 +418,27 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 final isSelected = selected.contains(uid);
                 return GestureDetector(
                   onTap: () => setModal(() {
-                    if (isSelected) selected.remove(uid); else selected.add(uid);
+                    if (isSelected) selected.remove(uid);
+                    else selected.add(uid);
                   }),
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isSelected ? ctx.primaryColor.withOpacity(0.08) : ctx.surfaceColor,
+                      color: isSelected
+                          ? ctx.primaryColor.withOpacity(0.08)
+                          : ctx.surfaceColor,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isSelected ? ctx.primaryColor : ctx.borderColor,
-                          width: isSelected ? 1.5 : 0.5),
+                      border: Border.all(
+                        color: isSelected ? ctx.primaryColor : ctx.borderColor,
+                        width: isSelected ? 1.5 : 0.5,
+                      ),
                     ),
                     child: Row(children: [
                       Expanded(child: Text(f['name'] as String? ?? '모험가',
                           style: TextStyle(fontSize: 14, color: ctx.textPrimary))),
-                      if (isSelected) Icon(Icons.check_circle, size: 18, color: ctx.primaryColor),
+                      if (isSelected)
+                        Icon(Icons.check_circle, size: 18, color: ctx.primaryColor),
                     ]),
                   ),
                 );
@@ -395,9 +458,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(child: Text('추가하기',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                          color: selected.isEmpty ? ctx.textSecondary
-                              : (ctx.onPrimary)))),
+                      style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600,
+                        color: selected.isEmpty
+                            ? ctx.textSecondary : ctx.onPrimary,
+                      ))),
                 ),
               ),
             ]),
@@ -417,10 +482,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         content: Text('"$_title" 채팅방에서 나가시겠어요?',
             style: TextStyle(fontSize: 13, color: context.textSecondary)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false),
-              child: Text('취소', style: TextStyle(color: context.textSecondary))),
-          TextButton(onPressed: () => Navigator.pop(context, true),
-              child: const Text('나가기', style: TextStyle(color: AppTheme.danger))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('취소', style: TextStyle(color: context.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('나가기', style: TextStyle(color: AppTheme.danger)),
+          ),
         ],
       ),
     );
@@ -433,6 +502,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  // 날짜 레이블 — 오늘/어제/날짜 형식
   String _dateLabel(DateTime dt) {
     final now = DateTime.now();
     final diff = DateTime(now.year, now.month, now.day)
@@ -448,6 +518,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 }
 
+// 빈 채팅방 안내 위젯
 class _EmptyChat extends StatelessWidget {
   const _EmptyChat();
   @override
@@ -461,6 +532,7 @@ class _EmptyChat extends StatelessWidget {
   }
 }
 
+// 채팅 입력창 위젯
 class _ChatInputBar extends StatefulWidget {
   final TextEditingController controller;
   final Future<void> Function() onSend;
@@ -523,7 +595,8 @@ class _ChatInputBarState extends State<_ChatInputBar> {
                 hintText: '메시지를 입력하세요...',
                 hintStyle: TextStyle(fontSize: 14, color: context.textSecondary),
                 border: InputBorder.none, counterText: '',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
               ),
               onSubmitted: (_) => _handleSend(),
             ),
@@ -540,12 +613,13 @@ class _ChatInputBarState extends State<_ChatInputBar> {
               color: isEmpty ? context.borderColor : context.primaryColor,
             ),
             child: _sending
-                ? Padding(padding: const EdgeInsets.all(10),
-                    child: CircularProgressIndicator(strokeWidth: 2,
-                        color: context.onPrimary))
+                ? Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: context.onPrimary))
                 : Icon(Icons.send_rounded, size: 18,
-                    color: isEmpty ? context.textSecondary
-                        : (context.onPrimary)),
+                    color: isEmpty
+                        ? context.textSecondary : context.onPrimary),
           ),
         ),
       ]),
@@ -553,19 +627,28 @@ class _ChatInputBarState extends State<_ChatInputBar> {
   }
 }
 
+// 메시지 버블 위젯
 class _MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isMe, isGroup, isContinued, isRead;
+  // 그룹 채팅 미읽음 수신자 수 (0이면 전원 읽음)
+  final int groupUnreadCount;
   final String myUid, chatId;
   final ChatService chatService;
 
   const _MessageBubble({
-    required this.message, required this.isMe, required this.isGroup,
-    required this.myUid, required this.isContinued, required this.isRead,
-    required this.chatId, required this.chatService,
+    required this.message,
+    required this.isMe,
+    required this.isGroup,
+    required this.myUid,
+    required this.isContinued,
+    required this.isRead,
+    required this.groupUnreadCount,
+    required this.chatId,
+    required this.chatService,
   });
 
-  // 반응 추가 바텀시트 — isScrollControlled로 키보드 위에 표시
+  // 반응 추가 바텀시트
   void _showReactionPicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -574,15 +657,16 @@ class _MessageBubble extends StatelessWidget {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
-        // viewInsets.bottom: 키보드 높이 포함
-        final bottomPad = MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom;
+        final bottomPad = MediaQuery.of(ctx).viewInsets.bottom
+            + MediaQuery.of(ctx).padding.bottom;
         return Padding(
           padding: EdgeInsets.fromLTRB(24, 20, 24, bottomPad + 24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text('반응 추가', style: TextStyle(fontSize: 15,
                 fontWeight: FontWeight.w600, color: context.textPrimary)),
             const SizedBox(height: 16),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: kReactionEmojis.map((emoji) {
                 final reacted = (message.reactions[emoji] ?? []).contains(myUid);
                 return GestureDetector(
@@ -594,9 +678,13 @@ class _MessageBubble extends StatelessWidget {
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: reacted ? context.primaryColor.withOpacity(0.12) : context.subtleBg,
+                      color: reacted
+                          ? context.primaryColor.withOpacity(0.12)
+                          : context.subtleBg,
                       shape: BoxShape.circle,
-                      border: reacted ? Border.all(color: context.primaryColor.withOpacity(0.4)) : null,
+                      border: reacted
+                          ? Border.all(color: context.primaryColor.withOpacity(0.4))
+                          : null,
                     ),
                     child: Text(emoji, style: const TextStyle(fontSize: 28)),
                   ),
@@ -614,6 +702,7 @@ class _MessageBubble extends StatelessWidget {
     final reactionSummary = message.reactions.entries
         .where((e) => e.value.isNotEmpty).toList();
 
+    // 반응 추가 버튼 — 내 메시지가 아닐 때만 표시
     final reactionBtn = isMe ? const SizedBox.shrink() : GestureDetector(
       onTap: () => _showReactionPicker(context),
       child: Container(
@@ -622,86 +711,125 @@ class _MessageBubble extends StatelessWidget {
           color: context.subtleBg, shape: BoxShape.circle,
           border: Border.all(color: context.borderColor),
         ),
-        child: Icon(Icons.add_reaction_outlined, size: 14, color: context.textSecondary),
+        child: Icon(Icons.add_reaction_outlined, size: 14,
+            color: context.textSecondary),
       ),
     );
 
     return Padding(
       padding: EdgeInsets.only(bottom: reactionSummary.isNotEmpty ? 2 : 4),
       child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment:
+                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (isMe) ...[
+                // 읽음 표시 — 1:1: 읽음 여부, 그룹: 미읽음 수신자 수
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  if (!isRead)
-                    Text('1', style: TextStyle(fontSize: 10,
-                        color: context.primaryColor, fontWeight: FontWeight.w600)),
+                  if (isGroup && groupUnreadCount > 0)
+                    // 그룹 채팅 미읽음 수신자 수 표시
+                    Text('$groupUnreadCount', style: TextStyle(
+                        fontSize: 10,
+                        color: context.primaryColor,
+                        fontWeight: FontWeight.w600))
+                  else if (!isGroup && !isRead)
+                    // 1:1 채팅 미읽음 표시
+                    Text('1', style: TextStyle(
+                        fontSize: 10,
+                        color: context.primaryColor,
+                        fontWeight: FontWeight.w600)),
                   Text(message.timeStr,
-                      style: TextStyle(fontSize: 10, color: context.textSecondary)),
+                      style: TextStyle(fontSize: 10,
+                          color: context.textSecondary)),
                 ]),
                 const SizedBox(width: 4),
+                // 내 메시지 버블
                 Container(
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.62),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.62),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: context.primaryColor,
                     borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16), topRight: Radius.circular(16),
-                      bottomLeft: Radius.circular(16), bottomRight: Radius.circular(4),
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(4),
                     ),
                   ),
-                  child: Text(message.content, style: TextStyle(fontSize: 14,
-                      height: 1.4, color: context.onPrimary)),
+                  child: Text(message.content,
+                      style: TextStyle(fontSize: 14,
+                          height: 1.4, color: context.onPrimary)),
                 ),
               ] else ...[
+                // 상대방 메시지 버블
                 Container(
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.62),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.62),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: context.surfaceColor,
                     borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(4), topRight: Radius.circular(16),
-                      bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16),
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
                     ),
                     border: Border.all(color: context.borderColor, width: 0.5),
                   ),
-                  child: Text(message.content, style: TextStyle(fontSize: 14,
-                      height: 1.4, color: context.textPrimary)),
+                  child: Text(message.content,
+                      style: TextStyle(fontSize: 14,
+                          height: 1.4, color: context.textPrimary)),
                 ),
                 const SizedBox(width: 4),
                 Text(message.timeStr,
-                    style: TextStyle(fontSize: 10, color: context.textSecondary)),
+                    style: TextStyle(fontSize: 10,
+                        color: context.textSecondary)),
                 const SizedBox(width: 6),
                 reactionBtn,
               ],
             ],
           ),
+          // 이모지 반응 요약
           if (reactionSummary.isNotEmpty)
             Padding(
-              padding: EdgeInsets.only(top: 4, left: isMe ? 0 : 4, right: isMe ? 4 : 0),
-              child: Wrap(spacing: 4,
+              padding: EdgeInsets.only(
+                  top: 4, left: isMe ? 0 : 4, right: isMe ? 4 : 0),
+              child: Wrap(
+                spacing: 4,
                 children: reactionSummary.map((e) {
                   final isMine = e.value.contains(myUid);
                   return GestureDetector(
                     onTap: isMe ? null : () =>
-                        chatService.toggleReaction(chatId, message.id, myUid, e.key),
+                        chatService.toggleReaction(
+                            chatId, message.id, myUid, e.key),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: isMine ? context.primaryColor.withOpacity(0.15) : context.subtleBg,
+                        color: isMine
+                            ? context.primaryColor.withOpacity(0.15)
+                            : context.subtleBg,
                         borderRadius: BorderRadius.circular(99),
-                        border: Border.all(color: isMine
-                            ? context.primaryColor.withOpacity(0.4) : context.borderColor),
+                        border: Border.all(
+                          color: isMine
+                              ? context.primaryColor.withOpacity(0.4)
+                              : context.borderColor,
+                        ),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Text(e.key, style: const TextStyle(fontSize: 13)),
                         const SizedBox(width: 3),
-                        Text('${e.value.length}', style: TextStyle(fontSize: 11,
-                            color: context.textSecondary, fontWeight: FontWeight.w500)),
+                        Text('${e.value.length}',
+                            style: TextStyle(fontSize: 11,
+                                color: context.textSecondary,
+                                fontWeight: FontWeight.w500)),
                       ]),
                     ),
                   );

@@ -129,6 +129,8 @@ class DiaryTabState extends State<DiaryTab> with SingleTickerProviderStateMixin 
                   'level': app.userData!.level,
                   'character': app.userData!.character.toMap(),
                   'equippedAchievement': app.userData!.equippedAchievement,
+                  // 게시글에도 프로필 이미지 포함
+                  'profileImageUrl': app.userData!.profileImageUrl,
                 };
                 if (editing == null) {
                   await _diaryService.addDiary(uid, userData, contentCtrl.text.trim(), visibility);
@@ -295,7 +297,7 @@ class _DiaryCard extends StatelessWidget {
             border: Border.all(color: context.borderColor, width: 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            CharacterAvatar(character: diary.authorCharacter, size: 36),
+            CharacterAvatar(character: diary.authorCharacter, size: 36, profileImageUrl: diary.authorProfileImageUrl),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(diary.authorName,
@@ -465,6 +467,7 @@ class _CommentSheetState extends State<_CommentSheet> {
         'name': app.userData!.name,
         'character': app.userData!.character.toMap(),
         'equippedAchievement': app.userData!.equippedAchievement,
+        'profileImageUrl': app.userData!.profileImageUrl,
       }, _commentCtrl.text.trim());
       _commentCtrl.clear();
       await _load();
@@ -486,6 +489,7 @@ class _CommentSheetState extends State<_CommentSheet> {
           'name': app.userData!.name,
           'character': app.userData!.character.toMap(),
           'equippedAchievement': app.userData!.equippedAchievement,
+          'profileImageUrl': app.userData!.profileImageUrl,
         },
         _replyCtrl.text.trim(),
         commentAuthorUid: _replyingToAuthorUid,
@@ -545,7 +549,7 @@ class _CommentSheetState extends State<_CommentSheet> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   // 작성자 정보
                   Row(children: [
-                    CharacterAvatar(character: widget.diary.authorCharacter, size: 38),
+                    CharacterAvatar(character: widget.diary.authorCharacter, size: 38, profileImageUrl: widget.diary.authorProfileImageUrl),
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(widget.diary.authorName, style: TextStyle(fontSize: 14,
@@ -749,7 +753,7 @@ class _CommentItem extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // 댓글 본체
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          CharacterAvatar(character: comment.authorCharacter, size: 34),
+          CharacterAvatar(character: comment.authorCharacter, size: 34, profileImageUrl: comment.authorProfileImageUrl),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // 닉네임 + 칭호 + 시간
@@ -808,7 +812,7 @@ class _CommentItem extends StatelessWidget {
                     decoration: BoxDecoration(
                         color: context.borderColor, borderRadius: BorderRadius.circular(1)),
                   ),
-                  CharacterAvatar(character: r.authorCharacter, size: 28),
+                  CharacterAvatar(character: r.authorCharacter, size: 28, profileImageUrl: r.authorProfileImageUrl),
                   const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(crossAxisAlignment: CrossAxisAlignment.center, children: [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../goals/add_goal_screen.dart';
@@ -11,18 +12,49 @@ import '../../utils/transitions.dart';
 import '../my/mailbox_screen.dart';
 import '../my/activity_notification_screen.dart';
 
-// 홈 화면 — 오늘의 목표, XP 카드, 스트릭, 집중모드 진입 버튼
-// onSwitchTab: MainNav로부터 받은 탭 전환 콜백 (GlobalKey 대신 콜백 방식 사용)
+const _kNoticeId = 'notice_v1';
+const _kNoticeTitle = '서비스 이용 안내';
+const _kNoticeBody = 'Motivating을 이용해 주셔서 감사합니다. 현재 비공개 테스트 중으로, 건의 사항이나 불편한 점이 있으시면 cmarco4065@gmail.com으로 문의해 주세요. \n마이페이지 우측 상단의 설정 → 문의하기에서 바로 이메일 작성이 가능합니다.';
+
 class HomeScreen extends StatefulWidget {
   final ValueChanged<int>? onSwitchTab;
-
   const HomeScreen({super.key, this.onSwitchTab});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // 접속 시 공지사항 팝업 표시 — 다시 보지 않기 선택 전까지
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAndShowNotice());
+  }
+
+  Future<void> _checkAndShowNotice() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hidden = prefs.getBool('notice_hidden_$_kNoticeId') ?? false;
+    if (!hidden && mounted) _showNoticeDialog();
+  }
+
+  // 공지사항 팝업 다이얼로그
+  void _showNoticeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _NoticeDialog(
+        title: _kNoticeTitle,
+        body: _kNoticeBody,
+        onClose: () => Navigator.pop(ctx),
+        onHidePermanently: () async {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('notice_hidden_$_kNoticeId', true);
+          if (ctx.mounted) Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
@@ -30,16 +62,18 @@ class _HomeScreenState extends State<HomeScreen> {
     if (userData == null) return const SizedBox();
 
     final today = DateTime.now();
-    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final todayStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
     final weekDays = ['일', '월', '화', '수', '목', '금', '토'];
-    final todayLabel = '${today.month}월 ${today.day}일 (${weekDays[today.weekday % 7]})';
+    final todayLabel =
+        '${today.month}월 ${today.day}일 (${weekDays[today.weekday % 7]})';
 
-    // 오늘 날짜에 해당하는 목표 필터링 (scheduledDate 또는 createdAt 기준)
     final todayGoals = app.goals.where((g) {
       if (g.scheduledDate != null) return g.scheduledDate == todayStr;
       if (g.createdAt != null) {
         final d = g.createdAt!;
-        final ds = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        final ds =
+            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
         return ds == todayStr;
       }
       return false;
@@ -54,59 +88,84 @@ class _HomeScreenState extends State<HomeScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 24),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // 헤더: 인사말(좌) + 날짜(가운데 고정) + 버튼(우)
+              // 헤더
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: SizedBox(
                   height: 48,
                   child: Stack(alignment: Alignment.center, children: [
-                    // 날짜 텍스트 — Stack 중앙에 고정
                     Center(
                       child: Text(todayLabel,
-                          style: TextStyle(color: context.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+                          style: TextStyle(
+                              color: context.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500)),
                     ),
-                    // 인사말 — 왼쪽 정렬
                     Positioned(
                       left: 0,
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('좋은 하루예요,', style: TextStyle(color: context.textSecondary, fontSize: 13)),
+                        Text('좋은 하루예요,',
+                            style: TextStyle(color: context.textSecondary, fontSize: 13)),
                         const SizedBox(height: 2),
                         Text('${userData.name} 님',
-                            style: TextStyle(color: context.textPrimary, fontSize: 20, fontWeight: FontWeight.w600)),
+                            style: TextStyle(color: context.textPrimary,
+                                fontSize: 20, fontWeight: FontWeight.w600)),
                       ]),
                     ),
-                    // 우편함 + 알림 버튼 — 오른쪽 정렬 (동일 크기 36x36)
+                    // 우측 버튼 — 확성기 + 우편함 + 알림
                     Positioned(
                       right: 0,
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        // 확성기 버튼 — 공지사항 다시 보기
+                        GestureDetector(
+                          onTap: _showNoticeDialog,
+                          child: Container(
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(
+                                border: Border.all(color: context.borderColor),
+                                borderRadius: BorderRadius.circular(99)),
+                            child: Center(
+                                child: Icon(Icons.campaign_outlined,
+                                    size: 18, color: context.textSecondary)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         // 우편함 버튼
                         GestureDetector(
-                          onTap: () => Navigator.push(context, SlideRightRoute(page: const MailboxScreen())),
+                          onTap: () => Navigator.push(context,
+                              SlideRightRoute(page: const MailboxScreen())),
                           child: Stack(clipBehavior: Clip.none, children: [
                             Container(
                               width: 36, height: 36,
                               decoration: BoxDecoration(
                                   border: Border.all(color: context.borderColor),
                                   borderRadius: BorderRadius.circular(99)),
-                              child: Center(child: Icon(Icons.mail_outline_rounded, size: 18, color: context.textSecondary)),
+                              child: Center(
+                                  child: Icon(Icons.mail_outline_rounded,
+                                      size: 18, color: context.textSecondary)),
                             ),
                             if (app.unreadMailCount > 0)
-                              Positioned(top: -3, right: -3, child: Container(
-                                constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
-                                padding: const EdgeInsets.symmetric(horizontal: 3),
-                                decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
-                                child: Center(child: Text(
-                                  app.unreadMailCount > 99 ? '99+' : '${app.unreadMailCount}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                                )),
-                              )),
+                              Positioned(
+                                  top: -3, right: 0,
+                                  child: Container(
+                                    constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                                    decoration: const BoxDecoration(
+                                        color: AppTheme.danger, shape: BoxShape.circle),
+                                    child: Center(child: Text(
+                                      app.unreadMailCount > 99 ? '99+' : '${app.unreadMailCount}',
+                                      style: const TextStyle(color: Colors.white,
+                                          fontSize: 8, fontWeight: FontWeight.bold),
+                                    )),
+                                  )),
                           ]),
                         ),
                         const SizedBox(width: 8),
                         // 알림 버튼
                         GestureDetector(
                           onTap: () async {
-                            await Navigator.push(context, SlideRightRoute(page: const ActivityNotificationScreen()));
+                            await Navigator.push(context,
+                                SlideRightRoute(page: const ActivityNotificationScreen()));
                             if (context.mounted) app.reloadUnreadNotifCount();
                           },
                           child: Stack(clipBehavior: Clip.none, children: [
@@ -115,18 +174,24 @@ class _HomeScreenState extends State<HomeScreen> {
                               decoration: BoxDecoration(
                                   border: Border.all(color: context.borderColor),
                                   borderRadius: BorderRadius.circular(99)),
-                              child: Center(child: Icon(Icons.notifications_outlined, size: 18, color: context.textSecondary)),
+                              child: Center(
+                                  child: Icon(Icons.notifications_outlined,
+                                      size: 18, color: context.textSecondary)),
                             ),
                             if (app.unreadNotifCount > 0)
-                              Positioned(top: -3, right: -3, child: Container(
-                                constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
-                                padding: const EdgeInsets.symmetric(horizontal: 3),
-                                decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
-                                child: Center(child: Text(
-                                  app.unreadNotifCount > 99 ? '99+' : '${app.unreadNotifCount}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                                )),
-                              )),
+                              Positioned(
+                                  top: -3, right: 0,
+                                  child: Container(
+                                    constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                                    decoration: const BoxDecoration(
+                                        color: AppTheme.danger, shape: BoxShape.circle),
+                                    child: Center(child: Text(
+                                      app.unreadNotifCount > 99 ? '99+' : '${app.unreadNotifCount}',
+                                      style: const TextStyle(color: Colors.white,
+                                          fontSize: 8, fontWeight: FontWeight.bold),
+                                    )),
+                                  )),
                           ]),
                         ),
                       ]),
@@ -134,9 +199,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ]),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // XP 카드 — 레벨, XP 진행률 표시
+              // XP 카드
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -147,25 +212,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       border: Border.all(color: context.borderColor, width: 0.5)),
                   child: Column(children: [
                     Row(children: [
-                      // 레벨 원형 배지
                       Container(
                         width: 46, height: 46,
-                        decoration: BoxDecoration(color: context.primaryColor, shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                            color: context.primaryColor, shape: BoxShape.circle),
                         child: Center(child: Text('${userData.level}',
                             style: TextStyle(color: context.onPrimary,
                                 fontSize: 17, fontWeight: FontWeight.w600))),
                       ),
                       const SizedBox(width: 12),
                       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('현재 레벨', style: TextStyle(color: context.textSecondary, fontSize: 11)),
+                        Text('현재 레벨',
+                            style: TextStyle(color: context.textSecondary, fontSize: 11)),
                         const SizedBox(height: 2),
                         Text(_levelTitle(userData.level),
-                            style: TextStyle(color: context.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
+                            style: TextStyle(color: context.textPrimary,
+                                fontSize: 14, fontWeight: FontWeight.w500)),
                       ]),
                       const Spacer(),
                       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                         Text('${userData.xp}',
-                            style: TextStyle(color: context.textPrimary, fontSize: 22, fontWeight: FontWeight.w600)),
+                            style: TextStyle(color: context.textPrimary,
+                                fontSize: 22, fontWeight: FontWeight.w600)),
                         Text('/ ${userData.xpToNext} XP',
                             style: TextStyle(color: context.textSecondary, fontSize: 12)),
                       ]),
@@ -174,14 +242,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(99),
                       child: LinearProgressIndicator(
-                        value: app.xpPercent / 100, minHeight: 5,
+                        value: app.xpPercent / 100,
+                        minHeight: 5,
                         backgroundColor: context.borderColor,
                         valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor),
                       ),
                     ),
                     const SizedBox(height: 6),
                     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('Lv.${userData.level}', style: TextStyle(color: context.textSecondary, fontSize: 11)),
+                      Text('Lv.${userData.level}',
+                          style: TextStyle(color: context.textSecondary, fontSize: 11)),
                       Text('${userData.xpToNext - userData.xp} XP 남음',
                           style: TextStyle(color: context.textSecondary, fontSize: 11)),
                     ]),
@@ -190,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
 
-              // 통계 3개 카드 — 달성 목표, 최고 스트릭, 집중 시간
+              // 통계 카드
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(children: [
@@ -203,7 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
 
-              // 연속 출석 카드 — 출석 현황 및 마일스톤 진행률
+              // 연속 출석 카드
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -218,9 +288,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 10),
                       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('${userData.streak}일 연속 출석',
-                            style: TextStyle(color: context.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
+                            style: TextStyle(color: context.textPrimary,
+                                fontSize: 18, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 3),
-                        Text(userData.streak >= 7 ? '대단해요! 계속 유지하세요' : '7일까지 ${7 - userData.streak}일 남음',
+                        Text(
+                            userData.streak >= 7
+                                ? '대단해요! 계속 유지하세요'
+                                : '7일까지 ${7 - userData.streak}일 남음',
                             style: TextStyle(color: context.textSecondary, fontSize: 12)),
                       ]),
                     ]),
@@ -230,21 +304,22 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
 
-              // 오늘의 목표 헤더 — 전체 보기는 목표 탭(1)으로 전환
+              // 오늘의 목표 헤더
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text('오늘의 목표',
-                      style: TextStyle(color: context.textPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
+                      style: TextStyle(color: context.textPrimary,
+                          fontSize: 15, fontWeight: FontWeight.w500)),
                   GestureDetector(
                     onTap: () => widget.onSwitchTab?.call(1),
-                    child: Text('전체 보기 →', style: TextStyle(color: context.textSecondary, fontSize: 12)),
+                    child: Text('전체 보기 →',
+                        style: TextStyle(color: context.textSecondary, fontSize: 12)),
                   ),
                 ]),
               ),
               const SizedBox(height: 12),
 
-              // 오늘 목표 목록 — 최대 3개 표시
               if (todayGoals.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
@@ -261,14 +336,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   int? currentCount;
                   int? totalCount;
                   bool willAllDone = false;
-
                   if (g.repeatId != null) {
-                    final repeatGoals = app.goals.where((r) => r.repeatId == g.repeatId).toList()
-                      ..sort((a, b) => (a.scheduledDate ?? '').compareTo(b.scheduledDate ?? ''));
+                    final repeatGoals = app.goals
+                        .where((r) => r.repeatId == g.repeatId)
+                        .toList()
+                      ..sort((a, b) =>
+                          (a.scheduledDate ?? '').compareTo(b.scheduledDate ?? ''));
                     totalCount = repeatGoals.length;
                     currentCount = repeatGoals.indexWhere((r) => r.id == g.id) + 1;
-                    // 현재 목표 외 나머지가 모두 완료면 이 목표가 마지막
-                    willAllDone = repeatGoals.where((r) => r.id != g.id).every((r) => r.done);
+                    willAllDone = repeatGoals
+                        .where((r) => r.id != g.id)
+                        .every((r) => r.done);
                   }
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
@@ -287,7 +365,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: GestureDetector(
-                  onTap: () => Navigator.push(context, SlideUpRoute(page: const AddGoalScreen())),
+                  onTap: () => Navigator.push(
+                      context, SlideUpRoute(page: const AddGoalScreen())),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 13),
@@ -295,13 +374,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         border: Border.all(color: context.borderColor),
                         borderRadius: BorderRadius.circular(12)),
                     child: Center(child: Text('+ 목표 추가',
-                        style: TextStyle(color: context.textSecondary, fontSize: 14, fontWeight: FontWeight.w500))),
+                        style: TextStyle(color: context.textSecondary,
+                            fontSize: 14, fontWeight: FontWeight.w500))),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
 
-              // 집중 모드 카드 — 시작 버튼은 집중 탭(2)으로 전환
+              // 집중 모드 카드
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -312,18 +392,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       border: Border.all(color: context.borderColor, width: 0.5)),
                   child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('집중 모드', style: TextStyle(color: context.textSecondary, fontSize: 11, letterSpacing: 0.5)),
+                      Text('집중 모드',
+                          style: TextStyle(color: context.textSecondary,
+                              fontSize: 11, letterSpacing: 0.5)),
                       const SizedBox(height: 3),
                       Text('휴대폰 안쓰기',
-                          style: TextStyle(color: context.textPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
+                          style: TextStyle(color: context.textPrimary,
+                              fontSize: 15, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
-                      Text('10분당 +50 XP 획득', style: TextStyle(color: context.textSecondary, fontSize: 12)),
+                      Text('10분당 +50 XP 획득',
+                          style: TextStyle(color: context.textSecondary, fontSize: 12)),
                     ]),
                     GestureDetector(
                       onTap: () => widget.onSwitchTab?.call(2),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
+                        decoration: BoxDecoration(
+                            color: context.primaryColor,
+                            borderRadius: BorderRadius.circular(99)),
                         child: Text('시작',
                             style: TextStyle(color: context.onPrimary,
                                 fontSize: 14, fontWeight: FontWeight.w600)),
@@ -336,30 +422,92 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
 
-        // 레벨업 모달
         if (app.levelUpTo != null)
           LevelUpModal(level: app.levelUpTo!, onClose: () => app.dismissLevelUp()),
-        // 출석 모달
         if (app.showAttendModal)
           AttendanceModal(onClose: () => app.dismissAttendModal()),
-        // 연속 출석 모달 (마일스톤 / 끊김)
         if (app.streakModalType != null)
           StreakModal(type: app.streakModalType!, onClose: () => app.dismissStreakModal()),
       ]),
     );
   }
 
-  // 레벨별 칭호 텍스트
   String _levelTitle(int level) {
-    // 레벨 구간별 접두사 (1~10레벨)
-    const prefixes = ['', '새내기', '성장하는', '도전하는', '달리는', '노력하는', '빛나는', '도약하는', '질주하는', '각성한', '눈뜬'];
+    const prefixes = [
+      '', '새내기', '성장하는', '도전하는', '달리는', '노력하는',
+      '빛나는', '도약하는', '질주하는', '각성한', '눈뜬'
+    ];
     final prefix = level <= 10 ? prefixes[level] : '';
     final title = AppProvider.levelTitle(level);
     return prefix.isEmpty ? title : '$prefix $title';
   }
 }
 
-// 통계 카드 위젯 — 달성 목표 / 최고 출석 / 집중 시간
+// 공지사항 팝업 다이얼로그
+class _NoticeDialog extends StatelessWidget {
+  final String title, body;
+  final VoidCallback onClose;
+  final VoidCallback onHidePermanently;
+
+  const _NoticeDialog({
+    required this.title, required this.body,
+    required this.onClose, required this.onHidePermanently,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: context.modalBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // 헤더
+          Row(children: [
+            Icon(Icons.campaign_outlined, size: 20, color: context.primaryColor),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
+                    color: context.textPrimary))),
+            GestureDetector(
+              onTap: onClose,
+              child: Icon(Icons.close, size: 18, color: context.textSecondary),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          // 본문
+          Text(body, style: TextStyle(fontSize: 13, color: context.textPrimary, height: 1.7)),
+          const SizedBox(height: 20),
+          // 버튼 영역
+          Row(children: [
+            // 다시 보지 않기
+            GestureDetector(
+              onTap: onHidePermanently,
+              child: Text('다시 보지 않기',
+                  style: TextStyle(fontSize: 12, color: context.textSecondary,
+                      decorationColor: context.textSecondary)),
+            ),
+            const Spacer(),
+            // 확인 버튼
+            GestureDetector(
+              onTap: onClose,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+                decoration: BoxDecoration(
+                    color: context.primaryColor,
+                    borderRadius: BorderRadius.circular(99)),
+                child: Text('확인',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                        color: context.onPrimary)),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
 class _StatCard extends StatelessWidget {
   final String label, value, sub;
   const _StatCard({required this.label, required this.value, required this.sub});
@@ -375,7 +523,8 @@ class _StatCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(color: context.textSecondary, fontSize: 11)),
           const SizedBox(height: 4),
-          Text(value, style: TextStyle(color: context.textPrimary, fontSize: 19, fontWeight: FontWeight.w600)),
+          Text(value, style: TextStyle(color: context.textPrimary,
+              fontSize: 19, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
           Text(sub, style: TextStyle(color: context.textSecondary, fontSize: 11)),
         ]),
@@ -384,7 +533,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// 연속 출석 마일스톤 진행률 바 — 다음 마일스톤까지 남은 일수 표시
 class _StreakMilestone extends StatelessWidget {
   final int streak;
   const _StreakMilestone({required this.streak});
@@ -399,8 +547,10 @@ class _StreakMilestone extends StatelessWidget {
     return Column(children: [
       const SizedBox(height: 12),
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('🎁 특별 보상까지', style: TextStyle(color: context.textSecondary, fontSize: 11)),
-        Text('$next일 (${next - streak}일 남음)', style: TextStyle(color: context.textSecondary, fontSize: 11)),
+        Text('🎁 특별 보상까지',
+            style: TextStyle(color: context.textSecondary, fontSize: 11)),
+        Text('$next일 (${next - streak}일 남음)',
+            style: TextStyle(color: context.textSecondary, fontSize: 11)),
       ]),
       const SizedBox(height: 4),
       ClipRRect(
@@ -415,20 +565,15 @@ class _StreakMilestone extends StatelessWidget {
   }
 }
 
-// 목표 아이템 위젯 — 완료/취소 애니메이션, 반복 목표 회차 표시
 class _GoalItem extends StatefulWidget {
   final dynamic goal;
-  final int? currentCount;
-  final int? totalCount;
+  final int? currentCount, totalCount;
   final bool willAllDone;
   final VoidCallback onComplete, onUncomplete;
   const _GoalItem({
-    required this.goal,
-    this.currentCount,
-    this.totalCount,
+    required this.goal, this.currentCount, this.totalCount,
     this.willAllDone = false,
-    required this.onComplete,
-    required this.onUncomplete,
+    required this.onComplete, required this.onUncomplete,
   });
   @override
   State<_GoalItem> createState() => _GoalItemState();
@@ -459,17 +604,12 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
   @override
   Widget build(BuildContext context) {
     final g = widget.goal;
-    // 목표 유형별 태그 색상
     final tagColor = g.type == 'short' ? const Color(0xFF1b8a5a)
-        : g.type == 'mid' ? const Color(0xFFf9a825)
-        : const Color(0xFF3949ab);
+        : g.type == 'mid' ? const Color(0xFFf9a825) : const Color(0xFF3949ab);
     final tagLabel = g.type == 'short' ? '단기' : g.type == 'mid' ? '중기' : '장기';
     final isRepeat = g.repeatId != null;
-
-    // 마지막 회차 완료 시 repeatXp + xp, 그 외 repeatXp, 단일 목표는 xp
     final displayXp = isRepeat
-        ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp)
-        : g.xp;
+        ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp) : g.xp;
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 300),
@@ -483,7 +623,6 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: context.borderColor, width: 0.5)),
           child: Row(children: [
-            // 완료 체크 원형 버튼 — 완료 시 primaryColor로 채워짐
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               width: 24, height: 24,
@@ -492,61 +631,53 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
                 color: g.done ? context.primaryColor : Colors.transparent,
                 border: g.done ? null : Border.all(color: context.borderColor, width: 1.5),
               ),
-              child: g.done
-                  ? Icon(Icons.check, color: context.onPrimary, size: 13)
-                  : null,
+              child: g.done ? Icon(Icons.check, color: context.onPrimary, size: 13) : null,
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 200),
-                      style: TextStyle(
-                        color: g.done ? context.textSecondary : context.textPrimary,
-                        fontSize: 14, fontWeight: FontWeight.w500,
-                        decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none,
-                      ),
-                      child: Text(
-                        // 반복 목표는 현재/전체 회차 표시
-                        isRepeat && widget.currentCount != null && widget.totalCount != null
-                            ? '${g.title} (${widget.currentCount} / ${widget.totalCount})'
-                            : g.title,
-                      ),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    style: TextStyle(
+                      color: g.done ? context.textSecondary : context.textPrimary,
+                      fontSize: 14, fontWeight: FontWeight.w500,
+                      decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none,
                     ),
+                    child: Text(isRepeat && widget.currentCount != null && widget.totalCount != null
+                        ? '${g.title} (${widget.currentCount} / ${widget.totalCount})'
+                        : g.title),
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                        color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
-                    child: Text(isRepeat ? '반복' : tagLabel,
-                        style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(99),
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0, end: (g.progress ?? 0) / 100),
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.easeOut,
-                        builder: (_, value, __) => LinearProgressIndicator(
-                          value: value, minHeight: 4,
-                          backgroundColor: context.borderColor,
-                          valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('${g.progress ?? 0}%', style: TextStyle(color: context.textSecondary, fontSize: 11)),
-                ]),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: tagColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(4)),
+                  child: Text(isRepeat ? '반복' : tagLabel,
+                      style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
+                ),
               ]),
-            ),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: (g.progress ?? 0) / 100),
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeOut,
+                    builder: (_, value, __) => LinearProgressIndicator(
+                      value: value, minHeight: 4,
+                      backgroundColor: context.borderColor,
+                      valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor),
+                    ),
+                  ),
+                )),
+                const SizedBox(width: 8),
+                Text('${g.progress ?? 0}%',
+                    style: TextStyle(color: context.textSecondary, fontSize: 11)),
+              ]),
+            ])),
             const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               AnimatedDefaultTextStyle(
@@ -559,7 +690,6 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
               ),
               if (g.done) ...[
                 const SizedBox(height: 6),
-                // 완료 취소 버튼
                 GestureDetector(
                   onTap: widget.onUncomplete,
                   child: Container(
@@ -567,7 +697,8 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
                     decoration: BoxDecoration(
                         border: Border.all(color: context.borderColor),
                         borderRadius: BorderRadius.circular(6)),
-                    child: Text('취소', style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                    child: Text('취소',
+                        style: TextStyle(fontSize: 11, color: context.textSecondary)),
                   ),
                 ),
               ],

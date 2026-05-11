@@ -6,8 +6,6 @@ class DiaryService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final _notifService = ActivityNotificationService();
 
-  // 다이어리 CRUD
-
   Future<List<DiaryModel>> getMyDiaries(String uid) async {
     final snap = await _db.collection('diaries').where('uid', isEqualTo: uid).get();
     final results = snap.docs.map((d) => DiaryModel.fromMap(d.id, d.data())).toList();
@@ -57,6 +55,8 @@ class DiaryService {
       'authorCharacter': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       'authorLevel': userData['level'] ?? 1,
       'authorEquippedAchievement': userData['equippedAchievement'],
+      // 프로필 이미지 저장
+      'authorProfileImageUrl': userData['profileImageUrl'],
       'content': content,
       'visibility': visibility,
       'likeCount': 0,
@@ -74,8 +74,9 @@ class DiaryService {
     });
   }
 
+  // 작성자 정보 일괄 업데이트 — 닉네임/캐릭터/칭호/프로필 이미지 변경 시 호출
   Future<void> updateAuthorInfo(String uid, String name, Map<String, dynamic> character, int level,
-      {String? equippedAchievement}) async {
+      {String? equippedAchievement, String? profileImageUrl}) async {
     final snap = await _db.collection('diaries').where('uid', isEqualTo: uid).get();
     if (snap.docs.isEmpty) return;
     const maxBatch = 500;
@@ -84,8 +85,12 @@ class DiaryService {
       final batch = _db.batch();
       for (final doc in chunk) {
         batch.update(doc.reference, {
-          'authorName': name, 'authorCharacter': character,
-          'authorLevel': level, 'authorEquippedAchievement': equippedAchievement,
+          'authorName': name,
+          'authorCharacter': character,
+          'authorLevel': level,
+          'authorEquippedAchievement': equippedAchievement,
+          // 프로필 이미지도 함께 업데이트
+          'authorProfileImageUrl': profileImageUrl,
         });
       }
       await batch.commit();
@@ -118,8 +123,6 @@ class DiaryService {
     } else {
       await likeRef.set({'uid': myUid, 'createdAt': FieldValue.serverTimestamp()});
       await diaryRef.update({'likeCount': FieldValue.increment(1)});
-
-      // 좋아요 알림 전송
       if (myUserData != null) {
         final diarySnap = await diaryRef.get();
         final diaryData = diarySnap.data();
@@ -144,8 +147,6 @@ class DiaryService {
     return snap.exists;
   }
 
-  // 댓글 CRUD
-
   Future<List<CommentModel>> getComments(String diaryId) async {
     final snap = await _db
         .collection('diaries').doc(diaryId).collection('comments')
@@ -161,7 +162,7 @@ class DiaryService {
     return comments;
   }
 
-  // 댓글 작성 + 알림
+  // 댓글 작성 + 알림 — profileImageUrl 포함
   Future<void> addComment(String diaryId, Map<String, dynamic> userData, String content) async {
     final batch = _db.batch();
     final commentRef = _db.collection('diaries').doc(diaryId).collection('comments').doc();
@@ -170,6 +171,8 @@ class DiaryService {
       'authorName': userData['name'] ?? '모험가',
       'authorCharacter': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       'authorEquippedAchievement': userData['equippedAchievement'],
+      // 댓글에도 프로필 이미지 저장
+      'authorProfileImageUrl': userData['profileImageUrl'],
       'content': content,
       'replyCount': 0,
       'createdAt': FieldValue.serverTimestamp(),
@@ -179,7 +182,6 @@ class DiaryService {
     });
     await batch.commit();
 
-    // 댓글 알림 전송 (다이어리 작성자에게)
     final diarySnap = await _db.collection('diaries').doc(diaryId).get();
     final diaryData = diarySnap.data();
     if (diaryData != null && diaryData['uid'] != userData['uid']) {
@@ -208,9 +210,7 @@ class DiaryService {
     await batch.commit();
   }
 
-  // 대댓글 CRUD
-
-  // 대댓글 작성 + 알림 (댓글 작성자에게)
+  // 답글 작성 + 알림 — profileImageUrl 포함
   Future<void> addReply(String diaryId, String commentId, Map<String, dynamic> userData,
       String content, {String? commentAuthorUid, String? commentContent}) async {
     final batch = _db.batch();
@@ -223,6 +223,8 @@ class DiaryService {
       'authorName': userData['name'] ?? '모험가',
       'authorCharacter': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       'authorEquippedAchievement': userData['equippedAchievement'],
+      // 답글에도 프로필 이미지 저장
+      'authorProfileImageUrl': userData['profileImageUrl'],
       'content': content,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -235,7 +237,6 @@ class DiaryService {
     });
     await batch.commit();
 
-    // 대댓글 알림 (댓글 작성자에게, 본인 댓글이 아닌 경우)
     if (commentAuthorUid != null && commentAuthorUid != userData['uid']) {
       await _notifService.sendReplyNotification(
         targetUid: commentAuthorUid,
@@ -267,13 +268,14 @@ class DiaryService {
   }
 }
 
-// CommentModel
+// CommentModel — authorProfileImageUrl 추가
 class CommentModel {
   final String id;
   final String uid;
   final String authorName;
   final Map<String, dynamic> authorCharacter;
   final String? authorEquippedAchievement;
+  final String? authorProfileImageUrl;
   final String content;
   final int replyCount;
   final List<ReplyModel> replies;
@@ -282,6 +284,7 @@ class CommentModel {
   CommentModel({
     required this.id, required this.uid, required this.authorName,
     required this.authorCharacter, this.authorEquippedAchievement,
+    this.authorProfileImageUrl,
     required this.content, this.replyCount = 0,
     this.replies = const [], this.createdAt,
   });
@@ -293,6 +296,7 @@ class CommentModel {
       authorCharacter: Map<String, dynamic>.from(
           map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
       authorEquippedAchievement: map['authorEquippedAchievement'] as String?,
+      authorProfileImageUrl: map['authorProfileImageUrl'] as String?,
       content: map['content'] ?? '',
       replyCount: map['replyCount'] ?? 0,
       replies: replies,
@@ -310,19 +314,21 @@ class CommentModel {
   }
 }
 
-// ReplyModel
+// ReplyModel — authorProfileImageUrl 추가
 class ReplyModel {
   final String id;
   final String uid;
   final String authorName;
   final Map<String, dynamic> authorCharacter;
   final String? authorEquippedAchievement;
+  final String? authorProfileImageUrl;
   final String content;
   final DateTime? createdAt;
 
   ReplyModel({
     required this.id, required this.uid, required this.authorName,
     required this.authorCharacter, this.authorEquippedAchievement,
+    this.authorProfileImageUrl,
     required this.content, this.createdAt,
   });
 
@@ -333,6 +339,7 @@ class ReplyModel {
       authorCharacter: Map<String, dynamic>.from(
           map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
       authorEquippedAchievement: map['authorEquippedAchievement'] as String?,
+      authorProfileImageUrl: map['authorProfileImageUrl'] as String?,
       content: map['content'] ?? '',
       createdAt: map['createdAt'] != null ? (map['createdAt'] as Timestamp).toDate() : null,
     );

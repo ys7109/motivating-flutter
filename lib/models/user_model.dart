@@ -5,6 +5,8 @@ class UserModel {
   final String name;
   final String email;
   final String photoURL;
+  // 사용자가 직접 업로드한 프로필 이미지 URL (없으면 캐릭터 아바타 사용)
+  final String? profileImageUrl;
   final int level;
   final int xp;
   final int xpToNext;
@@ -32,6 +34,7 @@ class UserModel {
     required this.name,
     required this.email,
     required this.photoURL,
+    this.profileImageUrl,
     required this.level,
     required this.xp,
     required this.xpToNext,
@@ -55,7 +58,8 @@ class UserModel {
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
     // achievementUnlockedAt: Map<String, Timestamp> → Map<String, DateTime>
-    final rawUnlocked = map['achievementUnlockedAt'] as Map<String, dynamic>? ?? {};
+    final rawUnlocked =
+        map['achievementUnlockedAt'] as Map<String, dynamic>? ?? {};
     final unlockedAt = rawUnlocked.map((k, v) =>
         MapEntry(k, v is Timestamp ? v.toDate() : DateTime.now()));
 
@@ -72,6 +76,8 @@ class UserModel {
       name: map['name'] ?? '새로운 모험가',
       email: map['email'] ?? '',
       photoURL: map['photoURL'] ?? '',
+      // 사용자가 직접 업로드한 프로필 이미지 URL
+      profileImageUrl: map['profileImageUrl'] as String?,
       level: level,
       xp: xp,
       xpToNext: map['xpToNext'] ?? 300,
@@ -92,7 +98,8 @@ class UserModel {
           ? (map['createdAt'] as Timestamp).toDate()
           : null,
       achievements: Set<String>.from(map['achievements'] ?? []),
-      claimedAchievements: Set<String>.from(map['claimedAchievements'] ?? []),
+      claimedAchievements:
+          Set<String>.from(map['claimedAchievements'] ?? []),
       equippedAchievement: map['equippedAchievement'] as String?,
       achievementUnlockedAt: unlockedAt,
     );
@@ -111,6 +118,7 @@ class UserModel {
 
   UserModel copyWith({
     String? name,
+    String? profileImageUrl,
     int? level,
     int? xp,
     int? xpToNext,
@@ -135,6 +143,7 @@ class UserModel {
       name: name ?? this.name,
       email: email,
       photoURL: photoURL,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       level: level ?? this.level,
       xp: xp ?? this.xp,
       xpToNext: xpToNext ?? this.xpToNext,
@@ -155,12 +164,13 @@ class UserModel {
       equippedAchievement: equippedAchievement == _sentinel
           ? this.equippedAchievement
           : equippedAchievement as String?,
-      achievementUnlockedAt: achievementUnlockedAt ?? this.achievementUnlockedAt,
+      achievementUnlockedAt:
+          achievementUnlockedAt ?? this.achievementUnlockedAt,
     );
   }
 }
 
-// null을 명시적으로 전달하기 위한 sentinel
+// null을 명시적으로 전달하기 위한 sentinel 객체
 const Object _sentinel = Object();
 
 class CharacterModel {
@@ -183,8 +193,8 @@ class CharacterModel {
   }
 
   Map<String, dynamic> toMap() => {
-    'skin': skin,
-    'badge': badge,
-    'frame': frame,
-  };
+        'skin': skin,
+        'badge': badge,
+        'frame': frame,
+      };
 }

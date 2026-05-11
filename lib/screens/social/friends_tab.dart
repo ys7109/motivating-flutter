@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../services/friend_service.dart';
+import '../../services/activity_notification_service.dart';
 import 'character_avatar.dart';
 import '../../models/achievement_definitions.dart';
 import '../../services/chat_service.dart';
@@ -45,7 +46,11 @@ class FriendsTabState extends State<FriendsTab> {
     super.dispose();
   }
 
-  Future<void> reload() async => _loadRankings();
+  Future<void> reload() async {
+    // 랭킹만 reload — 스트림 재구독하면 _FriendTile presence 구독이 끊김
+    await _loadRankings();
+    // 친구 목록은 friendsStream이 자동 갱신
+  }
 
   void _startStreams() {
     final uid = context.read<AppProvider>().authUser!.uid;
@@ -207,14 +212,23 @@ class FriendsTabState extends State<FriendsTab> {
     final app = context.read<AppProvider>();
     final uid = app.authUser!.uid;
     await _friendService.acceptRequest(uid, fromUid);
-    if (mounted) app.showToast('친구 요청을 수락했어요!');
+    // 친구 요청 알림 즉시 삭제 — 알림 배지 갱신
+    await ActivityNotificationService().deleteNotificationByFromUid(uid, fromUid, 'friend_request');
+    if (mounted) {
+      app.showToast('친구 요청을 수락했어요!');
+      app.reloadUnreadNotifCount();
+    }
     // 업적 체크 — 친구 추가 달성 여부 확인
     await app.onFriendAdded();
   }
 
   Future<void> _rejectRequest(String fromUid) async {
-    final uid = context.read<AppProvider>().authUser!.uid;
+    final app = context.read<AppProvider>();
+    final uid = app.authUser!.uid;
     await _friendService.removeFriend(uid, fromUid);
+    // 친구 요청 알림 즉시 삭제 — 알림 배지 갱신
+    await ActivityNotificationService().deleteNotificationByFromUid(uid, fromUid, 'friend_request');
+    if (mounted) app.reloadUnreadNotifCount();
   }
 
   Future<void> _removeFriend(String friendUid) async {
@@ -418,7 +432,7 @@ class FriendsTabState extends State<FriendsTab> {
                       : Text('${user['rank']}', style: TextStyle(fontSize: 14,
                           fontWeight: FontWeight.w600, color: context.textSecondary)))),
                   const SizedBox(width: 8),
-                  CharacterAvatar(character: user['character'] as Map<String, dynamic>?, size: 36),
+                  CharacterAvatar(character: user['character'] as Map<String, dynamic>?, size: 36, profileImageUrl: user['profileImageUrl'] as String?),
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
@@ -524,15 +538,19 @@ class _FriendTileState extends State<_FriendTile> {
   StreamSubscription? _presenceSub;
   String _presenceStatus = 'offline';
   dynamic _lastSeen;
+  // 시간 표시 갱신 타이머 — "N분 전 접속" 숫자 실시간 업데이트
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    // 초기값은 friendsStream에서 넘어온 값 사용
     _presenceStatus = widget.friend['presenceStatus'] as String? ?? 'offline';
     _lastSeen = widget.friend['lastSeen'];
-    // presence 스트림 구독 시작
     _subscribePres();
+    // 1분마다 UI 갱신 — "N분 전 접속" 숫자 업데이트
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _subscribePres() {
@@ -549,8 +567,8 @@ class _FriendTileState extends State<_FriendTile> {
 
   @override
   void dispose() {
-    // presence 구독 해제
     _presenceSub?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -621,7 +639,7 @@ class _FriendTileState extends State<_FriendTile> {
           border: Border.all(color: context.borderColor, width: 0.5)),
       child: Row(children: [
         Stack(children: [
-          CharacterAvatar(character: friend['character'] as Map<String, dynamic>?, size: 40),
+          CharacterAvatar(character: friend['character'] as Map<String, dynamic>?, size: 40, profileImageUrl: friend['profileImageUrl'] as String?),
           // 접속 상태 도트
           Positioned(bottom: 0, right: 0, child: Container(
             width: 12, height: 12,
