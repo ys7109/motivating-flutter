@@ -7,13 +7,17 @@ class DiaryService {
   final _notifService = ActivityNotificationService();
 
   Future<List<DiaryModel>> getMyDiaries(String uid) async {
-    final snap = await _db.collection('diaries').where('uid', isEqualTo: uid).get();
-    final results = snap.docs.map((d) => DiaryModel.fromMap(d.id, d.data())).toList();
-    results.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+    final snap =
+        await _db.collection('diaries').where('uid', isEqualTo: uid).get();
+    final results =
+        snap.docs.map((d) => DiaryModel.fromMap(d.id, d.data())).toList();
+    results.sort((a, b) =>
+        (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
     return results;
   }
 
-  Future<List<DiaryModel>> getFriendDiaries(String myUid, List<String> friendUids) async {
+  Future<List<DiaryModel>> getFriendDiaries(
+      String myUid, List<String> friendUids) async {
     if (friendUids.isEmpty) return [];
     final chunks = <List<String>>[];
     for (int i = 0; i < friendUids.length; i += 30) {
@@ -21,38 +25,43 @@ class DiaryService {
     }
     final results = <DiaryModel>[];
     for (final chunk in chunks) {
-      final snap = await _db.collection('diaries')
+      final snap = await _db
+          .collection('diaries')
           .where('uid', whereIn: chunk)
-          .where('visibility', whereIn: ['friends', 'public'])
-          .get();
+          .where('visibility', whereIn: ['friends', 'public']).get();
       for (final d in snap.docs) {
         final likedByMe = await _isLiked(myUid, d.id);
         results.add(DiaryModel.fromMap(d.id, d.data(), likedByMe: likedByMe));
       }
     }
-    results.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+    results.sort((a, b) =>
+        (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
     return results;
   }
 
   Future<List<DiaryModel>> getPublicDiaries(String myUid) async {
-    final snap = await _db.collection('diaries')
+    final snap = await _db
+        .collection('diaries')
         .where('visibility', isEqualTo: 'public')
         .limit(30)
         .get();
     final results = <DiaryModel>[];
     for (final d in snap.docs) {
       final likedByMe = await _isLiked(myUid, d.id);
-      results.add(DiaryModel.fromMap(d.id, d.data() as Map<String, dynamic>, likedByMe: likedByMe));
+      results.add(DiaryModel.fromMap(d.id, d.data(), likedByMe: likedByMe));
     }
-    results.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+    results.sort((a, b) =>
+        (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
     return results;
   }
 
-  Future<void> addDiary(String uid, Map<String, dynamic> userData, String content, String visibility) async {
+  Future<void> addDiary(String uid, Map<String, dynamic> userData,
+      String content, String visibility) async {
     await _db.collection('diaries').add({
       'uid': uid,
       'authorName': userData['name'] ?? '모험가',
-      'authorCharacter': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
+      'authorCharacter': userData['character'] ??
+          {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       'authorLevel': userData['level'] ?? 1,
       'authorEquippedAchievement': userData['equippedAchievement'],
       // 프로필 이미지 저장
@@ -66,7 +75,8 @@ class DiaryService {
     });
   }
 
-  Future<void> updateDiary(String diaryId, String content, String visibility) async {
+  Future<void> updateDiary(
+      String diaryId, String content, String visibility) async {
     await _db.collection('diaries').doc(diaryId).update({
       'content': content,
       'visibility': visibility,
@@ -75,13 +85,16 @@ class DiaryService {
   }
 
   // 작성자 정보 일괄 업데이트 — 닉네임/캐릭터/칭호/프로필 이미지 변경 시 호출
-  Future<void> updateAuthorInfo(String uid, String name, Map<String, dynamic> character, int level,
+  Future<void> updateAuthorInfo(
+      String uid, String name, Map<String, dynamic> character, int level,
       {String? equippedAchievement, String? profileImageUrl}) async {
-    final snap = await _db.collection('diaries').where('uid', isEqualTo: uid).get();
+    final snap =
+        await _db.collection('diaries').where('uid', isEqualTo: uid).get();
     if (snap.docs.isEmpty) return;
     const maxBatch = 500;
     for (int i = 0; i < snap.docs.length; i += maxBatch) {
-      final chunk = snap.docs.sublist(i, (i + maxBatch).clamp(0, snap.docs.length));
+      final chunk =
+          snap.docs.sublist(i, (i + maxBatch).clamp(0, snap.docs.length));
       final batch = _db.batch();
       for (final doc in chunk) {
         batch.update(doc.reference, {
@@ -98,11 +111,17 @@ class DiaryService {
   }
 
   Future<void> deleteDiary(String diaryId) async {
-    final comments = await _db.collection('diaries').doc(diaryId).collection('comments').get();
+    final comments = await _db
+        .collection('diaries')
+        .doc(diaryId)
+        .collection('comments')
+        .get();
     final batch = _db.batch();
     for (final c in comments.docs) {
       final replies = await c.reference.collection('replies').get();
-      for (final r in replies.docs) batch.delete(r.reference);
+      for (final r in replies.docs) {
+        batch.delete(r.reference);
+      }
       batch.delete(c.reference);
     }
     batch.delete(_db.collection('diaries').doc(diaryId));
@@ -112,7 +131,8 @@ class DiaryService {
   // 좋아요 토글 + 알림
   Future<bool> toggleLike(String myUid, String diaryId,
       {Map<String, dynamic>? myUserData}) async {
-    final likeRef = _db.collection('diaries').doc(diaryId).collection('likes').doc(myUid);
+    final likeRef =
+        _db.collection('diaries').doc(diaryId).collection('likes').doc(myUid);
     final snap = await likeRef.get();
     final diaryRef = _db.collection('diaries').doc(diaryId);
 
@@ -121,7 +141,8 @@ class DiaryService {
       await diaryRef.update({'likeCount': FieldValue.increment(-1)});
       return false;
     } else {
-      await likeRef.set({'uid': myUid, 'createdAt': FieldValue.serverTimestamp()});
+      await likeRef
+          .set({'uid': myUid, 'createdAt': FieldValue.serverTimestamp()});
       await diaryRef.update({'likeCount': FieldValue.increment(1)});
       if (myUserData != null) {
         final diarySnap = await diaryRef.get();
@@ -131,8 +152,8 @@ class DiaryService {
             targetUid: diaryData['uid'],
             fromUid: myUid,
             fromName: myUserData['name'] ?? '모험가',
-            fromCharacter: Map<String, dynamic>.from(
-                myUserData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
+            fromCharacter: Map<String, dynamic>.from(myUserData['character'] ??
+                {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
             diaryId: diaryId,
             diaryContent: diaryData['content'] ?? '',
           );
@@ -143,33 +164,82 @@ class DiaryService {
   }
 
   Future<bool> _isLiked(String myUid, String diaryId) async {
-    final snap = await _db.collection('diaries').doc(diaryId).collection('likes').doc(myUid).get();
+    final snap = await _db
+        .collection('diaries')
+        .doc(diaryId)
+        .collection('likes')
+        .doc(myUid)
+        .get();
     return snap.exists;
   }
 
   Future<List<CommentModel>> getComments(String diaryId) async {
     final snap = await _db
-        .collection('diaries').doc(diaryId).collection('comments')
+        .collection('diaries')
+        .doc(diaryId)
+        .collection('comments')
         .orderBy('createdAt', descending: false)
         .get();
+    final userUids = <String>{};
+    final replySnapshots = <String, QuerySnapshot<Map<String, dynamic>>>{};
+    for (final doc in snap.docs) {
+      final uid = doc.data()['uid'] as String?;
+      if (uid != null && uid.isNotEmpty) userUids.add(uid);
+      final repliesSnap = await doc.reference
+          .collection('replies')
+          .orderBy('createdAt', descending: false)
+          .get();
+      replySnapshots[doc.id] = repliesSnap;
+      for (final reply in repliesSnap.docs) {
+        final replyUid = reply.data()['uid'] as String?;
+        if (replyUid != null && replyUid.isNotEmpty) userUids.add(replyUid);
+      }
+    }
+    final currentProfiles = await _loadCurrentProfiles(userUids);
     final comments = <CommentModel>[];
     for (final doc in snap.docs) {
-      final repliesSnap = await doc.reference.collection('replies')
-          .orderBy('createdAt', descending: false).get();
-      final replies = repliesSnap.docs.map((r) => ReplyModel.fromMap(r.id, r.data())).toList();
-      comments.add(CommentModel.fromMap(doc.id, doc.data(), replies: replies));
+      final repliesSnap = replySnapshots[doc.id];
+      final replies = repliesSnap!.docs.map((r) {
+        final data = Map<String, dynamic>.from(r.data());
+        _applyCurrentProfileImage(data, currentProfiles);
+        return ReplyModel.fromMap(r.id, data);
+      }).toList();
+      final data = Map<String, dynamic>.from(doc.data());
+      _applyCurrentProfileImage(data, currentProfiles);
+      comments.add(CommentModel.fromMap(doc.id, data, replies: replies));
     }
     return comments;
   }
 
+  Future<Map<String, String?>> _loadCurrentProfiles(Set<String> uids) async {
+    final profiles = <String, String?>{};
+    for (final uid in uids) {
+      final snap = await _db.collection('users').doc(uid).get();
+      profiles[uid] = snap.data()?['profileImageUrl'] as String?;
+    }
+    return profiles;
+  }
+
+  void _applyCurrentProfileImage(
+    Map<String, dynamic> data,
+    Map<String, String?> currentProfiles,
+  ) {
+    final uid = data['uid'] as String?;
+    if (uid == null || !currentProfiles.containsKey(uid)) return;
+    data['authorProfileImageUrl'] = currentProfiles[uid];
+  }
+
   // 댓글 작성 + 알림 — profileImageUrl 포함
-  Future<void> addComment(String diaryId, Map<String, dynamic> userData, String content) async {
+  Future<void> addComment(
+      String diaryId, Map<String, dynamic> userData, String content) async {
     final batch = _db.batch();
-    final commentRef = _db.collection('diaries').doc(diaryId).collection('comments').doc();
+    final commentRef =
+        _db.collection('diaries').doc(diaryId).collection('comments').doc();
     batch.set(commentRef, {
       'uid': userData['uid'],
       'authorName': userData['name'] ?? '모험가',
-      'authorCharacter': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
+      'authorCharacter': userData['character'] ??
+          {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       'authorEquippedAchievement': userData['equippedAchievement'],
       // 댓글에도 프로필 이미지 저장
       'authorProfileImageUrl': userData['profileImageUrl'],
@@ -189,8 +259,8 @@ class DiaryService {
         targetUid: diaryData['uid'],
         fromUid: userData['uid'],
         fromName: userData['name'] ?? '모험가',
-        fromCharacter: Map<String, dynamic>.from(
-            userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
+        fromCharacter: Map<String, dynamic>.from(userData['character'] ??
+            {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
         diaryId: diaryId,
         diaryContent: diaryData['content'] ?? '',
         commentContent: content,
@@ -198,11 +268,18 @@ class DiaryService {
     }
   }
 
-  Future<void> deleteComment(String diaryId, String commentId, int replyCount) async {
-    final commentRef = _db.collection('diaries').doc(diaryId).collection('comments').doc(commentId);
+  Future<void> deleteComment(
+      String diaryId, String commentId, int replyCount) async {
+    final commentRef = _db
+        .collection('diaries')
+        .doc(diaryId)
+        .collection('comments')
+        .doc(commentId);
     final replies = await commentRef.collection('replies').get();
     final batch = _db.batch();
-    for (final r in replies.docs) batch.delete(r.reference);
+    for (final r in replies.docs) {
+      batch.delete(r.reference);
+    }
     batch.delete(commentRef);
     batch.update(_db.collection('diaries').doc(diaryId), {
       'commentCount': FieldValue.increment(-(1 + replyCount)),
@@ -211,17 +288,22 @@ class DiaryService {
   }
 
   // 답글 작성 + 알림 — profileImageUrl 포함
-  Future<void> addReply(String diaryId, String commentId, Map<String, dynamic> userData,
-      String content, {String? commentAuthorUid, String? commentContent}) async {
+  Future<void> addReply(String diaryId, String commentId,
+      Map<String, dynamic> userData, String content,
+      {String? commentAuthorUid, String? commentContent}) async {
     final batch = _db.batch();
     final replyRef = _db
-        .collection('diaries').doc(diaryId)
-        .collection('comments').doc(commentId)
-        .collection('replies').doc();
+        .collection('diaries')
+        .doc(diaryId)
+        .collection('comments')
+        .doc(commentId)
+        .collection('replies')
+        .doc();
     batch.set(replyRef, {
       'uid': userData['uid'],
       'authorName': userData['name'] ?? '모험가',
-      'authorCharacter': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
+      'authorCharacter': userData['character'] ??
+          {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       'authorEquippedAchievement': userData['equippedAchievement'],
       // 답글에도 프로필 이미지 저장
       'authorProfileImageUrl': userData['profileImageUrl'],
@@ -229,7 +311,11 @@ class DiaryService {
       'createdAt': FieldValue.serverTimestamp(),
     });
     batch.update(
-      _db.collection('diaries').doc(diaryId).collection('comments').doc(commentId),
+      _db
+          .collection('diaries')
+          .doc(diaryId)
+          .collection('comments')
+          .doc(commentId),
       {'replyCount': FieldValue.increment(1)},
     );
     batch.update(_db.collection('diaries').doc(diaryId), {
@@ -242,8 +328,8 @@ class DiaryService {
         targetUid: commentAuthorUid,
         fromUid: userData['uid'],
         fromName: userData['name'] ?? '모험가',
-        fromCharacter: Map<String, dynamic>.from(
-            userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
+        fromCharacter: Map<String, dynamic>.from(userData['character'] ??
+            {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
         diaryId: diaryId,
         commentContent: commentContent ?? '',
         replyContent: content,
@@ -251,14 +337,22 @@ class DiaryService {
     }
   }
 
-  Future<void> deleteReply(String diaryId, String commentId, String replyId) async {
+  Future<void> deleteReply(
+      String diaryId, String commentId, String replyId) async {
     final batch = _db.batch();
     batch.delete(_db
-        .collection('diaries').doc(diaryId)
-        .collection('comments').doc(commentId)
-        .collection('replies').doc(replyId));
+        .collection('diaries')
+        .doc(diaryId)
+        .collection('comments')
+        .doc(commentId)
+        .collection('replies')
+        .doc(replyId));
     batch.update(
-      _db.collection('diaries').doc(diaryId).collection('comments').doc(commentId),
+      _db
+          .collection('diaries')
+          .doc(diaryId)
+          .collection('comments')
+          .doc(commentId),
       {'replyCount': FieldValue.increment(-1)},
     );
     batch.update(_db.collection('diaries').doc(diaryId), {
@@ -282,25 +376,34 @@ class CommentModel {
   final DateTime? createdAt;
 
   CommentModel({
-    required this.id, required this.uid, required this.authorName,
-    required this.authorCharacter, this.authorEquippedAchievement,
+    required this.id,
+    required this.uid,
+    required this.authorName,
+    required this.authorCharacter,
+    this.authorEquippedAchievement,
     this.authorProfileImageUrl,
-    required this.content, this.replyCount = 0,
-    this.replies = const [], this.createdAt,
+    required this.content,
+    this.replyCount = 0,
+    this.replies = const [],
+    this.createdAt,
   });
 
-  factory CommentModel.fromMap(String id, Map<String, dynamic> map, {List<ReplyModel> replies = const []}) {
+  factory CommentModel.fromMap(String id, Map<String, dynamic> map,
+      {List<ReplyModel> replies = const []}) {
     return CommentModel(
-      id: id, uid: map['uid'] ?? '',
+      id: id,
+      uid: map['uid'] ?? '',
       authorName: map['authorName'] ?? '모험가',
-      authorCharacter: Map<String, dynamic>.from(
-          map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
+      authorCharacter: Map<String, dynamic>.from(map['authorCharacter'] ??
+          {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
       authorEquippedAchievement: map['authorEquippedAchievement'] as String?,
       authorProfileImageUrl: map['authorProfileImageUrl'] as String?,
       content: map['content'] ?? '',
       replyCount: map['replyCount'] ?? 0,
       replies: replies,
-      createdAt: map['createdAt'] != null ? (map['createdAt'] as Timestamp).toDate() : null,
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -326,22 +429,29 @@ class ReplyModel {
   final DateTime? createdAt;
 
   ReplyModel({
-    required this.id, required this.uid, required this.authorName,
-    required this.authorCharacter, this.authorEquippedAchievement,
+    required this.id,
+    required this.uid,
+    required this.authorName,
+    required this.authorCharacter,
+    this.authorEquippedAchievement,
     this.authorProfileImageUrl,
-    required this.content, this.createdAt,
+    required this.content,
+    this.createdAt,
   });
 
   factory ReplyModel.fromMap(String id, Map<String, dynamic> map) {
     return ReplyModel(
-      id: id, uid: map['uid'] ?? '',
+      id: id,
+      uid: map['uid'] ?? '',
       authorName: map['authorName'] ?? '모험가',
-      authorCharacter: Map<String, dynamic>.from(
-          map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
+      authorCharacter: Map<String, dynamic>.from(map['authorCharacter'] ??
+          {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
       authorEquippedAchievement: map['authorEquippedAchievement'] as String?,
       authorProfileImageUrl: map['authorProfileImageUrl'] as String?,
       content: map['content'] ?? '',
-      createdAt: map['createdAt'] != null ? (map['createdAt'] as Timestamp).toDate() : null,
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
