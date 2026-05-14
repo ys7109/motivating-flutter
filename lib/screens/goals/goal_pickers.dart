@@ -118,7 +118,8 @@ class _AlarmPickerState extends State<AlarmPicker> {
     _amPm = widget.amPm; _hour = widget.hour; _min = widget.min;
     _amPmCtrl = FixedExtentScrollController(initialItem: _amPm == '오전' ? 0 : 1);
     _hourCtrl = FixedExtentScrollController(initialItem: _hour - 1);
-    _minCtrl = FixedExtentScrollController(initialItem: _min ~/ 5);
+    // 1분 단위 — 초기 위치는 분 값 그대로 (0~59)
+    _minCtrl = FixedExtentScrollController(initialItem: _min);
   }
 
   @override
@@ -131,7 +132,8 @@ class _AlarmPickerState extends State<AlarmPicker> {
   Widget build(BuildContext context) {
     final amPmItems = ['오전', '오후'];
     final hourItems = List.generate(12, (i) => '${i + 1}');
-    final minItems = List.generate(12, (i) => '${(i * 5).toString().padLeft(2, '0')}');
+    // 1분 단위 — 00~59분, 총 60개 항목
+    final minItems = List.generate(60, (i) => i.toString().padLeft(2, '0'));
     return GestureDetector(
       onTap: widget.onClose,
       child: Container(
@@ -155,7 +157,8 @@ class _AlarmPickerState extends State<AlarmPicker> {
                   const SizedBox(width: 8),
                   DrumColumn(controller: _hourCtrl, items: hourItems, width: 60, onSelected: (i) => setState(() => _hour = i + 1)),
                   Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(':', style: TextStyle(fontSize: 24, color: context.textSecondary))),
-                  DrumColumn(controller: _minCtrl, items: minItems, width: 60, onSelected: (i) => setState(() => _min = i * 5)),
+                  // 1분 단위 — 인덱스 = 분 값 (i * 1)
+                  DrumColumn(controller: _minCtrl, items: minItems, width: 60, onSelected: (i) => setState(() => _min = i)),
                 ]),
                 const SizedBox(height: 20),
                 GestureDetector(

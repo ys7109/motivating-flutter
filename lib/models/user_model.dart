@@ -29,6 +29,10 @@ class UserModel {
   final String? equippedAchievement;      // 현재 장착 중인 업적 ID
   final Map<String, DateTime> achievementUnlockedAt; // 업적 달성 시각
 
+  // 업적 통계 마이그레이션 완료 여부 — true면 이미 카운트 반영됨
+  // SharedPreferences 대신 Firestore에 저장 — 앱 삭제/재설치 시에도 유지
+  final bool achievementStatsMigrated;
+
   UserModel({
     required this.uid,
     required this.name,
@@ -54,6 +58,7 @@ class UserModel {
     this.claimedAchievements = const {},
     this.equippedAchievement,
     this.achievementUnlockedAt = const {},
+    this.achievementStatsMigrated = false, // 기존 유저는 false로 시작 — 마이그레이션 대상
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
@@ -102,6 +107,8 @@ class UserModel {
           Set<String>.from(map['claimedAchievements'] ?? []),
       equippedAchievement: map['equippedAchievement'] as String?,
       achievementUnlockedAt: unlockedAt,
+      // Firestore에 필드 없으면 false — 기존 유저는 마이그레이션 대상
+      achievementStatsMigrated: map['achievementStatsMigrated'] as bool? ?? false,
     );
   }
 
@@ -137,6 +144,7 @@ class UserModel {
     Set<String>? claimedAchievements,
     Object? equippedAchievement = _sentinel,
     Map<String, DateTime>? achievementUnlockedAt,
+    bool? achievementStatsMigrated,
   }) {
     return UserModel(
       uid: uid,
@@ -166,6 +174,8 @@ class UserModel {
           : equippedAchievement as String?,
       achievementUnlockedAt:
           achievementUnlockedAt ?? this.achievementUnlockedAt,
+      // achievementStatsMigrated — null이면 기존 값 유지
+      achievementStatsMigrated: achievementStatsMigrated ?? this.achievementStatsMigrated,
     );
   }
 }

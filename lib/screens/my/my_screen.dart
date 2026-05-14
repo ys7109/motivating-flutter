@@ -75,6 +75,7 @@ const _badges = [
   {'id': 'legend',    'label': '전설',   'emoji': '🌟', 'lv': 20},
 ];
 
+// 프레임 목록 — 레벨 조건 달성 시 해금
 const _frames = [
   {'id': 'none',    'label': '없음',   'lv': 1},
   {'id': 'silver',  'label': '실버',   'lv': 4},
@@ -82,6 +83,7 @@ const _frames = [
   {'id': 'rainbow', 'label': '무지개', 'lv': 15},
 ];
 
+// 레벨 보상 로드맵 — 특정 레벨 달성 시 아이템 해금
 const _roadmap = [
   {'lv': 3,  'reward': '⚔️ 전사 뱃지 해금'},
   {'lv': 5,  'reward': '⚡ 집중 뱃지 해금'},
@@ -92,6 +94,7 @@ const _roadmap = [
   {'lv': 20, 'reward': '🌟 전설 뱃지 해금'},
 ];
 
+// 업적 카테고리 필터 목록
 const _achieveCategories = [
   {'id': 'goal',   'label': '목표',      'emoji': '🎯'},
   {'id': 'streak', 'label': '연속 출석', 'emoji': '🔥'},
@@ -121,12 +124,14 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
     _nameCtrl = TextEditingController();
+    // 화면 진입 시 전체 유저 업적 달성률 로드
     _loadGlobalStats();
   }
 
   @override
   void dispose() { _tabCtrl.dispose(); _nameCtrl.dispose(); super.dispose(); }
 
+  // Firestore에서 업적별 전체 유저 달성률 로드
   Future<void> _loadGlobalStats() async {
     final stats = await FirestoreService().getAchievementStats();
     if (mounted) setState(() => _globalStats = stats);
@@ -340,6 +345,7 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
             child: TabBarView(
               controller: _tabCtrl,
               children: [
+                // ── 업적 탭 ──
                 _AchievementsTab(
                   achievements: achievements, claimedAchievements: userData.claimedAchievements,
                   equippedAchievement: equippedId, achieveCategory: _achieveCategory,
@@ -350,9 +356,11 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
                   onEquip: (id) => app.equipAchievement(id),
                   onUnequip: () => app.equipAchievement(null),
                 ),
+                // ── 통계 탭 ──
                 _StatsTab(userData: userData, onGoToFocusStats: () {
                   Navigator.push(context, SlideRightRoute(page: FocusStatsScreen()));
                 }),
+                // ── 프로필 탭 ──
                 _CharacterTab(
                   level: level, character: character, characterTab: _characterTab,
                   profileImageUrl: profileImageUrl, uploadingImage: _uploadingImage,
@@ -400,6 +408,7 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
     } else if (frame == 'rainbow') {
       frame_ = _RainbowFrame(child: inner);
     } else {
+      // silver / gold 프레임 색상 분기
       final color = frame == 'silver' ? const Color(0xFF9e9e9e) : const Color(0xFFf9a825);
       frame_ = Container(width: 90, height: 90,
           decoration: BoxDecoration(shape: BoxShape.circle, color: color),
@@ -414,6 +423,7 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
               border: Border.all(color: context.borderColor)),
           child: Center(child: Text(be, style: const TextStyle(fontSize: 14))),
         )),
+      // 이미지 업로드 중 로딩 오버레이
       if (_uploadingImage)
         Positioned.fill(child: Container(
           decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black45),
@@ -464,6 +474,7 @@ class _MyScreenState extends State<MyScreen> with SingleTickerProviderStateMixin
   }
 }
 
+// ── 무지개 프레임 위젯 (애니메이션) ──
 class _RainbowFrame extends StatefulWidget {
   final Widget child;
   const _RainbowFrame({required this.child});
@@ -488,6 +499,8 @@ class _RainbowFrameState extends State<_RainbowFrame> with SingleTickerProviderS
         child: SizedBox(width: 90, height: 90, child: Center(child: widget.child)),
       );
 }
+
+// 무지개 프레임 페인터 — SweepGradient 회전으로 구현
 class _RainbowPainter extends CustomPainter {
   final double progress;
   _RainbowPainter(this.progress);
@@ -514,6 +527,7 @@ class _RainbowPainter extends CustomPainter {
   bool shouldRepaint(_RainbowPainter old) => old.progress != progress;
 }
 
+// ── 업적 탭 ──
 class _AchievementsTab extends StatelessWidget {
   final Set<String> achievements;
   final Set<String> claimedAchievements;
@@ -541,12 +555,14 @@ class _AchievementsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
+        // 전체 달성 진행률 헤더
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('전체 달성', style: TextStyle(fontSize: 13, color: context.textSecondary)),
           Text('$achieveCount / $achieveTotal', style: TextStyle(fontSize: 13,
               fontWeight: FontWeight.w500, color: context.textPrimary)),
         ]),
         const SizedBox(height: 6),
+        // 전체 달성률 프로그레스 바
         ClipRRect(
           borderRadius: BorderRadius.circular(99),
           child: LinearProgressIndicator(
@@ -556,6 +572,7 @@ class _AchievementsTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
+        // 카테고리 필터 버튼 — 가로 스크롤
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: _achieveCategories.map((cat) {
@@ -580,11 +597,13 @@ class _AchievementsTab extends StatelessWidget {
           }).toList()),
         ),
         const SizedBox(height: 12),
+        // 업적 카드 목록
         ...achieveList.map((a) {
           final unlocked = achievements.contains(a.id);
           final claimed = claimedAchievements.contains(a.id);
           final isEquipped = equippedAchievement == a.id;
-          final pct = globalStats[a.id];
+          // globalStats에 없으면 0.0으로 처리 — Firestore에 문서 없는 업적도 달성도 표시
+          final pct = globalStats[a.id] ?? 0.0;
           final diffColor = Color(Achievements.difficultyColor[a.difficulty]!);
           final unlockedAt = achievementUnlockedAt[a.id];
           return GestureDetector(
@@ -612,6 +631,7 @@ class _AchievementsTab extends StatelessWidget {
                       Text(a.title, style: TextStyle(fontSize: 14,
                           fontWeight: FontWeight.w600, color: context.textPrimary)),
                       const SizedBox(width: 6),
+                      // 난이도 뱃지
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(color: diffColor.withOpacity(0.15),
@@ -625,13 +645,14 @@ class _AchievementsTab extends StatelessWidget {
                     Row(children: [
                       Expanded(child: Text(a.description,
                           style: TextStyle(fontSize: 12, color: context.textSecondary))),
-                      if (pct != null)
-                        Text('${pct.toStringAsFixed(1)}% 달성',
-                            style: TextStyle(fontSize: 10, color: context.textSecondary)),
+                      // 전체 유저 달성률 — globalStats 없으면 0.0% 표시
+                      Text('${pct.toStringAsFixed(1)}% 달성',
+                          style: TextStyle(fontSize: 10, color: context.textSecondary)),
                     ]),
                   ])),
                   const SizedBox(width: 8),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    // 보상 수령 / 달성 완료 뱃지
                     if (unlocked && !claimed)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -649,6 +670,7 @@ class _AchievementsTab extends StatelessWidget {
                         child: const Text('달성', style: TextStyle(fontSize: 11,
                             color: Color(0xFF1b8a5a), fontWeight: FontWeight.w600)),
                       ),
+                    // 칭호 장착 중 표시
                     if (isEquipped) ...[
                       const SizedBox(height: 4),
                       Text('장착 중', style: TextStyle(fontSize: 10, color: diffColor)),
@@ -664,9 +686,11 @@ class _AchievementsTab extends StatelessWidget {
     );
   }
 
+  // 업적 상세 바텀시트
   void _showDetail(BuildContext context, Achievement a, bool unlocked,
       bool claimed, bool isEquipped, DateTime? unlockedAt) {
     final diffColor = Color(Achievements.difficultyColor[a.difficulty]!);
+    // 업적 ID에 해당하는 뱃지 이모지 조회 — 없으면 업적 이모지 사용
     final badgeDef = _achieveBadgeDefs.firstWhere(
         (s) => s['id'] == a.id, orElse: () => {'emoji': a.emoji});
     final badgeEmoji = badgeDef['emoji'] ?? a.emoji;
@@ -696,12 +720,14 @@ class _AchievementsTab extends StatelessWidget {
             ]),
             const SizedBox(height: 6),
             Text(a.description, style: TextStyle(fontSize: 14, color: ctx.textSecondary)),
+            // 달성 날짜 표시 — 달성된 업적에만 표시
             if (unlocked && unlockedAt != null) ...[
               const SizedBox(height: 4),
               Text('달성: ${_fmtDate(unlockedAt)}',
                   style: TextStyle(fontSize: 12, color: ctx.textSecondary)),
             ],
             const SizedBox(height: 16),
+            // 보상 섹션
             Container(
               width: double.infinity, padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: ctx.subtleBg, borderRadius: BorderRadius.circular(14)),
@@ -711,12 +737,13 @@ class _AchievementsTab extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
                   _RewardChip(emoji: '✨', label: '+${a.xpReward} XP'),
-                  // 업적 보상 표기 — 뱃지로 변경
+                  // 업적 보상 뱃지 — 업적별 전용 이모지
                   _RewardChip(emoji: badgeEmoji!, label: '전용 뱃지'),
                 ]),
               ]),
             ),
             const SizedBox(height: 16),
+            // 상태에 따라 버튼 분기 — 보상 수령 / 칭호 장착 / 해제 / 잠금
             if (unlocked && !claimed)
               _FullBtn(label: '🎁 보상 수령하기', color: ctx.primaryColor, textColor: ctx.onPrimary,
                   onTap: () async { Navigator.pop(ctx); await onClaim(a.id); })
@@ -727,6 +754,7 @@ class _AchievementsTab extends StatelessWidget {
               _FullBtn(label: '칭호 해제', color: ctx.subtleBg, textColor: ctx.textSecondary,
                   onTap: () async { Navigator.pop(ctx); await onUnequip(); })
             else
+              // 미달성 업적 — 안내 문구 표시
               Container(
                 width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(color: ctx.subtleBg, borderRadius: BorderRadius.circular(12)),
@@ -740,9 +768,11 @@ class _AchievementsTab extends StatelessWidget {
   }
 }
 
+// 날짜 포맷 — yyyy.MM.dd 형식
 String _fmtDate(DateTime dt) =>
     '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
 
+// 보상 칩 위젯 — 이모지 + 라벨
 class _RewardChip extends StatelessWidget {
   final String emoji, label;
   const _RewardChip({required this.emoji, required this.label});
@@ -755,6 +785,7 @@ class _RewardChip extends StatelessWidget {
       ]);
 }
 
+// 전체 너비 버튼 위젯
 class _FullBtn extends StatelessWidget {
   final String label;
   final Color color, textColor;
@@ -773,6 +804,7 @@ class _FullBtn extends StatelessWidget {
       );
 }
 
+// ── 통계 탭 ──
 class _StatsTab extends StatelessWidget {
   final dynamic userData;
   final VoidCallback onGoToFocusStats;
@@ -784,6 +816,7 @@ class _StatsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
+        // 집중 통계 카드 — 탭하면 집중 통계 상세 화면으로 이동
         GestureDetector(
           onTap: onGoToFocusStats,
           child: Container(
@@ -806,6 +839,7 @@ class _StatsTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        // 연속 출석 카드 — 현재 / 최고 스트릭 표시
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: context.surfaceColor,
@@ -827,6 +861,7 @@ class _StatsTab extends StatelessWidget {
         Text('레벨 보상 로드맵', style: TextStyle(fontSize: 15,
             fontWeight: FontWeight.w500, color: context.textPrimary)),
         const SizedBox(height: 10),
+        // 레벨 보상 로드맵 카드 목록
         ..._roadmap.map((r) {
           final lv = r['lv'] as int;
           final unlocked = userData.level >= lv;
@@ -840,6 +875,7 @@ class _StatsTab extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: context.borderColor, width: 0.5)),
               child: Row(children: [
+                // 달성 여부 아이콘 — 달성 시 체크, 미달성 시 레벨 숫자 표시
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   width: 32, height: 32,
@@ -872,7 +908,7 @@ class _StatsTab extends StatelessWidget {
   }
 }
 
-// 캐릭터 탭 — 이미지 / 뱃지 / 프레임
+// ── 프로필 탭 — 이미지 / 뱃지 / 프레임 커스터마이징 ──
 class _CharacterTab extends StatelessWidget {
   final int level;
   final dynamic character;
@@ -900,7 +936,7 @@ class _CharacterTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
-        // 탭 선택 — 이미지 / 뱃지 / 프레임
+        // 탭 선택 버튼 — 이미지 / 뱃지 / 프레임
         Row(children: ['image', 'badge', 'frame'].asMap().entries.map((e) {
           final labels = ['이미지', '뱃지', '프레임'];
           final isActive = characterTab == e.value;
@@ -957,7 +993,6 @@ class _CharacterTab extends StatelessWidget {
                           width: isActive ? 2 : 1),
                     ),
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      // 기본 이모지 고정 표시
                       Text('👤', style: TextStyle(fontSize: 28,
                           color: isActive ? Colors.white : null)),
                       const SizedBox(height: 4),
@@ -1026,9 +1061,8 @@ class _CharacterTab extends StatelessWidget {
             ],
           ),
 
-
         ] else if (characterTab == 'badge') ...[
-          // 레벨 뱃지 섹션
+          // 레벨 뱃지 섹션 — 레벨 조건 달성 시 해금
           Text('레벨 뱃지', style: TextStyle(fontSize: 13,
               fontWeight: FontWeight.w500, color: context.textSecondary)),
           const SizedBox(height: 8),
@@ -1062,6 +1096,7 @@ class _CharacterTab extends StatelessWidget {
                       Text(item['label'] as String, style: TextStyle(fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: isActive ? context.onPrimary : context.textPrimary)),
+                      // 잠금 시 해금 조건 레벨 표시, 장착 중이면 착용 중 표시
                       if (!unlocked)
                         Text('Lv.${item['lv']}',
                             style: TextStyle(fontSize: 10, color: context.textSecondary))
@@ -1090,6 +1125,7 @@ class _CharacterTab extends StatelessWidget {
               final badgeId = item['id']!;
               final unlocked = unlockedAchieveSkins.contains(badgeId);
               final isActive = activeId == badgeId;
+              // 업적 타이틀 조회 — 없으면 ID 그대로 표시
               final achieveName = Achievements.findById(badgeId)?.title ?? badgeId;
               return GestureDetector(
                 onTap: () { if (unlocked) onUpdateCharacter({'badge': badgeId}); },
@@ -1107,6 +1143,7 @@ class _CharacterTab extends StatelessWidget {
                   child: Opacity(
                     opacity: unlocked ? 1.0 : 0.4,
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      // 잠금 시 🔒, 해금 시 뱃지 이모지 표시
                       Text(unlocked ? item['emoji']! : '🔒',
                           style: const TextStyle(fontSize: 24)),
                       const SizedBox(height: 4),
@@ -1116,6 +1153,7 @@ class _CharacterTab extends StatelessWidget {
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 2),
                       Text(
+                        // 해금 시 착용 여부, 잠금 시 해금 조건 표시
                         unlocked ? (isActive ? '착용 중' : '') : item['unlock']!,
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 9,
@@ -1132,6 +1170,7 @@ class _CharacterTab extends StatelessWidget {
           ),
 
         ] else if (characterTab == 'frame') ...[
+          // 프레임 탭 — 레벨 조건 달성 시 해금
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1157,6 +1196,7 @@ class _CharacterTab extends StatelessWidget {
                   child: Opacity(
                     opacity: unlocked ? 1.0 : 0.5,
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      // 프레임 미리보기 — 무지개/없음/실버/골드 분기
                       if (item['id'] == 'rainbow')
                         SizedBox(width: 34, height: 34,
                             child: CustomPaint(painter: _RainbowCirclePainter()))
@@ -1173,6 +1213,7 @@ class _CharacterTab extends StatelessWidget {
                       Text(item['label'] as String, style: TextStyle(fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: isActive ? context.onPrimary : context.textPrimary)),
+                      // 잠금 시 해금 레벨, 장착 중이면 착용 중 표시
                       if (!unlocked)
                         Text('Lv.${item['lv']}',
                             style: TextStyle(fontSize: 10, color: context.textSecondary))
@@ -1192,6 +1233,7 @@ class _CharacterTab extends StatelessWidget {
   }
 }
 
+// 무지개 프레임 정적 미리보기 페인터 (프레임 탭용 — 애니메이션 없음)
 class _RainbowCirclePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -1211,6 +1253,7 @@ class _RainbowCirclePainter extends CustomPainter {
   bool shouldRepaint(_) => false;
 }
 
+// 아이콘 버튼 위젯 — 테두리 있는 원형 버튼
 class _IconBtn extends StatelessWidget {
   final Widget child;
   final VoidCallback onTap;

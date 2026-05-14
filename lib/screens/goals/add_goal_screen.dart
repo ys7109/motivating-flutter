@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -6,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../config.dart';
+import '../../services/notification_service.dart';
 import 'goal_pickers.dart';
 
 // 타입별 고정 XP (직접 입력)
@@ -223,17 +225,31 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
       final effectiveRepeatXp = _repeatType == 'none' ? effectiveXp : (_xpMode == 'manual' ? _repeatXpFixed : _repeatXp);
 
       if (_repeatType == 'none') {
-        await app.firestoreService.addGoal(uid, {
+        // 단일 목표 저장
+        final docRef = await app.firestoreService.addGoalAndGetId(uid, {
           'title': _titleCtrl.text.trim(), 'desc': _descCtrl.text.trim(),
           'type': type, 'xp': effectiveXp, 'repeatXp': effectiveRepeatXp,
           'scheduledDate': _scheduledDate,
         });
+        // 알림 설정 시 해당 날짜 지정 시간에 1회 알림 예약
+        if (_alarmEnabled && docRef != null) {
+          await NotificationService.scheduleGoalAlarm(
+            goalId: docRef,
+            goalTitle: _titleCtrl.text.trim(),
+            amPm: _alarmAmPm,
+            hour: _alarmHour,
+            minute: _alarmMin,
+            isRepeat: false,
+            scheduledDate: _scheduledDate,
+          );
+        }
       } else {
         if (_startDate.isEmpty || _endDate.isEmpty) {
           app.showToast('시작일과 종료일을 설정해주세요.');
           setState(() => _saving = false);
           return;
         }
+        // 반복 목표 — 임시 ID로 알림 예약 (repeatId 사용)
         final repeatId = DateTime.now().millisecondsSinceEpoch.toString();
         final repeatData = {
           'type': _repeatType,
@@ -247,6 +263,18 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
           'repeat': repeatData,
         }).toList();
         await app.firestoreService.addGoalsBatch(uid, goalList);
+        // 반복 목표 알림 — repeatId 기준으로 매일 반복 알림 예약
+        if (_alarmEnabled) {
+          await NotificationService.scheduleGoalAlarm(
+            goalId: repeatId,
+            goalTitle: _titleCtrl.text.trim(),
+            amPm: _alarmAmPm,
+            hour: _alarmHour,
+            minute: _alarmMin,
+            isRepeat: true,
+            scheduledDate: _startDate, // 반복 목표는 시작일 기준
+          );
+        }
       }
       await app.loadGoals();
       if (mounted) Navigator.pop(context);

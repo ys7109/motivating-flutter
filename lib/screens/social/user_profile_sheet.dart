@@ -135,6 +135,11 @@ class _UserProfileSheetState extends State<_UserProfileSheet> {
                     _AchievementChip(achievement: equipped),
                   ],
                 ])),
+            // 닫기 버튼
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Icon(Icons.close, size: 20, color: context.textSecondary),
+            ),
           ]),
           const SizedBox(height: 16),
           Container(
@@ -296,6 +301,28 @@ class _GoalRow extends StatelessWidget {
   final GoalModel goal;
   const _GoalRow({required this.goal});
 
+  // 달성 날짜 포맷 — yyyy.MM.dd
+  String _dateLabel(DateTime dt) =>
+      '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
+
+  // 1번: 실제 획득 XP — 반복 목표는 repeatXp, 단일 목표는 xp
+  int get _displayXp => goal.repeatId != null ? goal.repeatXp : goal.xp;
+
+  // 목표 유형 태그 색상
+  Color get _tagColor {
+    if (goal.type == 'short') return const Color(0xFF1b8a5a);
+    if (goal.type == 'mid') return const Color(0xFFf9a825);
+    return const Color(0xFF3949ab);
+  }
+
+  // 목표 유형 레이블
+  String get _tagLabel {
+    if (goal.repeatId != null) return '반복';
+    if (goal.type == 'short') return '단기';
+    if (goal.type == 'mid') return '중기';
+    return '장기';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -306,6 +333,20 @@ class _GoalRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(children: [
+        // 목표 유형 태그
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: _tagColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(_tagLabel,
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: _tagColor)),
+        ),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(goal.title,
               maxLines: 1,
@@ -316,11 +357,20 @@ class _GoalRow extends StatelessWidget {
                   color: context.textPrimary)),
         ),
         const SizedBox(width: 8),
-        Text('+${goal.xp} XP',
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1b8a5a))),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          // 1번: 실제 획득 XP 표시
+          Text('+$_displayXp XP',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1b8a5a))),
+          // 1번: 달성 날짜 표시
+          if (goal.completedAt != null) ...[
+            const SizedBox(height: 2),
+            Text(_dateLabel(goal.completedAt!),
+                style: TextStyle(fontSize: 10, color: context.textSecondary)),
+          ],
+        ]),
       ]),
     );
   }

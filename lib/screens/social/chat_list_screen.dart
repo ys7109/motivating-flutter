@@ -18,6 +18,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
   String _filter = 'all';
   // 이름 캐시 — uid → 닉네임
   final Map<String, String> _nameCache = {};
+  // 4번: 프로필 이미지 캐시 — uid → profileImageUrl
+  final Map<String, String?> _profileImageCache = {};
+  // 4번: 캐릭터 캐시 — uid → character
+  final Map<String, Map<String, dynamic>?> _characterCache = {};
 
   // names 필드 없는 기존 채팅방용 — 한 번만 Firestore 조회 후 캐시 + 저장
   Future<String> _resolveName(String chatId, String myUid, String otherUid) async {
@@ -27,6 +31,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final otherName = snap.data()?['name'] as String? ?? '모험가';
     final myName = mySnap.data()?['name'] as String? ?? '모험가';
     _nameCache[otherUid] = otherName;
+    // 4번: 프로필 이미지/캐릭터 캐시 저장
+    _profileImageCache[otherUid] = snap.data()?['profileImageUrl'] as String?;
+    _characterCache[otherUid] = snap.data()?['character'] != null
+        ? Map<String, dynamic>.from(snap.data()!['character']) : null;
     // Firestore에 names 필드 저장해서 다음엔 조회 불필요
     FirebaseFirestore.instance.collection('chats').doc(chatId).update({
       'names': {myUid: otherName, otherUid: myName},
@@ -34,6 +42,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return otherName;
   }
 
+  // 4번: 상대방 uid로 프로필 정보 로드 (이름 외 이미지/캐릭터도)
+  Future<void> _resolveProfile(String chatId, String myUid, String otherUid) async {
+    if (_profileImageCache.containsKey(otherUid)) return;
+    final snap = await FirebaseFirestore.instance.collection('users').doc(otherUid).get();
+    if (!mounted) return;
+    setState(() {
+      _profileImageCache[otherUid] = snap.data()?['profileImageUrl'] as String?;
+      _characterCache[otherUid] = snap.data()?['character'] != null
+          ? Map<String, dynamic>.from(snap.data()!['character']) : null;
+    });
+  }
 
   // 채팅방 나가기 확인
   Future<void> _confirmLeave(BuildContext context, String chatId, String title, String myUid) async {
@@ -59,7 +78,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
-  // 꾹 눌렀을 때 바텀시트 메뉴
   // 이름 변경 다이얼로그
   Future<void> _showRenameDialog(BuildContext context, String chatId, String currentTitle) async {
     final ctrl = TextEditingController(text: currentTitle);
@@ -70,8 +88,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         title: Text('채팅방 이름 변경', style: TextStyle(fontSize: 16,
             fontWeight: FontWeight.w600, color: context.textPrimary)),
         content: TextField(
-          controller: ctrl,
-          autofocus: true,
+          controller: ctrl, autofocus: true,
           style: TextStyle(fontSize: 14, color: context.textPrimary),
           decoration: InputDecoration(
             hintText: '채팅방 이름을 입력하세요',
@@ -85,10 +102,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context),
               child: Text('취소', style: TextStyle(color: context.textSecondary))),
-          TextButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-            child: Text('변경', style: TextStyle(color: context.primaryColor)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+              child: Text('변경', style: TextStyle(color: context.primaryColor))),
         ],
       ),
     );
@@ -99,6 +114,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
+  // 꾹 눌렀을 때 바텀시트 메뉴
   void _showMenu(BuildContext context, String chatId, String title, String myUid) {
     showModalBottomSheet(
       context: context,
@@ -108,34 +124,27 @@ class _ChatListScreenState extends State<ChatListScreen> {
       builder: (ctx) {
         final bottomPad = MediaQuery.of(ctx).padding.bottom;
         return Padding(
-        padding: EdgeInsets.fromLTRB(0, 16, 0, bottomPad + 16),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 36, height: 4,
-              decoration: BoxDecoration(color: ctx.borderColor,
-                  borderRadius: BorderRadius.circular(99))),
-          const SizedBox(height: 16),
-          // 이름 변경 버튼
-          ListTile(
-            leading: Icon(Icons.edit_outlined, color: ctx.textPrimary),
-            title: Text('채팅방 이름 변경',
-                style: TextStyle(color: ctx.textPrimary, fontWeight: FontWeight.w500)),
-            onTap: () {
-              Navigator.pop(ctx);
-              _showRenameDialog(context, chatId, title);
-            },
-          ),
-          // 나가기 버튼
-          ListTile(
-            leading: const Icon(Icons.exit_to_app_rounded, color: AppTheme.danger),
-            title: const Text('채팅방 나가기',
-                style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w500)),
-            onTap: () {
-              Navigator.pop(ctx);
-              _confirmLeave(context, chatId, title, myUid);
-            },
-          ),
-        ]),
-      );},
+          padding: EdgeInsets.fromLTRB(0, 16, 0, bottomPad + 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 36, height: 4,
+                decoration: BoxDecoration(color: ctx.borderColor,
+                    borderRadius: BorderRadius.circular(99))),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Icon(Icons.edit_outlined, color: ctx.textPrimary),
+              title: Text('채팅방 이름 변경',
+                  style: TextStyle(color: ctx.textPrimary, fontWeight: FontWeight.w500)),
+              onTap: () { Navigator.pop(ctx); _showRenameDialog(context, chatId, title); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.exit_to_app_rounded, color: AppTheme.danger),
+              title: const Text('채팅방 나가기',
+                  style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w500)),
+              onTap: () { Navigator.pop(ctx); _confirmLeave(context, chatId, title, myUid); },
+            ),
+          ]),
+        );
+      },
     );
   }
 
@@ -160,12 +169,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
         ]),
       ),
 
-      // 채팅방 목록
       Expanded(
         child: StreamBuilder<QuerySnapshot>(
           stream: chatService.chatListStream(myUid),
           builder: (context, snap) {
-            // 로딩 중에도 기존 데이터 있으면 유지 (깜빡임 방지)
             if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
               return Center(child: CircularProgressIndicator(color: context.primaryColor));
             }
@@ -224,7 +231,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   final namesMap = (data['names'] as Map<String, dynamic>?) ?? {};
                   final cachedName = namesMap[myUid] as String?;
 
-                  // names 필드 있으면 FutureBuilder 없이 바로 표시
+                  // 4번: 프로필 정보 비동기 로드 트리거
+                  if (otherUid.isNotEmpty && !_profileImageCache.containsKey(otherUid)) {
+                    _resolveProfile(chatId, myUid, otherUid);
+                  }
+
                   if (cachedName != null) {
                     return GestureDetector(
                       onLongPress: () => _showMenu(context, chatId, cachedName, myUid),
@@ -232,6 +243,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         title: cachedName,
                         lastMsg: lastMsg, lastMsgAt: lastMsgAt,
                         unread: unread, isGroup: false,
+                        // 4번: 상대방 프로필 이미지/캐릭터 전달
+                        otherProfileImageUrl: _profileImageCache[otherUid],
+                        otherCharacter: _characterCache[otherUid],
                         onTap: () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => ChatRoomScreen(
                             chatId: chatId, title: cachedName, memberUids: users,
@@ -252,6 +266,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           title: name,
                           lastMsg: lastMsg, lastMsgAt: lastMsgAt,
                           unread: unread, isGroup: false,
+                          // 4번: 상대방 프로필 이미지/캐릭터 전달
+                          otherProfileImageUrl: _profileImageCache[otherUid],
+                          otherCharacter: _characterCache[otherUid],
                           onTap: () => Navigator.push(context, MaterialPageRoute(
                             builder: (_) => ChatRoomScreen(
                               chatId: chatId, title: name, memberUids: users,
@@ -269,17 +286,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   onLongPress: () => _showMenu(context, chatId, groupName, myUid),
                   child: _ChatTile(
                     title: groupName,
-                    lastMsg: lastMsg,
-                    lastMsgAt: lastMsgAt,
-                    unread: unread,
-                    isGroup: true,
+                    lastMsg: lastMsg, lastMsgAt: lastMsgAt,
+                    unread: unread, isGroup: true,
                     memberCount: users.length,
                     onTap: () => Navigator.push(context, MaterialPageRoute(
                       builder: (_) => ChatRoomScreen(
-                        chatId: chatId,
-                        title: groupName,
-                        isGroup: true,
-                        memberUids: users,
+                        chatId: chatId, title: groupName,
+                        isGroup: true, memberUids: users,
                       ),
                     )),
                   ),
@@ -299,7 +312,6 @@ class _FilterBtn extends StatelessWidget {
   final VoidCallback onTap;
   const _FilterBtn({required this.label, required this.value,
       required this.current, required this.onTap});
-
   @override
   Widget build(BuildContext context) {
     final isSelected = value == current;
@@ -314,9 +326,7 @@ class _FilterBtn extends StatelessWidget {
         ),
         child: Text(label, style: TextStyle(
           fontSize: 13, fontWeight: FontWeight.w500,
-          color: isSelected
-              ? (context.onPrimary)
-              : context.textSecondary,
+          color: isSelected ? context.onPrimary : context.textSecondary,
         )),
       ),
     );
@@ -330,6 +340,8 @@ class _ChatTile extends StatelessWidget {
   final int unread;
   final bool isGroup;
   final int? memberCount;
+  // 4번: 상대방 프로필 이미지 및 캐릭터
+  final String? otherProfileImageUrl;
   final Map<String, dynamic>? otherCharacter;
   final VoidCallback onTap;
 
@@ -337,7 +349,7 @@ class _ChatTile extends StatelessWidget {
     required this.title, required this.lastMsg,
     required this.lastMsgAt, required this.unread,
     required this.isGroup, required this.onTap,
-    this.memberCount, this.otherCharacter,
+    this.memberCount, this.otherProfileImageUrl, this.otherCharacter,
   });
 
   String _timeLabel(Timestamp? ts) {
@@ -366,16 +378,19 @@ class _ChatTile extends StatelessWidget {
           border: Border.all(color: context.borderColor, width: 0.5),
         ),
         child: Row(children: [
-          // 아바타
+          // 4번: 1:1 채팅에 프로필 이미지/캐릭터 아바타 표시
           if (isGroup)
             Container(width: 46, height: 46,
                 decoration: BoxDecoration(color: context.subtleBg, shape: BoxShape.circle),
                 child: const Center(child: Text('👥', style: TextStyle(fontSize: 22))))
           else
-            CharacterAvatar(character: otherCharacter, size: 46),
+            CharacterAvatar(
+              character: otherCharacter,
+              size: 46,
+              profileImageUrl: otherProfileImageUrl,
+            ),
           const SizedBox(width: 12),
 
-          // 채팅방 정보
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(child: Text(title, style: TextStyle(fontSize: 15,
@@ -404,8 +419,7 @@ class _ChatTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text('$unread', style: TextStyle(fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: context.onPrimary)),
+                      fontWeight: FontWeight.w600, color: context.onPrimary)),
                 ),
             ]),
           ])),

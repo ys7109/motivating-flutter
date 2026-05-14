@@ -122,7 +122,6 @@ class AppProvider extends ChangeNotifier {
         .length;
   }
 
-  // 레벨별 칭호
   // 레벨별 호칭 — 10단계 구간
   static String levelTitle(int level) {
     if (level >= 100) return '불멸자';
@@ -146,14 +145,9 @@ class AppProvider extends ChangeNotifier {
     return null;
   }
 
-
-
   // 기존 유저 마이그레이션 — totalXp 없으면 1.15배 역산 → 1.05배 재계산
   Future<void> _migrateTotalXpIfNeeded(String uid) async {
     if (userData == null) return;
-    // fromMap에서 totalXp가 없으면 역산값이 들어있음
-    // Firestore에 실제로 저장됐는지 확인하기 위해 xpToNext로 판단
-    // 1.05배 기준 xpToNext와 다르면 마이그레이션 필요
     final expectedXpToNext = xpRequired(userData!.level);
     final needsMigration = (userData!.xpToNext - expectedXpToNext).abs() > 5;
     if (!needsMigration) return;
@@ -273,8 +267,15 @@ class AppProvider extends ChangeNotifier {
             // 업적 조용히 체크 (토스트 없이)
             await _checkAllAchievementsSilently();
             // 기존 유저 totalXp 마이그레이션
-            // totalXp가 없으면 1.15배 기준으로 역산 후 1.05배 기준으로 재계산
             await _migrateTotalXpIfNeeded(user.uid);
+            // 스케줄 알림 복원 — 앱 재시작 시 알림 재스케줄
+            final prefs2 = await SharedPreferences.getInstance();
+            if (prefs2.getBool('notif_goal') ?? true) {
+              await NotificationService.scheduleDailyGoalReminder();
+            }
+            if (prefs2.getBool('notif_streak') ?? true) {
+              await NotificationService.scheduleStreakRiskReminder(userData?.streak ?? 0);
+            }
             // FCM 토큰 저장
             debugPrint('🔥 saveFcmToken 호출: ${user.uid}');
             await NotificationService.saveFcmToken(user.uid);
@@ -371,18 +372,13 @@ class AppProvider extends ChangeNotifier {
 
     if (newOnes.isEmpty) return;
 
-    // Timestamp Map으로 변환 후 Firestore 업데이트
+    // 신규 달성 업적 Firestore 저장 — achievement_stats 카운트는 더 이상 불필요
     final unlockedAtFirestore = unlockedAt.map((k, v) =>
         MapEntry(k, Timestamp.fromDate(v)));
-
     await _db.updateUser(authUser!.uid, {
       'achievements': achieved.toList(),
       'achievementUnlockedAt': unlockedAtFirestore,
     });
-    // 업적 통계 업데이트
-    for (final id in newOnes) {
-      await _db.incrementAchievementStat(id);
-    }
     userData = userData!.copyWith(achievements: achieved, achievementUnlockedAt: unlockedAt);
     notifyListeners();
   }
@@ -468,16 +464,13 @@ class AppProvider extends ChangeNotifier {
 
     if (newOnes.isEmpty) return;
 
+    // 신규 달성 업적 Firestore 저장 — achievement_stats 카운트는 더 이상 불필요
     final unlockedAtFirestore = unlockedAt.map((k, v) =>
         MapEntry(k, Timestamp.fromDate(v)));
-
     await _db.updateUser(authUser!.uid, {
       'achievements': achieved.toList(),
       'achievementUnlockedAt': unlockedAtFirestore,
     });
-    for (final id in newOnes) {
-      await _db.incrementAchievementStat(id);
-    }
     userData = userData!.copyWith(achievements: achieved, achievementUnlockedAt: unlockedAt);
 
     // 신규 달성 업적 토스트 표시
@@ -497,11 +490,11 @@ class AppProvider extends ChangeNotifier {
 
     final claimed = Set<String>.from(userData!.claimedAchievements)..add(achievementId);
     final prevLevel = userData!.level;
-    final _r1 = _applyXp(userData!.totalXp, a.xpReward);
-    int newXp = _r1['xp'] as int;
-    int newLevel = _r1['level'] as int;
-    int newXpToNext = _r1['xpToNext'] as int;
-    final newTotalXp = _r1['totalXp'] as int;
+    final r1 = _applyXp(userData!.totalXp, a.xpReward);
+    int newXp = r1['xp'] as int;
+    int newLevel = r1['level'] as int;
+    int newXpToNext = r1['xpToNext'] as int;
+    final newTotalXp = r1['totalXp'] as int;
 
     // 업적 전용 스킨 해금 목록에 추가
     final unlockedSkins = List<String>.from(userData!.streakBadges['unlockedAchieveSkins'] as List? ?? []);
@@ -617,7 +610,6 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 수동 유저 데이터 리로드 — authStateChanges 완료 후 실행
   // 강제 사용자 데이터 갱신 — 프로필 이미지 등 변경 후 호출
   Future<void> forceReloadUser() async {
     final user = _auth.currentUser;
@@ -626,7 +618,7 @@ class AppProvider extends ChangeNotifier {
       userData = await _db.getUser(user.uid);
       notifyListeners();
     } catch (e) {
-      debugPrint('forceReloadUser 에러: \$e');
+      debugPrint('forceReloadUser 에러: $e');
     }
   }
 
@@ -638,7 +630,6 @@ class AppProvider extends ChangeNotifier {
       }
       return;
     }
-    // 이미 로드 완료된 경우 스킵 — forceReload 없을 때만
     final user = _auth.currentUser;
     if (user == null) return;
     try {
@@ -647,6 +638,7 @@ class AppProvider extends ChangeNotifier {
       if (userData != null) {
         await Future.wait([loadGoals(), loadMailbox()]);
         await checkAttendance();
+        // 업적 조용히 체크 (토스트 없이)
         await _checkAllAchievementsSilently();
       }
     } catch (e) {
@@ -712,9 +704,8 @@ class AppProvider extends ChangeNotifier {
     if (milestone.isNotEmpty) {
       currentMilestone = milestone.map((k, v) => MapEntry(k, v));
       streakModalType = 'milestone';
-    } else {
-      showAttendModal = true;
     }
+    // 출석 보상은 우편함으로만 지급 — showAttendModal 팝업 제거
     await _checkAchievements();
     notifyListeners();
   }
@@ -727,11 +718,11 @@ class AppProvider extends ChangeNotifier {
     if (authUser == null || userData == null || currentMilestone == null) return;
     final xpGain = currentMilestone!['xp'] as int;
     final prevLevel = userData!.level;
-    final _r2 = _applyXp(userData!.totalXp, xpGain);
-    int newXp = _r2['xp'] as int;
-    int newLevel = _r2['level'] as int;
-    int newXpToNext = _r2['xpToNext'] as int;
-    final newTotalXp = _r2['totalXp'] as int;
+    final r2 = _applyXp(userData!.totalXp, xpGain);
+    int newXp = r2['xp'] as int;
+    int newLevel = r2['level'] as int;
+    int newXpToNext = r2['xpToNext'] as int;
+    final newTotalXp = r2['totalXp'] as int;
     await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp});
     userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp);
     if (newLevel > prevLevel) { levelUpTo = newLevel; await _handleLevelUpReward(prevLevel, newLevel); }
@@ -818,12 +809,12 @@ class AppProvider extends ChangeNotifier {
             showToast('🎉 목표 완료! +$xpGain XP 획득');
             showToast('달성률 $pct%로 반복 목표 종료');
           }
-          final _rg1 = _applyXp(userData!.totalXp, xpGain);
-          int newXp = _rg1['xp'] as int;
-          int newLevel = _rg1['level'] as int;
-          int newXpToNext = _rg1['xpToNext'] as int;
-          final newTotalXp = _rg1['totalXp'] as int;
-          await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'totalXp': newTotalXp});
+          final rg1 = _applyXp(userData!.totalXp, xpGain);
+          int newXp = rg1['xp'] as int;
+          int newLevel = rg1['level'] as int;
+          int newXpToNext = rg1['xpToNext'] as int;
+          final newTotalXp = rg1['totalXp'] as int;
+          await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp});
           userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp);
           if (newLevel > prevLevel) { levelUpTo = newLevel; await _db.updatePublicProfile(authUser!.uid, {'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap()}); await _handleLevelUpReward(prevLevel, newLevel); }
           await loadGoals();
@@ -838,8 +829,7 @@ class AppProvider extends ChangeNotifier {
       int newLevel = newXpResult['level'] as int;
       int newXpToNext = newXpResult['xpToNext'] as int;
       final newTotalXp = newXpResult['totalXp'] as int;
-      while (newXp >= newXpToNext) { newXp -= newXpToNext; newLevel++; newXpToNext = (newXpToNext * 1.05).round(); }
-      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'totalXp': newTotalXp});
+      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp});
       userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp);
       if (newLevel > prevLevel) { levelUpTo = newLevel; await _db.updatePublicProfile(authUser!.uid, {'level': newLevel, 'name': userData!.name, 'character': userData!.character.toMap()}); await _handleLevelUpReward(prevLevel, newLevel); }
       await loadGoals();
@@ -858,8 +848,8 @@ class AppProvider extends ChangeNotifier {
     final unlockedAt = Map<String, DateTime>.from(userData!.achievementUnlockedAt)
       ..[id] = DateTime.now();
     final unlockedAtFs = unlockedAt.map((k, v) => MapEntry(k, Timestamp.fromDate(v)));
+    // achievement_stats 카운트 불필요 — users 직접 쿼리로 달성률 계산
     await _db.updateUser(authUser!.uid, {'achievements': achieved.toList(), 'achievementUnlockedAt': unlockedAtFs});
-    await _db.incrementAchievementStat(id);
     userData = userData!.copyWith(achievements: achieved, achievementUnlockedAt: unlockedAt);
     final a = Achievements.findById(id);
     if (a != null) showToast('🏆 업적 달성! ${a.emoji} ${a.title}');
@@ -899,15 +889,12 @@ class AppProvider extends ChangeNotifier {
         final repeatGoals = goals.where((g) => g.repeatId == goal.repeatId).toList();
         if (repeatGoals.where((g) => g.done).length >= repeatGoals.length) xpDeduct += goal.xp;
       }
-      final _r4b = _deductXp(userData!.totalXp, xpDeduct);
-      int newXp = _r4b['xp'] as int;
-      int newLevel = _r4b['level'] as int;
-      int newXpToNext = _r4b['xpToNext'] as int;
-      final newTotalXp = _r4b['totalXp'] as int;
-      // 레벨 다운 처리
-      while (newXp < 0 && newLevel > 1) { newLevel--; newXpToNext = (newXpToNext / 1.05).round(); newXp += newXpToNext; }
-      newXp = newXp.clamp(0, 999999);
-      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'totalXp': newTotalXp});
+      final r4b = _deductXp(userData!.totalXp, xpDeduct);
+      int newXp = r4b['xp'] as int;
+      int newLevel = r4b['level'] as int;
+      int newXpToNext = r4b['xpToNext'] as int;
+      final newTotalXp = r4b['totalXp'] as int;
+      await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp});
       userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp);
       showToast('목표 완료를 취소했어요');
       await loadGoals(); notifyListeners();
@@ -916,9 +903,31 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
-  // 단일 목표 삭제
+  // 단일 목표 삭제 — 완료된 목표 삭제 시 획득했던 XP 차감
   Future<void> removeGoal(String goalId) async {
-    if (authUser == null) return;
+    if (authUser == null || userData == null) return;
+    final goal = goals.firstWhere((g) => g.id == goalId, orElse: () => throw Exception('goal not found'));
+    // 완료된 목표면 XP 차감
+    if (goal.done) {
+      final freshUser = await _db.getUser(authUser!.uid);
+      if (freshUser != null) userData = freshUser;
+      final isRepeat = goal.repeatId != null;
+      int xpDeduct = isRepeat ? goal.repeatXp : goal.xp;
+      // 반복 목표 전체 완료 보너스 XP도 포함 여부 확인
+      if (isRepeat) {
+        final repeatGoals = goals.where((g) => g.repeatId == goal.repeatId).toList();
+        if (repeatGoals.where((g) => g.done).length >= repeatGoals.length) xpDeduct += goal.xp;
+      }
+      final deducted = _deductXp(userData!.totalXp, xpDeduct);
+      await _db.updateUser(authUser!.uid, {
+        'xp': deducted['xp'], 'level': deducted['level'],
+        'xpToNext': deducted['xpToNext'], 'totalXp': deducted['totalXp'],
+      });
+      userData = userData!.copyWith(
+        xp: deducted['xp'] as int, level: deducted['level'] as int,
+        xpToNext: deducted['xpToNext'] as int, totalXp: deducted['totalXp'] as int,
+      );
+    }
     await _db.deleteGoal(authUser!.uid, goalId);
     showToast('목표를 삭제했어요');
     await loadGoals(); notifyListeners();
@@ -947,12 +956,12 @@ class AppProvider extends ChangeNotifier {
     if (mail.claimed) return;
     await _db.claimMail(authUser!.uid, mailId);
     final prevLevel = userData!.level;
-    final _r3b = _applyXp(userData!.totalXp, mail.reward.xp);
-    int newXp = _r3b['xp'] as int;
+    final r3b = _applyXp(userData!.totalXp, mail.reward.xp);
+    int newXp = r3b['xp'] as int;
     int newRevive = userData!.reviveItem + mail.reward.reviveItem;
-    int newLevel = _r3b['level'] as int;
-    int newXpToNext = _r3b['xpToNext'] as int;
-    final newTotalXp = _r3b['totalXp'] as int;
+    int newLevel = r3b['level'] as int;
+    int newXpToNext = r3b['xpToNext'] as int;
+    final newTotalXp = r3b['totalXp'] as int;
     await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'reviveItem': newRevive});
     userData = userData!.copyWith(xp: newXp, level: newLevel, xpToNext: newXpToNext, totalXp: newTotalXp, reviveItem: newRevive);
     if (newLevel > prevLevel) { levelUpTo = newLevel; await _handleLevelUpReward(prevLevel, newLevel); }
@@ -1053,11 +1062,11 @@ class AppProvider extends ChangeNotifier {
     final prevLevel = userData!.level;
     // 집중 시간 XP: 분 + (분 / 10) * 분 (긴 집중일수록 보너스)
     final xpGain = minutes + (minutes ~/ 10) * minutes;
-    final _r5 = _applyXp(userData!.totalXp, xpGain);
-    int newXp = _r5['xp'] as int;
-    int newLevel = _r5['level'] as int;
-    int newXpToNext = _r5['xpToNext'] as int;
-    final newTotalXp = _r5['totalXp'] as int;
+    final r5 = _applyXp(userData!.totalXp, xpGain);
+    int newXp = r5['xp'] as int;
+    int newLevel = r5['level'] as int;
+    int newXpToNext = r5['xpToNext'] as int;
+    final newTotalXp = r5['totalXp'] as int;
     int newTotalFocus = userData!.totalFocusMin + minutes;
     await _db.updateUser(authUser!.uid, {'xp': newXp, 'level': newLevel, 'xpToNext': newXpToNext, 'totalXp': newTotalXp, 'totalFocusMin': newTotalFocus});
     // 오늘 집중 시간 랭킹 업데이트
@@ -1067,7 +1076,7 @@ class AppProvider extends ChangeNotifier {
     // 집중 세션 횟수 조회 후 업적 체크
     final sessionSnap = await _db.getFocusSessionCount(authUser!.uid);
     await _checkAchievements();
-    // 세션 수 업적 체크
+    // 세션 수 업적 개별 체크
     if (sessionSnap >= 10) { _checkSingleAchievement('focus_session_10', sessionSnap >= 10); }
     if (sessionSnap >= 50) { _checkSingleAchievement('focus_session_50', sessionSnap >= 50); }
     notifyListeners();

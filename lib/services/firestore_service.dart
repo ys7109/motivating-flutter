@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 import '../models/goal_model.dart';
 import '../models/mail_model.dart';
+import '../models/achievement_definitions.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -64,6 +65,15 @@ class FirestoreService {
       ...goal, 'progress': 0, 'done': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  // 단일 목표 저장 후 생성된 문서 ID 반환 — 목표별 알림 ID 생성에 사용
+  Future<String?> addGoalAndGetId(String uid, Map<String, dynamic> goal) async {
+    final ref = await _db.collection('users').doc(uid).collection('goals').add({
+      ...goal, 'progress': 0, 'done': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return ref.id;
   }
 
   // 반복 목표 배치 저장 — 500건 제한으로 자동 분할
@@ -234,7 +244,7 @@ class FirestoreService {
     }
   }
 
-  // 완료된 목표 조회
+  // 완료된 목표 조회 — done+completedAt 복합 색인 사용, completedAt 내림차순
   Future<List<GoalModel>> getUserCompletedGoals(String uid) async {
     final snap = await _db
         .collection('users').doc(uid).collection('goals')
@@ -244,39 +254,34 @@ class FirestoreService {
     return snap.docs.map((d) => GoalModel.fromMap(d.id, d.data())).toList();
   }
 
-  // 업적 통계 — 전체 유저 중 달성한 유저 수 증가
-  Future<void> incrementAchievementStat(String achievementId) async {
-    final ref = _db.collection('achievement_stats').doc(achievementId);
-    await _db.runTransaction((tx) async {
-      final snap = await tx.get(ref);
-      if (snap.exists) {
-        tx.update(ref, {'count': FieldValue.increment(1)});
-      } else {
-        tx.set(ref, {'count': 1});
-      }
-    });
-  }
-
-  // 전체 유저 달성률 조회 (achievementId → pct)
-  // 달성자 0명 → 0.0%, 1명 이상 → 정확한 비율 (나만 달성해도 표시)
+  // 전체 유저 업적 달성률 조회 (achievementId → pct)
+  // achievement_stats 카운터 방식 폐기 — users 컬렉션 직접 쿼리로 항상 정확한 비율 반영
+  // count() 쿼리는 문서 내용을 읽지 않으므로 비용 저렴 (읽기 과금 없음)
   Future<Map<String, double>> getAchievementStats() async {
-    final statsSnap = await _db.collection('achievement_stats').get();
-    // 전체 유저 수 — users 컬렉션 기준
+    // 전체 유저 수 먼저 조회 — users 컬렉션 기준
     final totalSnap = await _db.collection('users').count().get();
-    final total = (totalSnap.count ?? 0);
+    final total = totalSnap.count ?? 0;
+    if (total == 0) return {};
 
     final result = <String, double>{};
-    for (final doc in statsSnap.docs) {
-      final count = (doc.data()['count'] as int?) ?? 0;
-      if (total == 0 || count == 0) {
-        result[doc.id] = 0.0;
+    // 모든 업적에 대해 병렬로 count 쿼리 실행 — Future.wait으로 동시 처리
+    await Future.wait(Achievements.all.map((a) async {
+      // achievements 배열에 해당 id가 포함된 유저 수 직접 카운트
+      final countSnap = await _db
+          .collection('users')
+          .where('achievements', arrayContains: a.id)
+          .count()
+          .get();
+      final count = countSnap.count ?? 0;
+      if (count == 0) {
+        // 달성자 없으면 0.0%
+        result[a.id] = 0.0;
       } else {
-        // 최소 0.1%는 표시 — 달성자가 있으면 항상 표시
+        // 최소 0.1% 보장 — 달성자가 있으면 항상 표시
         final pct = (count / total * 100).clamp(0.0, 100.0);
-        result[doc.id] =
-            pct < 0.1 ? 0.1 : double.parse(pct.toStringAsFixed(1));
+        result[a.id] = pct < 0.1 ? 0.1 : double.parse(pct.toStringAsFixed(1));
       }
-    }
+    }));
     return result;
   }
 }

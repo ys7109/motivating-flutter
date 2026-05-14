@@ -23,7 +23,6 @@ class FeedTabState extends State<FeedTab> {
     _load();
   }
 
-  // social_screen에서 외부 호출 가능
   Future<void> reload() => _load();
 
   Future<void> _load() async {
@@ -50,15 +49,16 @@ class FeedTabState extends State<FeedTab> {
               'character': friendInfo['character'],
               'level': friendInfo['level'],
               'title': g.title,
-              'xp': g.xp,
-              'createdAt': g.completedAt,
+              // 1번: 실제 획득 XP — 반복 목표는 repeatXp, 단일은 xp
+              'xp': g.repeatId != null ? g.repeatXp : g.xp,
+              'completedAt': g.completedAt,
               // 피드에서도 프로필 이미지 표시
               'profileImageUrl': friendInfo['profileImageUrl'],
             });
           }
         }
       }
-      allFeeds.sort((a, b) => (b['createdAt'] as DateTime).compareTo(a['createdAt'] as DateTime));
+      allFeeds.sort((a, b) => (b['completedAt'] as DateTime).compareTo(a['completedAt'] as DateTime));
       if (mounted) setState(() { _feeds = allFeeds; _loading = false; });
     } catch (e) {
       if (mounted) setState(() => _loading = false);
@@ -94,20 +94,22 @@ class _FeedItem extends StatelessWidget {
   final Map<String, dynamic> feed;
   const _FeedItem({required this.feed});
 
-  String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return '방금 전';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
-    if (diff.inHours < 24) return '${diff.inHours}시간 전';
-    return '${diff.inDays}일 전';
+  // 달성 날짜 포맷 — yyyy.MM.dd 형식
+  String _dateLabel(DateTime dt) {
+    return '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final createdAt = feed['createdAt'] as DateTime?;
+    // 1번: completedAt 사용 (달성 날짜)
+    final completedAt = feed['completedAt'] as DateTime?;
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.borderColor, width: 0.5)),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.borderColor, width: 0.5),
+      ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // 프로필 이미지 포함
         CharacterAvatar(
@@ -118,21 +120,28 @@ class _FeedItem extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Text(feed['name'] ?? '모험가', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
+            Text(feed['name'] ?? '모험가', style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w600, color: context.textPrimary)),
             const SizedBox(width: 4),
-            Text('Lv.${feed['level'] ?? 1}', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+            Text('Lv.${feed['level'] ?? 1}',
+                style: TextStyle(fontSize: 12, color: context.textSecondary)),
           ]),
           const SizedBox(height: 4),
           RichText(text: TextSpan(children: [
             TextSpan(text: '🎉 목표 ', style: TextStyle(fontSize: 13, color: context.textSecondary)),
-            TextSpan(text: '"${feed['title']}"', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textPrimary)),
+            TextSpan(text: '"${feed['title']}"',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.textPrimary)),
             TextSpan(text: ' 완료!', style: TextStyle(fontSize: 13, color: context.textSecondary)),
           ])),
           const SizedBox(height: 4),
-          Text('+${feed['xp']} XP 획득', style: TextStyle(fontSize: 12, color: context.primaryColor, fontWeight: FontWeight.w500)),
-          if (createdAt != null) ...[
+          // 1번: 실제 획득 XP 표시
+          Text('+${feed['xp']} XP 획득',
+              style: TextStyle(fontSize: 12, color: context.primaryColor, fontWeight: FontWeight.w500)),
+          if (completedAt != null) ...[
             const SizedBox(height: 4),
-            Text(_timeAgo(createdAt), style: TextStyle(fontSize: 11, color: context.textSecondary)),
+            // 1번: 달성 날짜 표시
+            Text(_dateLabel(completedAt),
+                style: TextStyle(fontSize: 11, color: context.textSecondary)),
           ],
         ])),
       ]),

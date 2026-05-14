@@ -4,7 +4,7 @@
  
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage%20%7C%20Messaging-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.7.2-green)]()
+[![Version](https://img.shields.io/badge/version-1.1.3-green)]()
  
 ---
  
@@ -22,6 +22,7 @@
 - 단일 목표 및 반복 목표 (매일/매주/매달) 생성
 - 매주/매달 반복 시 요일·날짜 **다중 선택** 지원
 - 시작일~종료일 기반 자동 목표 유형 분류 (단기/중기/장기)
+- 목표별 개인 알림 설정 — 단일 목표는 해당 날짜 1회, 반복 목표는 매일 반복 (1분 단위 설정)
 - **XP 획득 방법 선택**: 기본 설정(기간별 고정 XP) 또는 AI 분석(Gemini API)
 - **반복 목표 XP 시스템**: 1회 완료 시 단기 기준 XP 지급 + 전체 완료 시 보너스 XP 추가 지급
 - 반복 목표 배치 저장으로 대량 생성 속도 개선
@@ -68,7 +69,7 @@
 - 목표/연속 출석/집중/레벨/소셜 5개 카테고리, 총 19개 업적
 - 입문/일반/고급/전설 난이도별 XP 보상 차등 지급
 - 업적 달성 시 전용 스킨 해금 (19종)
-- 전체 유저 달성률 표시
+- 전체 유저 달성률 표시 (users 컬렉션 직접 쿼리 — 항상 정확)
 - 업적 칭호 장착 기능 (닉네임 아래 표시)
 ### 📬 우편함
 - 출석/마일스톤 보상 수령
@@ -221,19 +222,25 @@ diaries/{diaryId}/comments/{commentId}
 diaries/{diaryId}/comments/{commentId}/replies/{replyId}
 chats/{chatId}
 chats/{chatId}/messages/{msgId}
-achievement_stats/{achievementId}
 ```
  
 ---
  
 ## 📋 버전 히스토리
 
+### v1.1.3 (2026.05.14)
+- ✨ 목표별 개인 알림 구현 — 설정한 시간에 정확히 알림 발송 (단일 목표 1회 / 반복 목표 매일 반복)
+- ✨ 목표 알림 시간 분 단위 1분으로 세분화 (기존 5분 단위)
+- ✨ 업적 달성률 계산 방식 개선 — `achievement_stats` 카운터 폐기, `users` 컬렉션 직접 쿼리로 교체 (항상 정확한 비율 반영)
+- 🔧 달력 6주차(42일) 잘림 현상 수정 — 고정 높이에서 동적 높이 계산으로 변경
+- 🔧 Android 12+ exact alarm 권한 추가 (`USE_EXACT_ALARM`, `SCHEDULE_EXACT_ALARM` maxSdkVersion 조정) — 스케줄 알림 정확한 시간 동작 보장
+
 ### v1.1.2 (2026.05.13)
 - ✨ 그룹채팅 참여자 확인 기능 추가
 - ✨ 채팅방 내부와 친구창에서 상대방의 프로필을 터치하여 상대방의 정보(레벨, 현재 경험치, 달성 목표, 최고 출석, 누적 집중 시간, 완료한 업적) 확인 가능
 - 🔧 다른 유저의 정보를 확인 가능하도록 Firestore 규칙 수정
 - 🔧 채팅방 내부에서 채팅을 보낸 사람의 닉네임이 표시되도록 변경
-- 🔧 그룹채팅 톼장시 'OO님이 나갔습니다.' 메시지 표시
+- 🔧 그룹채팅 퇴장시 'OO님이 나갔습니다.' 메시지 표시
 - 🔧 메인 페이지의 현재 레벨을 → 현재 등급 수정
 - 🔧 메인 페이지 원형 레벨 표시를 내 프로필 이미지로 변경 
 - 🔧 채팅방 내 상대방과 나의 메시지 간 여유 간격 증가
@@ -425,7 +432,7 @@ achievement_stats/{achievementId}
 ### v1.2.3 (2026.04.20)
 - ✨ 약관/개인정보 Firebase Hosting 배포
 - ✨ 랭킹 캐릭터 아바타
-- 🐛 XP 중복 처리 버그 수정
+- 🔧 XP 중복 처리 버그 수정
 
 ### v1.2.2 (2026.04.19)
 - ✨ 앱 아이콘 교체
@@ -434,7 +441,7 @@ achievement_stats/{achievementId}
 ### v1.2.1 (2026.04.18)
 - ✨ Google/카카오 공식 SVG 로그인 아이콘
 - ✨ 홈 목표 완료 취소 버튼
-- 🐛 로그아웃 후 자동 로그인 화면 이동
+- 🔧 로그아웃 후 자동 로그인 화면 이동
 
 - **v1.2.0** - 다크 테마 전체 적용, 파일 분리, 타이머 개선, 토스트 알림, 애니메이션
 - **v1.1.0** - 카카오 로그인, 모달, 푸시 알림, 목표 추가 완성

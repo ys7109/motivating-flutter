@@ -42,6 +42,13 @@ class NotificationService {
     importance: Importance.high,
   );
 
+  // 목표 알림 채널 — 사용자가 설정한 시간에 목표별 개인 알림
+  static const _goalAlarmChannel = AndroidNotificationChannel(
+    'goal_alarm', '목표 알림',
+    description: '목표별 개인 알림',
+    importance: Importance.high,
+  );
+
   // 알림 서비스 초기화 — 로컬 알림 채널 생성, FCM 권한 요청, 메시지 리스너 등록
   static Future<void> init() async {
     if (_initialized) return;
@@ -58,6 +65,8 @@ class NotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(_activityChannel);
     await androidPlugin?.createNotificationChannel(_chatChannel);
+    // 목표 알림 채널 생성
+    await androidPlugin?.createNotificationChannel(_goalAlarmChannel);
 
     // FCM 알림 권한 요청
     await _fcm.requestPermission(alert: true, badge: true, sound: true);
@@ -192,15 +201,15 @@ class NotificationService {
           token = await _fcm.getToken()
               .timeout(const Duration(seconds: 10), onTimeout: () => null);
         } catch (e) {
-          print('FCM getToken 시도 \${i+1} 실패: \$e');
+          print('FCM getToken 시도 ${i+1} 실패: $e');
         }
         if (token != null) break;
-        print('FCM getToken null, \${i+1}회 재시도 대기중...');
+        print('FCM getToken null, ${i+1}회 재시도 대기중...');
         await Future.delayed(const Duration(seconds: 2));
       }
 
       if (token == null) {
-        print('FCM 토큰 발급 최종 실패: \$uid');
+        print('FCM 토큰 발급 최종 실패: $uid');
         return;
       }
 
@@ -213,7 +222,7 @@ class NotificationService {
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'fcmToken': token,
       }, SetOptions(merge: true));
-      print('FCM 토큰 저장 완료: \${token.substring(0, 20)}...');
+      print('FCM 토큰 저장 완료: ${token.substring(0, 20)}...');
 
       // 토큰 갱신 리스너 — 앱 생애주기당 1회만 등록
       if (!_tokenRefreshRegistered) {
@@ -259,7 +268,9 @@ class NotificationService {
   }
 
   // 일일 목표 리마인더 — 매일 오전 9시 알림 예약
+  // exact alarm 권한 있으면 정확한 시간, 없으면 inexact로 폴백
   static Future<void> scheduleDailyGoalReminder() async {
+    final mode = await _getScheduleMode();
     await _plugin.zonedSchedule(
       1,
       '오늘의 목표를 확인하세요 🎯',
@@ -273,7 +284,8 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // 권한 있으면 exact, 없으면 inexact — 런타임 분기로 에러 방지
+      androidScheduleMode: mode,
       matchDateTimeComponents: DateTimeComponents.time,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
@@ -281,7 +293,9 @@ class NotificationService {
   }
 
   // 스트릭 위기 알림 — 매일 오후 8시 알림 예약
+  // exact alarm 권한 있으면 정확한 시간, 없으면 inexact로 폴백
   static Future<void> scheduleStreakRiskReminder(int streak) async {
+    final mode = await _getScheduleMode();
     await _plugin.zonedSchedule(
       2,
       '스트릭이 끊길 위기예요! 🔥',
@@ -295,11 +309,106 @@ class NotificationService {
           priority: Priority.high,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // 권한 있으면 exact, 없으면 inexact — 런타임 분기로 에러 방지
+      androidScheduleMode: mode,
       matchDateTimeComponents: DateTimeComponents.time,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
+  }
+
+  // exact alarm 권한 런타임 체크 — 권한 있으면 exact, 없으면 inexact 반환
+  // Android 12+ (API 31+)부터 exact alarm에 별도 권한 필요
+  // ManifestÈ SCHEDULE_EXACT_ALARM 선언 없이도 기기가 허용한 경우 exact 사용 가능
+  static Future<AndroidScheduleMode> _getScheduleMode() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    final canExact = await android?.canScheduleExactNotifications() ?? false;
+    return canExact
+        ? AndroidScheduleMode.exactAllowWhileIdle   // 정확한 시간 알림
+        : AndroidScheduleMode.inexactAllowWhileIdle; // 권한 없으면 근사 시간으로 폴백
+  }
+
+  // 목표별 알림 예약 — 사용자가 설정한 시간에 정확히 1회 또는 매일 반복
+  // notificationId: 목표 ID 해시 기반 고유값 — 목표마다 별도 알림 슬롯 사용
+  // scheduledDate: 단일 목표는 해당 날짜, 반복 목표는 매일 반복
+  static Future<void> scheduleGoalAlarm({
+    required String goalId,
+    required String goalTitle,
+    required String amPm,      // '오전' | '오후'
+    required int hour,         // 1~12
+    required int minute,       // 0~59
+    required bool isRepeat,    // 반복 목표 여부 — true면 매일 반복, false면 1회
+    required String scheduledDate, // 단일 목표 날짜 (yyyy-MM-dd)
+  }) async {
+    // 알림 ID — goalId 해시값 절댓값 사용 (int 범위 초과 방지)
+    final notifId = goalId.hashCode.abs() % 100000 + 10000;
+
+    // 12시간제 → 24시간제 변환
+    int hour24 = hour;
+    if (amPm == '오전' && hour == 12) hour24 = 0;       // 오전 12시 → 0시
+    if (amPm == '오후' && hour != 12) hour24 = hour + 12; // 오후 1~11시 → 13~23시
+
+    final mode = await _getScheduleMode();
+
+    if (isRepeat) {
+      // 반복 목표 — 매일 같은 시간 반복 알림
+      final scheduledTime = _nextInstanceOf(hour24, minute);
+      await _plugin.zonedSchedule(
+        notifId,
+        '반복 목표 알림 🔄',
+        '[$goalTitle] 오늘 완료했나요?',
+        scheduledTime,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'goal_alarm', '목표 알림',
+            channelDescription: '목표별 개인 알림',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        androidScheduleMode: mode,
+        // 매일 같은 시간 반복 — time 컴포넌트만 매칭
+        matchDateTimeComponents: DateTimeComponents.time,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } else {
+      // 단일 목표 — 해당 날짜 1회만 알림
+      final parts = scheduledDate.split('-');
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final day = int.parse(parts[2]);
+      // 지정 날짜의 설정 시간으로 정확히 1회 예약
+      final scheduledTime = tz.TZDateTime(
+          tz.local, year, month, day, hour24, minute);
+      // 이미 지난 시간이면 예약 스킵
+      if (scheduledTime.isBefore(tz.TZDateTime.now(tz.local))) return;
+      await _plugin.zonedSchedule(
+        notifId,
+        '목표 알림 🎯',
+        '[$goalTitle] 오늘 완료했나요?',
+        scheduledTime,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'goal_alarm', '목표 알림',
+            channelDescription: '목표별 개인 알림',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        androidScheduleMode: mode,
+        // 1회 알림 — matchDateTimeComponents 없음
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    }
+  }
+
+  // 목표별 알림 취소 — 목표 삭제 또는 알림 해제 시 호출
+  static Future<void> cancelGoalAlarm(String goalId) async {
+    final notifId = goalId.hashCode.abs() % 100000 + 10000;
+    await _plugin.cancel(notifId);
   }
 
   // 특정 알림 취소

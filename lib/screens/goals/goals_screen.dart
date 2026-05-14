@@ -22,6 +22,12 @@ List<int?> _calendarDays(int year, int month) {
   return [...List.filled(firstDay, null), ...List.generate(lastDate, (i) => i + 1)];
 }
 
+// 해당 월 달력이 몇 주(행)인지 계산 — 5주 또는 6주
+int _calendarRowCount(int year, int month) {
+  final totalCells = _calendarDays(year, month).length;
+  return (totalCells / 7).ceil();
+}
+
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key});
   @override
@@ -39,7 +45,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
   Map<String, dynamic>? _deleteModal;
 
   late final PageController _pageCtrl;
-  static const _basePage = 24000;
 
   @override
   void initState() {
@@ -47,6 +52,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     _loadSortPref();
     _loadHolidays();
     final now = DateTime.now();
+    // 현재 년월을 페이지 인덱스로 변환 — year * 12 + (month - 1)
     final initialPage = now.year * 12 + (now.month - 1);
     _pageCtrl = PageController(initialPage: initialPage);
   }
@@ -80,6 +86,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   String get _todayStr => _toDateStr(_today.year, _today.month, _today.day);
 
+  // 페이지 인덱스 → DateTime 변환
   DateTime _pageToDate(int page) {
     final year = page ~/ 12;
     final month = page % 12 + 1;
@@ -197,13 +204,19 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final doneCount = goals.where((g) => g.done).length;
     final activeCount = goals.where((g) => !g.done).length;
 
-    // 4번: 오늘이면 날짜 (오늘) 형식
+    // 오늘이면 날짜 (오늘) 형식
     final dateFormatted = _selectedDate.replaceAll('-', '.');
     final dateHeader = _selectedDate == _todayStr
         ? '$dateFormatted (오늘)'
         : dateFormatted;
-    // 3번: 공휴일 이름
+    // 공휴일 이름
     final holidayName = _holidays[_selectedDate];
+
+    // 현재 보이는 달의 행 수 계산 — 5주 또는 6주
+    final rowCount = _calendarRowCount(_viewYear, _viewMonth);
+    // 셀 높이 × 행 수 + 하단 패딩 — 6주 달도 잘리지 않게 동적 계산
+    const cellHeight = 46.0;
+    final calendarHeight = cellHeight * rowCount + 12;
 
     return Scaffold(
       backgroundColor: context.bgColor,
@@ -245,6 +258,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: context.borderColor, width: 0.5)),
                   child: Column(children: [
+                    // 년월 헤더 + 이전/다음 버튼
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
                       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -255,7 +269,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           icon: Icon(Icons.chevron_left, color: context.textSecondary),
                           padding: EdgeInsets.zero, constraints: const BoxConstraints(),
                         ),
-                        // 2번: 년월 터치 → 피커
+                        // 년월 터치 → 피커
                         GestureDetector(
                           onTap: _showYearMonthPicker,
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -275,6 +289,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         ),
                       ]),
                     ),
+                    // 요일 헤더 — 일~토
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(children: List.generate(7, (i) => Expanded(
@@ -287,9 +302,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       ))),
                     ),
                     const SizedBox(height: 4),
-                    // 1번: PageView 좌우 스와이프
-                    SizedBox(
-                      height: 280,
+                    // PageView — 월 단위 좌우 스와이프
+                    // 6주(42칸) 달도 잘리지 않도록 동적 높이 사용
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      height: calendarHeight,
                       child: PageView.builder(
                         controller: _pageCtrl,
                         onPageChanged: (page) {
@@ -304,13 +321,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           final y = dt.year;
                           final m = dt.month;
                           final calDays = _calendarDays(y, m);
+                          // 이 페이지의 행 수 — 6주 달이면 6행
+                          final pageRowCount = (calDays.length / 7).ceil();
                           return Padding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                             child: GridView.count(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               crossAxisCount: 7,
-                              childAspectRatio: 0.85,
+                              // 셀 높이를 행 수에 맞게 조정 — 6주 달은 셀이 약간 작아짐
+                              childAspectRatio: 1 / (pageRowCount == 6 ? 1.05 : 0.95),
                               children: calDays.asMap().entries.map((e) {
                                 final idx = e.key;
                                 final day = e.value;
@@ -342,6 +362,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                             : context.textPrimary,
                                       ))),
                                     ),
+                                    // 목표 있는 날 점 표시 — 완료 여부에 따라 색상 분기
                                     Container(
                                       width: 4, height: 4,
                                       margin: const EdgeInsets.only(top: 3),
@@ -370,7 +391,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  // 3번: 공휴일 이름 날짜 아래 표시 + 4번: "오늘" 표시
+                  // 공휴일 이름 + 오늘 표시
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(dateHeader, style: TextStyle(fontSize: 14,
                         fontWeight: FontWeight.w500, color: context.textPrimary)),

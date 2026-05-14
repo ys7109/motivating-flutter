@@ -169,7 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _Section(title: '알림', children: [
                 _ToggleItem(label: '목표 리마인더', sub: '매일 아침 9시 — 오늘의 목표 확인',
                     value: _notif['goal']!, onChange: () => _toggleNotif('goal')),
-                _ToggleItem(label: '스트릭 위기 알림', sub: '매일 저녁 8시 — 스트릭이 끊길 위기일 때',
+                _ToggleItem(label: '연속 출석 위기 알림', sub: '매일 저녁 8시 — 연속 출석이 끊길 위기일 때',
                     value: _notif['streak']!, onChange: () => _toggleNotif('streak')),
                 _ToggleItem(label: '우편함 알림', sub: '새 보상이 도착하면 즉시 알림',
                     value: _notif['mail']!, onChange: () => _toggleNotif('mail')),
@@ -195,17 +195,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _LinkItem(label: '이용약관', onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const InAppWebView(
                         url: 'https://motivating-5a036.web.app/terms.html', title: '이용약관')))),
-                // _LinkItem(label: '오픈소스 라이선스', onTap: () {}),
+                _LinkItem(label: '오픈소스 라이선스', onTap: () {}),
                 _LinkItem(label: '문의하기', onTap: () async {
-                  final uri = Uri.parse('mailto:cmarco4065@gmail.com?subject=Motivating 문의');
+                  final uri = Uri.parse('mailto:kimyusong77@gmail.com?subject=Motivating 문의');
                   if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
                 }),
               ]),
 
               // 앱 정보 섹션
               _Section(title: '앱 정보', children: [
-                const _InfoItem(label: '버전', value: '1.1.2'),
-                const _InfoItem(label: '빌드', value: '2026.05.13'),
+                const _InfoItem(label: '버전', value: '1.1.3'),
+                const _InfoItem(label: '빌드', value: '2026.05.14'),
               ]),
 
               // 계정 섹션
