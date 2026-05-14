@@ -4,7 +4,7 @@
  
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage%20%7C%20Messaging-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.1.3-green)]()
+[![Version](https://img.shields.io/badge/version-1.1.4-green)]()
  
 ---
  
@@ -227,6 +227,11 @@ chats/{chatId}/messages/{msgId}
 ---
  
 ## 📋 버전 히스토리
+
+### v1.1.4 (2026.05.14)
+- ✨ 목표 수정 기능 추가 — 수정 버튼 터치 또는 목표 꾹 누르기
+- 🔧 메인 페이지에서 목표를 삭제할 때도 삭제 확인창이 뜨도록 변경
+- 🔧 단일 목표를 삭제할 때도 삭제 확인창이 뜨도록 변경
 
 ### v1.1.3 (2026.05.14)
 - ✨ 목표별 개인 알림 구현 — 설정한 시간에 정확히 알림 발송 (단일 목표 1회 / 반복 목표 매일 반복)

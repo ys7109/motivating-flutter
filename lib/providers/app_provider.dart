@@ -250,6 +250,9 @@ class AppProvider extends ChangeNotifier {
         authUser = user;
         debugPrint('🔥 authStateChanges: user=${user?.uid}');
         if (user != null) {
+          // lastLogin 업데이트 — 앱 재실행/재로그인 시마다 현재 시각으로 갱신
+          // auth_service의 ensureUserDoc은 로그인 시에만 호출되므로 여기서 별도 처리
+          await _db.updateUser(user.uid, {'lastLogin': FieldValue.serverTimestamp()});
           // 유저 데이터 로드 — 신규 회원가입 시 문서 생성 지연 대응해 최대 3회 재시도
           for (int i = 0; i < 3; i++) {
             userData = await _db.getUser(user.uid);

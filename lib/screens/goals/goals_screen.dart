@@ -107,9 +107,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
   void _handleDeleteRequest(GoalModel goal, AppProvider app) {
     final info = app.getRepeatInfo(goal.id);
     if (info != null) {
+      // 반복 목표 — 전체/하나만 선택 모달
       setState(() => _deleteModal = {'goalId': goal.id, 'repeatInfo': info});
     } else {
-      app.removeGoal(goal.id);
+      // 단일 목표도 삭제 확인 모달 표시
+      setState(() => _deleteModal = {'goalId': goal.id, 'repeatInfo': null});
     }
   }
 
@@ -480,6 +482,29 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     onComplete: () => app.completeGoal(g.id),
                     onUncomplete: () => app.uncompleteGoal(g.id),
                     onDelete: () => _handleDeleteRequest(g, app),
+                    // 수정 버튼 — Firestore에서 최신 데이터 직접 조회 후 수정 화면 열기
+                    onEdit: () async {
+                      final uid = app.authUser?.uid;
+                      if (uid == null) return;
+                      final snap = await app.firestoreService.getGoalDoc(uid, g.id);
+                      if (!context.mounted || snap == null) return;
+                      // repeatId가 있으면 같은 반복 목표들의 날짜 범위 계산
+                      // Firestore에 startDate/endDate가 없는 구버전 목표도 복원 가능
+                      if (g.repeatId != null) {
+                        final repeatGoals = goals
+                            .where((r) => r.repeatId == g.repeatId)
+                            .map((r) => r.scheduledDate ?? '')
+                            .where((d) => d.isNotEmpty)
+                            .toList()..sort();
+                        if (repeatGoals.isNotEmpty) {
+                          snap['startDate'] = repeatGoals.first;
+                          snap['endDate'] = repeatGoals.last;
+                        }
+                      }
+                      Navigator.push(context, SlideUpRoute(
+                        page: AddGoalScreen(editGoalId: g.id, editGoalData: snap),
+                      ));
+                    },
                     selectedDate: _selectedDate,
                     todayStr: _todayStr,
                     showToast: app.showToast,
@@ -491,12 +516,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
         if (_deleteModal != null)
           _DeleteModal(
-            repeatInfo: _deleteModal!['repeatInfo'],
+            repeatInfo: _deleteModal!['repeatInfo'], // null이면 단일 목표 확인 UI
             onDeleteAll: () {
+              // 반복 목표 전체 삭제
               app.removeRepeatGoals(_deleteModal!['repeatInfo']['repeatId']);
               setState(() => _deleteModal = null);
             },
             onDeleteOne: () {
+              // 단일 삭제 (단일 목표 또는 반복 목표 하나만)
               app.removeGoal(_deleteModal!['goalId']);
               setState(() => _deleteModal = null);
             },
@@ -514,11 +541,14 @@ class _GoalCard extends StatefulWidget {
   final GoalModel goal;
   final bool willAllDone;
   final VoidCallback onComplete, onUncomplete, onDelete;
+  // onEdit은 async — DB 조회가 포함되므로 Future<void> Function() 타입
+  final Future<void> Function() onEdit;
   final String selectedDate, todayStr;
   final void Function(String) showToast;
   const _GoalCard({
     required this.goal, required this.willAllDone,
-    required this.onComplete, required this.onUncomplete, required this.onDelete,
+    required this.onComplete, required this.onUncomplete,
+    required this.onDelete, required this.onEdit,
     required this.selectedDate, required this.todayStr, required this.showToast,
   });
   @override
@@ -558,7 +588,10 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
     final displayXp = isRepeat
         ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp) : g.xp;
 
-    return AnimatedOpacity(
+    return GestureDetector(
+      // 꾹 누르면 수정 화면 열기
+      onLongPress: widget.onEdit,
+      child: AnimatedOpacity(
       duration: const Duration(milliseconds: 300),
       opacity: g.done ? 0.65 : 1.0,
       child: Container(
@@ -615,8 +648,11 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                 if (g.repeat != null) ...[
                   const SizedBox(height: 4),
                   Text('🔄 ${g.repeat!.type == 'daily' ? '매일'
-                      : g.repeat!.type == 'weekly' ? '매주 ${_weekDays[g.repeat!.day ?? 0]}요일'
-                      : '매달 ${g.repeat!.date}일'}',
+                      : g.repeat!.type == 'weekly'
+                          // 다중 요일 — days 배열 우선, 없으면 레거시 day 사용
+                          ? '매주 ${(g.repeat!.days?.isNotEmpty == true ? g.repeat!.days! : [g.repeat!.day ?? 0]).map((d) => _weekDays[d]).join(', ')}요일'
+                          // 다중 날짜 — dates 배열 우선, 없으면 레거시 date 사용
+                          : '매달 ${(g.repeat!.dates?.isNotEmpty == true ? g.repeat!.dates! : [g.repeat!.date ?? 1]).join(', ')}일'}',
                       style: TextStyle(fontSize: 11, color: context.textSecondary)),
                 ],
                 AnimatedSize(
@@ -652,41 +688,57 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
           ),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            // 수정 / 삭제 버튼 — 상단 우측에 나란히 배치
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              GestureDetector(
+                onTap: widget.onEdit,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(border: Border.all(color: context.borderColor),
+                      borderRadius: BorderRadius.circular(6)),
+                  child: Text('수정', style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                ),
+              ),
+              const SizedBox(width: 4),
+              TapScale(
+                onTap: widget.onDelete,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  // 삭제 버튼 — 빨간색으로 강조
+                  decoration: BoxDecoration(
+                      border: Border.all(color: AppTheme.danger.withOpacity(0.5)),
+                      borderRadius: BorderRadius.circular(6)),
+                  child: Text('삭제', style: const TextStyle(fontSize: 11, color: AppTheme.danger)),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            // XP — 항상 표시 (완료 시 초록색)
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 200),
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
                   color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary),
               child: Text('+$displayXp XP'),
             ),
-            const SizedBox(height: 8),
-            Row(children: [
-              if (g.done) TapScale(
-                onTap: widget.onUncomplete,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(border: Border.all(color: context.borderColor),
-                      borderRadius: BorderRadius.circular(6)),
-                  child: Text('취소', style: TextStyle(fontSize: 11, color: context.textSecondary)),
-                ),
-              ),
-              const SizedBox(width: 6),
-              TapScale(onTap: widget.onDelete,
-                  child: Text('×', style: TextStyle(fontSize: 18, color: context.borderColor))),
-            ]),
+            // 취소는 왼쪽 원형 체크 버튼으로 대체 — 별도 취소 버튼 없음
           ]),
         ]),
       ),
-    );
+      ), // AnimatedOpacity
+    ); // GestureDetector
   }
 }
 
 class _DeleteModal extends StatelessWidget {
-  final Map<String, dynamic> repeatInfo;
+  // repeatInfo가 null이면 단일 목표 삭제 확인 UI 표시
+  final Map<String, dynamic>? repeatInfo;
   final VoidCallback onDeleteAll, onDeleteOne, onCancel;
   const _DeleteModal({required this.repeatInfo, required this.onDeleteAll,
       required this.onDeleteOne, required this.onCancel});
   @override
   Widget build(BuildContext context) {
+    // 단일 목표 여부
+    final isSingle = repeatInfo == null;
     return Container(
       color: Colors.black54,
       child: Center(child: Padding(
@@ -695,22 +747,30 @@ class _DeleteModal extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(color: context.modalBg, borderRadius: BorderRadius.circular(20)),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('반복 목표 삭제', style: TextStyle(fontSize: 16,
-                fontWeight: FontWeight.w600, color: context.textPrimary)),
+            Text(isSingle ? '목표 삭제' : '반복 목표 삭제',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
             const SizedBox(height: 8),
-            Text('반복 목표를 모두 함께 삭제하시겠습니까?',
+            Text(isSingle ? '이 목표를 삭제하시겠습니까?' : '반복 목표를 모두 함께 삭제하시겠습니까?',
                 style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.6)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(10)),
-              child: Text('삭제되는 목표: ${repeatInfo['undone']}개',
-                  style: TextStyle(fontSize: 12, color: context.textSecondary)),
-            ),
+            if (!isSingle) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(10)),
+                child: Text('삭제되는 목표: ${repeatInfo!["undone"]}개',
+                    style: TextStyle(fontSize: 12, color: context.textSecondary)),
+              ),
+            ],
             const SizedBox(height: 16),
-            _ModalBtn(label: '모두 삭제', color: AppTheme.danger, textColor: Colors.white, onTap: onDeleteAll),
-            const SizedBox(height: 8),
-            _ModalBtn(label: '하나만 삭제', onTap: onDeleteOne),
+            // 단일 목표는 '삭제', 반복 목표는 '모두 삭제'
+            _ModalBtn(
+                label: isSingle ? '삭제' : '모두 삭제',
+                color: AppTheme.danger, textColor: Colors.white,
+                onTap: isSingle ? onDeleteOne : onDeleteAll),
+            if (!isSingle) ...[
+              const SizedBox(height: 8),
+              _ModalBtn(label: '하나만 삭제', onTap: onDeleteOne),
+            ],
             const SizedBox(height: 8),
             _ModalBtn(label: '취소', onTap: onCancel),
           ]),

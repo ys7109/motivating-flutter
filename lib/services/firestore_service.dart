@@ -60,6 +60,16 @@ class FirestoreService {
     return snap.docs.map((d) => GoalModel.fromMap(d.id, d.data())).toList();
   }
 
+  // 단일 목표 문서 원본 Map 조회 — 수정 모드에서 모든 필드 그대로 복원
+  Future<Map<String, dynamic>?> getGoalDoc(String uid, String goalId) async {
+    final snap = await _db
+        .collection('users').doc(uid).collection('goals')
+        .doc(goalId).get();
+    if (!snap.exists) return null;
+    // Firestore 원본 데이터 그대로 반환 — alarm, xpMode, repeat 등 모두 포함
+    return snap.data();
+  }
+
   Future<void> addGoal(String uid, Map<String, dynamic> goal) async {
     await _db.collection('users').doc(uid).collection('goals').add({
       ...goal, 'progress': 0, 'done': false,

@@ -29,7 +29,10 @@ Color _typeColor(String type) => type == 'short' ? const Color(0xFF2e7d32) : typ
 
 class AddGoalScreen extends StatefulWidget {
   final String? initialDate;
-  const AddGoalScreen({super.key, this.initialDate});
+  // 수정 모드 — goalId와 기존 데이터를 받으면 수정 모드로 동작
+  final String? editGoalId;
+  final Map<String, dynamic>? editGoalData;
+  const AddGoalScreen({super.key, this.initialDate, this.editGoalId, this.editGoalData});
 
   @override
   State<AddGoalScreen> createState() => _AddGoalScreenState();
@@ -86,6 +89,8 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
         .animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut));
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
     _animCtrl.forward();
+    // 수정 모드 — initState에서 직접 세팅 (build 전에 실행되므로 setState 불필요)
+    if (widget.editGoalData != null) _initFromEditData(widget.editGoalData!);
   }
 
   @override
@@ -196,6 +201,55 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
     });
   }
 
+  // 수정 모드 초기화 — Firestore 원본 Map으로 각 필드 세팅
+  void _initFromEditData(Map<String, dynamic> data) {
+    // 제목/설명 복원
+    _titleCtrl.text = data['title'] ?? '';
+    _descCtrl.text = data['desc'] ?? '';
+    // XP 모드 복원 — 저장된 xpMode 우선, 없으면 manual
+    _xpMode = data['xpMode'] ?? 'manual';
+    _xp = (data['xp'] as num?)?.toInt() ?? _singleXp;
+    _repeatXp = (data['repeatXp'] as num?)?.toInt() ?? _repeatXpFixed;
+    // AI 모드면 분석 완료 상태로 표시 — 분석 버튼 안 보이게
+    if (_xpMode == 'ai') { _aiDone = true; _aiReason = 'AI 분석 결과'; }
+    // 반복 설정 복원
+    final repeat = data['repeat'] as Map<String, dynamic>?;
+    if (repeat != null) {
+      _repeatType = (repeat['type'] as String?) ?? 'none';
+      // 다중 요일 복원 — days 배열 우선, 없으면 레거시 day 사용
+      if (repeat['days'] != null) {
+        _repeatDays = Set<int>.from((repeat['days'] as List).map((e) => (e as num).toInt()));
+      } else if (repeat['day'] != null) {
+        _repeatDays = {(repeat['day'] as num).toInt()};
+      }
+      // 다중 날짜 복원 — dates 배열 우선, 없으면 레거시 date 사용
+      if (repeat['dates'] != null) {
+        _repeatDates = Set<int>.from((repeat['dates'] as List).map((e) => (e as num).toInt()));
+      } else if (repeat['date'] != null) {
+        _repeatDates = {(repeat['date'] as num).toInt()};
+      }
+      // 시작일/종료일 복원 — 구버전(startDate 없음)은 scheduledDate를 시작일로 사용
+      _startDate = (data['startDate'] as String?) ?? (data['scheduledDate'] as String?) ?? '';
+      _endDate = (data['endDate'] as String?) ?? '';
+    } else {
+      // 반복 없는 단일 목표
+      _repeatType = 'none';
+      _scheduledDate = (data['scheduledDate'] as String?) ?? _scheduledDate;
+    }
+    // 반복 목표의 scheduledDate도 복원 (표시용)
+    if (repeat != null && data['scheduledDate'] != null) {
+      _scheduledDate = data['scheduledDate'] as String;
+    }
+    // 알림 설정 복원 — alarm 맵이 있으면 복원
+    final alarm = data['alarm'] as Map<String, dynamic>?;
+    if (alarm != null) {
+      _alarmEnabled = true;
+      _alarmAmPm = (alarm['amPm'] as String?) ?? '오전';
+      _alarmHour = (alarm['hour'] as num?)?.toInt() ?? 9;
+      _alarmMin = (alarm['min'] as num?)?.toInt() ?? 0;
+    }
+  }
+
   Future<void> _submit() async {
     if (_titleCtrl.text.trim().isEmpty) {
       setState(() => _titleError = true);
@@ -224,12 +278,46 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
           : _xp;
       final effectiveRepeatXp = _repeatType == 'none' ? effectiveXp : (_xpMode == 'manual' ? _repeatXpFixed : _repeatXp);
 
+      // 수정 모드 — 기존 목표 업데이트
+      if (widget.editGoalId != null) {
+        await app.firestoreService.updateGoal(uid, widget.editGoalId!, {
+          'title': _titleCtrl.text.trim(),
+          'desc': _descCtrl.text.trim(),
+          'type': type,
+          'xp': effectiveXp,
+          'repeatXp': effectiveRepeatXp,
+          'scheduledDate': _scheduledDate,
+        });
+        // 알림 기존 것 취소 후 새로 예약
+        await NotificationService.cancelGoalAlarm(widget.editGoalId!);
+        if (_alarmEnabled) {
+          await NotificationService.scheduleGoalAlarm(
+            goalId: widget.editGoalId!,
+            goalTitle: _titleCtrl.text.trim(),
+            amPm: _alarmAmPm,
+            hour: _alarmHour,
+            minute: _alarmMin,
+            isRepeat: _repeatType != 'none',
+            scheduledDate: _scheduledDate,
+          );
+        }
+        await app.loadGoals();
+        if (mounted) Navigator.pop(context);
+        return;
+      }
+
       if (_repeatType == 'none') {
         // 단일 목표 저장
         final docRef = await app.firestoreService.addGoalAndGetId(uid, {
           'title': _titleCtrl.text.trim(), 'desc': _descCtrl.text.trim(),
           'type': type, 'xp': effectiveXp, 'repeatXp': effectiveRepeatXp,
           'scheduledDate': _scheduledDate,
+          // xpMode 저장 — 수정 시 AI/직접 모드 복원
+          'xpMode': _xpMode,
+          // 알림 설정 저장 — 수정 시 알림 정보 복원
+          if (_alarmEnabled) 'alarm': {
+            'amPm': _alarmAmPm, 'hour': _alarmHour, 'min': _alarmMin,
+          },
         });
         // 알림 설정 시 해당 날짜 지정 시간에 1회 알림 예약
         if (_alarmEnabled && docRef != null) {
@@ -261,6 +349,15 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
           'type': type, 'xp': effectiveXp, 'repeatXp': effectiveRepeatXp,
           'scheduledDate': date, 'repeatId': repeatId,
           'repeat': repeatData,
+          // 반복 목표 전체 기간 저장 — 수정 시 시작일/종료일 복원용
+          'startDate': _startDate,
+          'endDate': _endDate,
+          // xpMode 저장 — 수정 시 AI/직접 모드 복원
+          'xpMode': _xpMode,
+          // 알림 설정 저장 — 수정 시 알림 정보 복원
+          if (_alarmEnabled) 'alarm': {
+            'amPm': _alarmAmPm, 'hour': _alarmHour, 'min': _alarmMin,
+          },
         }).toList();
         await app.firestoreService.addGoalsBatch(uid, goalList);
         // 반복 목표 알림 — repeatId 기준으로 매일 반복 알림 예약
@@ -343,7 +440,8 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                     GestureDetector(onTap: () => Navigator.pop(context), child: Icon(Icons.close, color: context.textSecondary)),
-                    Text('목표 추가', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                    // 수정 모드면 '목표 수정', 추가 모드면 '목표 추가'
+                    Text(widget.editGoalId != null ? '목표 수정' : '목표 추가', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: context.textPrimary)),
                     GestureDetector(
                       onTap: _saving ? null : _submit,
                       child: _saving
@@ -772,7 +870,8 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                           decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(14)),
                           child: Center(child: _saving
                               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : Text('목표 추가하기', style: TextStyle(color: context.isDark ? Colors.black : Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
+                              // 수정 모드면 '수정 완료', 추가 모드면 '목표 추가하기'
+                          : Text(widget.editGoalId != null ? '수정 완료' : '목표 추가하기', style: TextStyle(color: context.isDark ? Colors.black : Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
                         ),
                       ),
                       const SizedBox(height: 40),
