@@ -194,6 +194,8 @@ class NotificationService {
   // 토큰이 null이면 권한 재요청 후 재시도
   static Future<void> saveFcmToken(String uid) async {
     try {
+      // 업데이트 후 FCM 자동 초기화가 꺼진 상태여도 토큰 발급을 다시 활성화한다.
+      await _fcm.setAutoInitEnabled(true);
       // 최대 5회 재시도 — 릴리즈 빌드에서 getToken 지연 대응
       String? token;
       for (int i = 0; i < 5; i++) {
@@ -253,18 +255,30 @@ class NotificationService {
 
   // 알림 권한 요청
   static Future<bool> requestPermission() async {
+    final fcmPermission = await _fcm.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    final result = await android?.requestNotificationsPermission();
-    return result ?? false;
+    if (android == null) {
+      return fcmPermission.authorizationStatus != AuthorizationStatus.denied;
+    }
+    final result = await android.requestNotificationsPermission();
+    // Android 12 이하처럼 런타임 알림 권한이 없는 기기는 null을 허용 상태로 본다.
+    return (result ?? true) &&
+        fcmPermission.authorizationStatus != AuthorizationStatus.denied;
   }
 
   // 현재 알림 권한 상태 확인
   static Future<bool> hasPermission() async {
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    final granted = await android?.areNotificationsEnabled();
-    return granted ?? false;
+    if (android == null) return true;
+    final granted = await android.areNotificationsEnabled();
+    // Android 12 이하처럼 권한 조회가 없는 기기는 알림 가능 상태로 처리한다.
+    return granted ?? true;
   }
 
   // 일일 목표 리마인더 — 매일 오전 9시 알림 예약

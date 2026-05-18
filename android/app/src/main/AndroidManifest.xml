@@ -70,14 +70,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- FCM 백그라운드 메시지 처리 서비스 -->
-        <service
-            android:name="com.google.firebase.messaging.FirebaseMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
+        <!-- FCM 서비스는 firebase_messaging 플러그인의 Manifest 병합 선언을 사용한다. -->
 
         <!-- FCM 백그라운드 핸들러 -->
         <service

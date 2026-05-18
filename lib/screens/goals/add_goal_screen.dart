@@ -78,6 +78,9 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
   late Animation<Offset> _slideAnim;
   late Animation<double> _fadeAnim;
 
+  // 수정 모드에서 원본 repeatId 저장 — 반복 목표 일괄 수정 시 사용
+  String? _editRepeatId;
+
   @override
   void initState() {
     super.initState();
@@ -203,7 +206,6 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
 
   // 수정 모드 초기화 — Firestore 원본 Map으로 각 필드 세팅
   void _initFromEditData(Map<String, dynamic> data) {
-    // 제목/설명 복원
     _titleCtrl.text = data['title'] ?? '';
     _descCtrl.text = data['desc'] ?? '';
     // XP 모드 복원 — 저장된 xpMode 우선, 없으면 manual
@@ -212,7 +214,6 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
     _repeatXp = (data['repeatXp'] as num?)?.toInt() ?? _repeatXpFixed;
     // AI 모드면 분석 완료 상태로 표시 — 분석 버튼 안 보이게
     if (_xpMode == 'ai') { _aiDone = true; _aiReason = 'AI 분석 결과'; }
-    // 반복 설정 복원
     final repeat = data['repeat'] as Map<String, dynamic>?;
     if (repeat != null) {
       _repeatType = (repeat['type'] as String?) ?? 'none';
@@ -231,16 +232,16 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
       // 시작일/종료일 복원 — 구버전(startDate 없음)은 scheduledDate를 시작일로 사용
       _startDate = (data['startDate'] as String?) ?? (data['scheduledDate'] as String?) ?? '';
       _endDate = (data['endDate'] as String?) ?? '';
+      // 반복 목표의 repeatId 저장 — 일괄 수정 시 사용
+      _editRepeatId = data['repeatId'] as String?;
     } else {
-      // 반복 없는 단일 목표
       _repeatType = 'none';
       _scheduledDate = (data['scheduledDate'] as String?) ?? _scheduledDate;
     }
-    // 반복 목표의 scheduledDate도 복원 (표시용)
     if (repeat != null && data['scheduledDate'] != null) {
       _scheduledDate = data['scheduledDate'] as String;
     }
-    // 알림 설정 복원 — alarm 맵이 있으면 복원
+    // 알림 설정 복원
     final alarm = data['alarm'] as Map<String, dynamic>?;
     if (alarm != null) {
       _alarmEnabled = true;
@@ -248,6 +249,45 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
       _alarmHour = (alarm['hour'] as num?)?.toInt() ?? 9;
       _alarmMin = (alarm['min'] as num?)?.toInt() ?? 0;
     }
+  }
+
+  // 알림 예약 — 실패해도 목표 저장/화면 이동을 막지 않도록 분리
+  Future<void> _scheduleGoalAlarmSafely({
+    required String goalId,
+    required String goalTitle,
+    required bool isRepeat,
+    required String scheduledDate,
+  }) async {
+    try {
+      await NotificationService.scheduleGoalAlarm(
+        goalId: goalId,
+        goalTitle: goalTitle,
+        amPm: _alarmAmPm,
+        hour: _alarmHour,
+        minute: _alarmMin,
+        isRepeat: isRepeat,
+        scheduledDate: scheduledDate,
+      ).timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('목표 알림 예약 실패: $e');
+      if (mounted) context.read<AppProvider>().showToast('목표는 저장됐지만 알림 예약에 실패했어요.');
+    }
+  }
+
+  // 수정할 데이터 맵 생성 — 단일/반복 공통으로 사용
+  Map<String, dynamic> _buildUpdateData(String type, int effectiveXp, int effectiveRepeatXp) {
+    return {
+      'title': _titleCtrl.text.trim(),
+      'desc': _descCtrl.text.trim(),
+      'type': type,
+      'xp': effectiveXp,
+      'repeatXp': effectiveRepeatXp,
+      'xpMode': _xpMode,
+      // 알림 켜져 있으면 alarm 맵 저장, 꺼져 있으면 null
+      'alarm': _alarmEnabled
+          ? {'amPm': _alarmAmPm, 'hour': _alarmHour, 'min': _alarmMin}
+          : null,
+    };
   }
 
   Future<void> _submit() async {
@@ -278,25 +318,50 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
           : _xp;
       final effectiveRepeatXp = _repeatType == 'none' ? effectiveXp : (_xpMode == 'manual' ? _repeatXpFixed : _repeatXp);
 
-      // 수정 모드 — 기존 목표 업데이트
+      // 수정 모드
       if (widget.editGoalId != null) {
-        await app.firestoreService.updateGoal(uid, widget.editGoalId!, {
-          'title': _titleCtrl.text.trim(),
-          'desc': _descCtrl.text.trim(),
-          'type': type,
-          'xp': effectiveXp,
-          'repeatXp': effectiveRepeatXp,
-          'scheduledDate': _scheduledDate,
-        });
+        final updateData = _buildUpdateData(type, effectiveXp, effectiveRepeatXp);
+
+        // 반복 목표이고 repeatId가 있으면 수정 범위 선택 모달 표시
+        if (_editRepeatId != null) {
+          setState(() => _saving = false);
+          // 모달 결과 대기 — true=모두 수정, false=이 목표만 수정
+          final editAll = await showModalBottomSheet<bool>(
+            context: context,
+            backgroundColor: context.modalBg,
+            shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+            builder: (ctx) => _RepeatEditChoiceSheet(
+              onEditOne: () => Navigator.pop(ctx, false),
+              onEditAll: () => Navigator.pop(ctx, true),
+            ),
+          );
+          // 모달을 닫기만 했으면 수정 취소
+          if (editAll == null || !mounted) return;
+          setState(() => _saving = true);
+
+          if (editAll) {
+            // 모두 수정 — 미완료 목표만 일괄 업데이트 (완료된 목표 제외)
+            await app.firestoreService.updateRepeatGoals(uid, _editRepeatId!, updateData);
+          } else {
+            // 이 목표만 수정
+            await app.firestoreService.updateGoal(uid, widget.editGoalId!, {
+              ...updateData, 'scheduledDate': _scheduledDate,
+            });
+          }
+        } else {
+          // 단일 목표 수정
+          await app.firestoreService.updateGoal(uid, widget.editGoalId!, {
+            ...updateData, 'scheduledDate': _scheduledDate,
+          });
+        }
+
         // 알림 기존 것 취소 후 새로 예약
         await NotificationService.cancelGoalAlarm(widget.editGoalId!);
         if (_alarmEnabled) {
-          await NotificationService.scheduleGoalAlarm(
+          await _scheduleGoalAlarmSafely(
             goalId: widget.editGoalId!,
             goalTitle: _titleCtrl.text.trim(),
-            amPm: _alarmAmPm,
-            hour: _alarmHour,
-            minute: _alarmMin,
             isRepeat: _repeatType != 'none',
             scheduledDate: _scheduledDate,
           );
@@ -321,12 +386,9 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
         });
         // 알림 설정 시 해당 날짜 지정 시간에 1회 알림 예약
         if (_alarmEnabled && docRef != null) {
-          await NotificationService.scheduleGoalAlarm(
+          await _scheduleGoalAlarmSafely(
             goalId: docRef,
             goalTitle: _titleCtrl.text.trim(),
-            amPm: _alarmAmPm,
-            hour: _alarmHour,
-            minute: _alarmMin,
             isRepeat: false,
             scheduledDate: _scheduledDate,
           );
@@ -337,7 +399,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
           setState(() => _saving = false);
           return;
         }
-        // 반복 목표 — 임시 ID로 알림 예약 (repeatId 사용)
+        // 반복 목표 저장 — repeatId는 밀리초 타임스탬프로 고유 생성
         final repeatId = DateTime.now().millisecondsSinceEpoch.toString();
         final repeatData = {
           'type': _repeatType,
@@ -362,14 +424,11 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
         await app.firestoreService.addGoalsBatch(uid, goalList);
         // 반복 목표 알림 — repeatId 기준으로 매일 반복 알림 예약
         if (_alarmEnabled) {
-          await NotificationService.scheduleGoalAlarm(
+          await _scheduleGoalAlarmSafely(
             goalId: repeatId,
             goalTitle: _titleCtrl.text.trim(),
-            amPm: _alarmAmPm,
-            hour: _alarmHour,
-            minute: _alarmMin,
             isRepeat: true,
-            scheduledDate: _startDate, // 반복 목표는 시작일 기준
+            scheduledDate: _startDate,
           );
         }
       }
@@ -871,7 +930,7 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
                           child: Center(child: _saving
                               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                               // 수정 모드면 '수정 완료', 추가 모드면 '목표 추가하기'
-                          : Text(widget.editGoalId != null ? '수정 완료' : '목표 추가하기', style: TextStyle(color: context.isDark ? Colors.black : Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
+                              : Text(widget.editGoalId != null ? '수정 완료' : '목표 추가하기', style: TextStyle(color: context.isDark ? Colors.black : Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
                         ),
                       ),
                       const SizedBox(height: 40),
@@ -901,6 +960,59 @@ class _AddGoalScreenState extends State<AddGoalScreen> with SingleTickerProvider
           ),
         ),
       ),
+    );
+  }
+}
+
+// 반복 목표 수정 범위 선택 바텀시트 — 이 목표만 / 모든 반복 목표
+class _RepeatEditChoiceSheet extends StatelessWidget {
+  final VoidCallback onEditOne;
+  final VoidCallback onEditAll;
+  const _RepeatEditChoiceSheet({required this.onEditOne, required this.onEditAll});
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 24, 24, bottomPad + 24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('반복 목표 수정', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
+        const SizedBox(height: 8),
+        Text('수정 범위를 선택해주세요', style: TextStyle(fontSize: 13, color: context.textSecondary)),
+        const SizedBox(height: 20),
+        // 이 목표만 수정
+        GestureDetector(
+          onTap: onEditOne,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+                color: context.surfaceColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: context.borderColor)),
+            child: Column(children: [
+              Text('이 목표만 수정', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.textPrimary)),
+              const SizedBox(height: 2),
+              Text('선택한 날짜의 목표만 변경돼요', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // 모든 반복 목표 수정 — 완료된 목표 제외
+        GestureDetector(
+          onTap: onEditAll,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(12)),
+            child: Column(children: [
+              Text('모든 반복 목표 수정', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.onPrimary)),
+              const SizedBox(height: 2),
+              Text('완료된 목표는 제외하고 미완료 목표만 변경돼요', style: TextStyle(fontSize: 12, color: context.onPrimary.withOpacity(0.8))),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }

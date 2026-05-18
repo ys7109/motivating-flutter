@@ -17,7 +17,7 @@ class FirestoreService {
         'name': user.displayName ?? '새로운 모험가',
         'email': user.email ?? '',
         'photoURL': user.photoURL ?? '',
-        'profileImageUrl': null,   // 사용자 업로드 프로필 이미지 (초기값 null)
+        'profileImageUrl': null,
         'level': 1, 'xp': 0, 'xpToNext': 100, 'totalXp': 0,
         'streak': 0, 'maxStreak': 0, 'lastStreakDate': '',
         'reviveItem': 0, 'streakBadges': {}, 'totalFocusMin': 0,
@@ -46,12 +46,10 @@ class FirestoreService {
     await _db.collection('users').doc(uid).update(data);
   }
 
-  // 프로필 이미지 URL 저장 — Firebase Storage 업로드 후 다운로드 URL 저장
   Future<void> updateProfileImageUrl(String uid, String? url) async {
     await _db.collection('users').doc(uid).update({'profileImageUrl': url});
   }
 
-  // 목표 조회
   Future<List<GoalModel>> getGoals(String uid) async {
     final snap = await _db
         .collection('users').doc(uid).collection('goals')
@@ -60,13 +58,11 @@ class FirestoreService {
     return snap.docs.map((d) => GoalModel.fromMap(d.id, d.data())).toList();
   }
 
-  // 단일 목표 문서 원본 Map 조회 — 수정 모드에서 모든 필드 그대로 복원
   Future<Map<String, dynamic>?> getGoalDoc(String uid, String goalId) async {
     final snap = await _db
         .collection('users').doc(uid).collection('goals')
         .doc(goalId).get();
     if (!snap.exists) return null;
-    // Firestore 원본 데이터 그대로 반환 — alarm, xpMode, repeat 등 모두 포함
     return snap.data();
   }
 
@@ -77,7 +73,6 @@ class FirestoreService {
     });
   }
 
-  // 단일 목표 저장 후 생성된 문서 ID 반환 — 목표별 알림 ID 생성에 사용
   Future<String?> addGoalAndGetId(String uid, Map<String, dynamic> goal) async {
     final ref = await _db.collection('users').doc(uid).collection('goals').add({
       ...goal, 'progress': 0, 'done': false,
@@ -86,7 +81,6 @@ class FirestoreService {
     return ref.id;
   }
 
-  // 반복 목표 배치 저장 — 500건 제한으로 자동 분할
   Future<void> addGoalsBatch(String uid, List<Map<String, dynamic>> goals) async {
     const maxBatchSize = 500;
     final colRef = _db.collection('users').doc(uid).collection('goals');
@@ -103,50 +97,72 @@ class FirestoreService {
     }
   }
 
-  Future<void> updateGoal(String uid, String goalId,
-      Map<String, dynamic> data) async {
-    await _db
-        .collection('users').doc(uid).collection('goals')
-        .doc(goalId)
-        .update(data);
+  Future<void> updateGoal(String uid, String goalId, Map<String, dynamic> data) async {
+    await _db.collection('users').doc(uid).collection('goals').doc(goalId).update(data);
   }
 
-  Future<void> deleteGoal(String uid, String goalId) async {
-    await _db
-        .collection('users').doc(uid).collection('goals')
-        .doc(goalId)
-        .delete();
-  }
-
-  // 반복 목표 미완료 항목 일괄 삭제
-  Future<void> deleteRepeatGoals(String uid, String repeatId) async {
+  Future<void> updateRepeatGoals(String uid, String repeatId, Map<String, dynamic> data) async {
     final snap = await _db
         .collection('users').doc(uid).collection('goals')
         .where('repeatId', isEqualTo: repeatId)
         .where('done', isEqualTo: false)
         .get();
-    final batch = _db.batch();
-    for (final doc in snap.docs) batch.delete(doc.reference);
-    await batch.commit();
+    if (snap.docs.isEmpty) return;
+    const maxBatchSize = 500;
+    final docs = snap.docs;
+    for (int i = 0; i < docs.length; i += maxBatchSize) {
+      final chunk = docs.sublist(i, (i + maxBatchSize).clamp(0, docs.length));
+      final batch = _db.batch();
+      for (final doc in chunk) batch.update(doc.reference, data);
+      await batch.commit();
+    }
   }
 
-  // 집중 세션 횟수 조회
+  Future<void> deleteGoal(String uid, String goalId) async {
+    await _db.collection('users').doc(uid).collection('goals').doc(goalId).delete();
+  }
+
+  // 4번: 반복 목표 전체 삭제 — 완료/미완료 구분 없이 모두 삭제
+  // 기존에는 done=false만 삭제해서 완료된 목표가 남아있고 쿼리도 느렸음
+  // done 필터 제거 + 500건 분할 처리로 대량 삭제 지원
+  Future<List<GoalModel>> deleteRepeatGoalsAndReturn(String uid, String repeatId) async {
+    // 삭제 전 목록 조회 — XP 차감 계산용으로 반환
+    final snap = await _db
+        .collection('users').doc(uid).collection('goals')
+        .where('repeatId', isEqualTo: repeatId)
+        .get();
+    final goals = snap.docs.map((d) => GoalModel.fromMap(d.id, d.data())).toList();
+    if (snap.docs.isEmpty) return goals;
+    // 500건 분할 배치 삭제
+    const maxBatchSize = 500;
+    final docs = snap.docs;
+    for (int i = 0; i < docs.length; i += maxBatchSize) {
+      final chunk = docs.sublist(i, (i + maxBatchSize).clamp(0, docs.length));
+      final batch = _db.batch();
+      for (final doc in chunk) batch.delete(doc.reference);
+      await batch.commit();
+    }
+    return goals;
+  }
+
+  // 하위 호환 — 기존 코드에서 호출하는 경우를 위해 유지
+  Future<void> deleteRepeatGoals(String uid, String repeatId) async {
+    await deleteRepeatGoalsAndReturn(uid, repeatId);
+  }
+
   Future<int> getFocusSessionCount(String uid) async {
     final snap = await _db
         .collection('users').doc(uid).collection('focusSessions')
-        .count()
-        .get();
+        .count().get();
     return snap.count ?? 0;
   }
 
-  // 집중 세션 저장
   Future<void> saveFocusSession(String uid, int minutes) async {
     await _db.collection('users').doc(uid).collection('focusSessions').add({
       'minutes': minutes, 'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  // 우편함 조회
   Future<List<MailModel>> getMailbox(String uid) async {
     final snap = await _db
         .collection('users').doc(uid).collection('mailbox')
@@ -161,13 +177,10 @@ class FirestoreService {
   }
 
   Future<void> deleteMail(String uid, String mailId) async {
-    await _db.collection('users').doc(uid).collection('mailbox')
-        .doc(mailId).delete();
+    await _db.collection('users').doc(uid).collection('mailbox').doc(mailId).delete();
   }
 
-  // 레벨업 보상 우편 발송
-  Future<void> sendLevelUpMail(String uid, int level,
-      Map<String, dynamic> reward) async {
+  Future<void> sendLevelUpMail(String uid, int level, Map<String, dynamic> reward) async {
     await _db.collection('users').doc(uid).collection('mailbox').add({
       'title': reward['label'],
       'body': '레벨 $level을 달성했어요! 특별 보상을 확인해보세요.',
@@ -178,7 +191,6 @@ class FirestoreService {
     });
   }
 
-  // 출석 보상 우편 발송
   Future<void> sendAttendanceMail(String uid, int streakDay) async {
     final xp = streakDay * 10;
     final isSpecial = streakDay % 7 == 0;
@@ -194,28 +206,20 @@ class FirestoreService {
     });
   }
 
-  // 랭킹 조회
   Future<List<Map<String, dynamic>>> getRankings(String type) async {
-    final field = type == 'total'
-        ? 'totalFocusMin'
-        : type == 'daily'
-            ? 'todayFocusMin'
-            : 'avgFocusMin';
-    final snap = await _db.collection('rankings')
-        .orderBy(field, descending: true).get();
+    final field = type == 'total' ? 'totalFocusMin'
+        : type == 'daily' ? 'todayFocusMin' : 'avgFocusMin';
+    final snap = await _db.collection('rankings').orderBy(field, descending: true).get();
     return snap.docs.asMap().entries
         .map((e) => {'rank': e.key + 1, ...e.value.data()}).toList();
   }
 
-  // 랭킹 공개 프로필 업데이트
-  Future<void> updatePublicProfile(String uid,
-      Map<String, dynamic> data) async {
+  Future<void> updatePublicProfile(String uid, Map<String, dynamic> data) async {
     await _db.collection('rankings').doc(uid).set({
       'uid': uid, ...data, 'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  // 오늘 집중 시간 업데이트 — 랭킹 반영
   Future<void> updateTodayFocus(String uid, int minutes) async {
     final today = DateTime.now().toIso8601String().substring(0, 10);
     final ref = _db.collection('rankings').doc(uid);
@@ -226,8 +230,7 @@ class FirestoreService {
       final data = snap.data()!;
       final lastDate = data['lastFocusDate'] ?? '';
       final todayMin = lastDate == today
-          ? (data['todayFocusMin'] ?? 0) + minutes
-          : minutes;
+          ? (data['todayFocusMin'] ?? 0) + minutes : minutes;
       final totalMin = (data['totalFocusMin'] ?? 0) + minutes;
       final sessionCount = (data['sessionCount'] ?? 0) + 1;
       final avgFocusMin = (totalMin / sessionCount).round();
@@ -237,16 +240,14 @@ class FirestoreService {
         'lastFocusDate': today, 'updatedAt': FieldValue.serverTimestamp(),
         'name': userData['name'] ?? '모험가',
         'level': userData['level'] ?? 1,
-        'character': userData['character'] ??
-            {'skin': 'default', 'badge': 'none', 'frame': 'none'},
+        'character': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
       });
     } else {
       await ref.set({
         'uid': uid,
         'name': userData['name'] ?? '모험가',
         'level': userData['level'] ?? 1,
-        'character': userData['character'] ??
-            {'skin': 'default', 'badge': 'none', 'frame': 'none'},
+        'character': userData['character'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'},
         'todayFocusMin': minutes, 'totalFocusMin': minutes,
         'avgFocusMin': minutes, 'sessionCount': 1,
         'lastFocusDate': today, 'updatedAt': FieldValue.serverTimestamp(),
@@ -254,7 +255,6 @@ class FirestoreService {
     }
   }
 
-  // 완료된 목표 조회 — done+completedAt 복합 색인 사용, completedAt 내림차순
   Future<List<GoalModel>> getUserCompletedGoals(String uid) async {
     final snap = await _db
         .collection('users').doc(uid).collection('goals')
@@ -264,30 +264,20 @@ class FirestoreService {
     return snap.docs.map((d) => GoalModel.fromMap(d.id, d.data())).toList();
   }
 
-  // 전체 유저 업적 달성률 조회 (achievementId → pct)
-  // achievement_stats 카운터 방식 폐기 — users 컬렉션 직접 쿼리로 항상 정확한 비율 반영
-  // count() 쿼리는 문서 내용을 읽지 않으므로 비용 저렴 (읽기 과금 없음)
   Future<Map<String, double>> getAchievementStats() async {
-    // 전체 유저 수 먼저 조회 — users 컬렉션 기준
     final totalSnap = await _db.collection('users').count().get();
     final total = totalSnap.count ?? 0;
     if (total == 0) return {};
-
     final result = <String, double>{};
-    // 모든 업적에 대해 병렬로 count 쿼리 실행 — Future.wait으로 동시 처리
     await Future.wait(Achievements.all.map((a) async {
-      // achievements 배열에 해당 id가 포함된 유저 수 직접 카운트
       final countSnap = await _db
           .collection('users')
           .where('achievements', arrayContains: a.id)
-          .count()
-          .get();
+          .count().get();
       final count = countSnap.count ?? 0;
       if (count == 0) {
-        // 달성자 없으면 0.0%
         result[a.id] = 0.0;
       } else {
-        // 최소 0.1% 보장 — 달성자가 있으면 항상 표시
         final pct = (count / total * 100).clamp(0.0, 100.0);
         result[a.id] = pct < 0.1 ? 0.1 : double.parse(pct.toStringAsFixed(1));
       }

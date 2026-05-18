@@ -52,7 +52,7 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
       final uid = app.authUser!.uid;
       final userData = app.userData!;
 
-      // rankings + 게시글 작성자 정보 동기화
+      // rankings + 일기 작성자 정보 동기화
       await Future.wait([
         FirestoreService().updatePublicProfile(uid, {
           'name': userData.name,
@@ -121,7 +121,8 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
         child: Column(children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Text('소셜', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: context.textPrimary)),
+            child: Text('소셜', style: TextStyle(fontSize: 22,
+                fontWeight: FontWeight.w600, color: context.textPrimary)),
           ),
           const SizedBox(height: 12),
           Container(
@@ -141,7 +142,8 @@ class _SocialScreenState extends State<SocialScreen> with SingleTickerProviderSt
                 Tab(text: '친구'),
                 Tab(text: '채팅'),
                 Tab(text: '피드'),
-                Tab(text: '게시판'),
+                // 5번: 게시판 → 일기로 변경
+                Tab(text: '일기'),
                 Tab(text: '랭킹'),
               ],
             ),

@@ -14,6 +14,8 @@ class DiaryModel {
   final int likeCount;
   final int commentCount;
   final bool likedByMe;
+  // 첨부 이미지 URL 목록 — 최대 3장
+  final List<String> imageUrls;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -30,17 +32,20 @@ class DiaryModel {
     required this.likeCount,
     this.commentCount = 0,
     required this.likedByMe,
+    this.imageUrls = const [],
     this.createdAt,
     this.updatedAt,
   });
 
-  factory DiaryModel.fromMap(String id, Map<String, dynamic> map, {bool likedByMe = false}) {
+  factory DiaryModel.fromMap(String id, Map<String, dynamic> map,
+      {bool likedByMe = false}) {
     return DiaryModel(
       id: id,
       uid: map['uid'] ?? '',
       authorName: map['authorName'] ?? '모험가',
       authorCharacter: Map<String, dynamic>.from(
-          map['authorCharacter'] ?? {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
+          map['authorCharacter'] ??
+              {'skin': 'default', 'badge': 'none', 'frame': 'none'}),
       authorLevel: map['authorLevel'] ?? 1,
       authorEquippedAchievement: map['authorEquippedAchievement'] as String?,
       authorProfileImageUrl: map['authorProfileImageUrl'] as String?,
@@ -49,8 +54,14 @@ class DiaryModel {
       likeCount: map['likeCount'] ?? 0,
       commentCount: map['commentCount'] ?? 0,
       likedByMe: likedByMe,
-      createdAt: map['createdAt'] != null ? (map['createdAt'] as Timestamp).toDate() : null,
-      updatedAt: map['updatedAt'] != null ? (map['updatedAt'] as Timestamp).toDate() : null,
+      // imageUrls — 없으면 빈 리스트 (구버전 호환)
+      imageUrls: List<String>.from(map['imageUrls'] ?? []),
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as Timestamp).toDate()
+          : null,
+      updatedAt: map['updatedAt'] != null
+          ? (map['updatedAt'] as Timestamp).toDate()
+          : null,
     );
   }
 

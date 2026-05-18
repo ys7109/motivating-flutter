@@ -10,7 +10,7 @@ class ChatService {
   String directChatId(String a, String b) =>
       a.compareTo(b) < 0 ? '${a}_$b' : '${b}_$a';
 
-  // 1:1 채팅방 생성 또는 기존 방 반환 — 각자의 화면에 표시할 상대방 이름 저장
+  // 1:1 채팅방 생성 또는 기존 방 반환
   Future<String> getOrCreateDirectChat(String myUid, String otherUid) async {
     final id = directChatId(myUid, otherUid);
     final ref = _db.collection('chats').doc(id);
@@ -21,7 +21,6 @@ class ChatService {
     final otherName = otherSnap.data()?['name'] as String? ?? '모험가';
 
     if (!snap.exists) {
-      // 채팅방 신규 생성
       await ref.set({
         'type': 'direct',
         'users': [myUid, otherUid],
@@ -30,12 +29,11 @@ class ChatService {
         'unreadCount': {myUid: 0, otherUid: 0},
         'lastReadAt': {
           myUid: FieldValue.serverTimestamp(),
-          otherUid: Timestamp.fromMillisecondsSinceEpoch(0)
+          otherUid: Timestamp.fromMillisecondsSinceEpoch(0),
         },
         'names': {myUid: otherName, otherUid: myName},
       });
     } else {
-      // 기존 채팅방 — 나갔던 유저 재참여 처리
       final users = List<String>.from(snap.data()?['users'] ?? []);
       final updates = <String, dynamic>{};
       if (!users.contains(myUid)) {
@@ -46,10 +44,8 @@ class ChatService {
       if (!users.contains(otherUid)) {
         updates['users'] = FieldValue.arrayUnion([otherUid]);
         updates['unreadCount.$otherUid'] = 0;
-        updates['lastReadAt.$otherUid'] =
-            Timestamp.fromMillisecondsSinceEpoch(0);
+        updates['lastReadAt.$otherUid'] = Timestamp.fromMillisecondsSinceEpoch(0);
       }
-      // names 없으면 추가
       if (snap.data()?['names'] == null) {
         updates['names'] = {myUid: otherName, otherUid: myName};
       }
@@ -58,13 +54,13 @@ class ChatService {
     return id;
   }
 
-  // 그룹 채팅방 생성 — 모든 멤버 unreadCount/lastReadAt 초기화
+  // 그룹 채팅방 생성
   Future<String> createGroupChat(
       String myUid, List<String> memberUids, String name) async {
     final allUsers = [myUid, ...memberUids];
     final unreadCount = {for (final uid in allUsers) uid: 0};
     final lastReadAt = {
-      for (final uid in allUsers) uid: Timestamp.fromMillisecondsSinceEpoch(0)
+      for (final uid in allUsers) uid: Timestamp.fromMillisecondsSinceEpoch(0),
     };
     final ref = await _db.collection('chats').add({
       'type': 'group',
@@ -79,37 +75,60 @@ class ChatService {
     return ref.id;
   }
 
-  // 메시지 전송 — 수신자 unreadCount +1, 마지막 메시지 업데이트
-  Future<void> sendMessage(String chatId, String senderUid,
-      List<String> receiverUids, String content) async {
+  // 메시지 전송 — type: 'text' | 'image' | 'system'
+  Future<void> sendMessage(
+    String chatId,
+    String senderUid,
+    List<String> receiverUids,
+    String content, {
+    String type = 'text',
+  }) async {
     final batch = _db.batch();
-    final msgRef =
-        _db.collection('chats').doc(chatId).collection('messages').doc();
+    final msgRef = _db.collection('chats').doc(chatId).collection('messages').doc();
     batch.set(msgRef, {
       'senderUid': senderUid,
       'receiverUids': receiverUids,
       'content': content,
-      'type': 'message',
+      'type': type,
       'reactions': {},
+      'isEdited': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
     final unreadUpdate = {
-      for (final uid in receiverUids)
-        'unreadCount.$uid': FieldValue.increment(1),
+      for (final uid in receiverUids) 'unreadCount.$uid': FieldValue.increment(1),
     };
+    final lastMessageText = type == 'image' ? '📷 사진' : content;
     batch.update(_db.collection('chats').doc(chatId), {
-      'lastMessage': content,
+      'lastMessage': lastMessageText,
       'lastMessageAt': FieldValue.serverTimestamp(),
       ...unreadUpdate,
     });
     await batch.commit();
   }
 
-  // 이모지 반응 토글 — 이미 반응했으면 취소, 아니면 추가
+  // 5번: 메시지 수정 — isEdited: true 표시
+  Future<void> editMessage(String chatId, String msgId, String newContent) async {
+    await _db.collection('chats').doc(chatId).collection('messages').doc(msgId).update({
+      'content': newContent,
+      'isEdited': true,
+      'editedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // 5번: 메시지 삭제 — 내용을 '메시지가 삭제되었습니다.'로 교체, type을 'deleted'로 변경
+  // 그룹 채팅 퇴장과 동일한 방식으로 시스템 메시지 처리
+  Future<void> deleteMessage(String chatId, String msgId, {String? senderName}) async {
+    await _db.collection('chats').doc(chatId).collection('messages').doc(msgId).update({
+      'content': '메시지가 삭제되었습니다.',
+      'type': 'deleted',
+      'reactions': {},
+    });
+  }
+
+  // 이모지 반응 토글
   Future<void> toggleReaction(
       String chatId, String msgId, String myUid, String emoji) async {
-    final ref =
-        _db.collection('chats').doc(chatId).collection('messages').doc(msgId);
+    final ref = _db.collection('chats').doc(chatId).collection('messages').doc(msgId);
     final snap = await ref.get();
     final data = snap.data() ?? {};
     final reactions = Map<String, dynamic>.from(data['reactions'] ?? {});
@@ -127,7 +146,7 @@ class ChatService {
     await ref.update({'reactions': reactions});
   }
 
-  // 메시지 실시간 스트림 — 오래된 순으로 정렬
+  // 메시지 실시간 스트림
   Stream<QuerySnapshot> messagesStream(String chatId) {
     return _db
         .collection('chats')
@@ -137,12 +156,12 @@ class ChatService {
         .snapshots();
   }
 
-  // 채팅방 문서 실시간 스트림 — lastReadAt 변경 감지용
+  // 채팅방 문서 실시간 스트림
   Stream<DocumentSnapshot> chatRoomStream(String chatId) {
     return _db.collection('chats').doc(chatId).snapshots();
   }
 
-  // 채팅방 입장 시 읽음 처리 — lastReadAt 업데이트 + unreadCount 초기화
+  // 채팅방 입장 시 읽음 처리
   Future<void> markAsRead(String chatId, String myUid) async {
     await _db.collection('chats').doc(chatId).update({
       'unreadCount.$myUid': 0,
@@ -150,7 +169,7 @@ class ChatService {
     });
   }
 
-  // 특정 친구와의 미읽음 수 — 친구 목록 채팅 배지용
+  // 특정 친구와의 미읽음 수
   Future<int> getTotalUnreadCountForUser(String myUid, String otherUid) async {
     final id = directChatId(myUid, otherUid);
     final snap = await _db.collection('chats').doc(id).get();
@@ -159,10 +178,10 @@ class ChatService {
     return unread[myUid] as int? ?? 0;
   }
 
-  // 전체 미읽음 수 — 내가 참여한 모든 채팅방의 합계
+  // 전체 미읽음 수
   Future<int> getTotalUnreadCount(String uid) async {
-    final snap =
-        await _db.collection('chats').where('users', arrayContains: uid).get();
+    final snap = await _db.collection('chats')
+        .where('users', arrayContains: uid).get();
     int total = 0;
     for (final doc in snap.docs) {
       final unread = (doc.data()['unreadCount'] as Map<String, dynamic>?) ?? {};
@@ -171,7 +190,7 @@ class ChatService {
     return total;
   }
 
-  // 내가 참여한 채팅방 목록 실시간 스트림
+  // 채팅방 목록 실시간 스트림
   Stream<QuerySnapshot> chatListStream(String uid) {
     return _db
         .collection('chats')
@@ -179,7 +198,7 @@ class ChatService {
         .snapshots();
   }
 
-  // 채팅방 나가기 — users 배열에서 제거, 마지막 멤버면 채팅방 + 메시지 삭제
+  // 채팅방 나가기
   Future<void> leaveChat(String chatId, String myUid) async {
     final ref = _db.collection('chats').doc(chatId);
     final snap = await ref.get();
@@ -187,18 +206,14 @@ class ChatService {
     final data = snap.data() ?? {};
     final users = List<String>.from(data['users'] ?? []);
     final type = data['type'] as String? ?? 'direct';
-    final wasGroupChat =
-        type == 'group' || data['name'] != null || users.length > 2;
+    final wasGroupChat = type == 'group' || data['name'] != null || users.length > 2;
     final userSnap = await _db.collection('users').doc(myUid).get();
     final userName = userSnap.data()?['name'] as String? ?? '모험가';
     users.remove(myUid);
     if (users.isEmpty) {
-      // 모든 멤버가 나가면 채팅방 + 메시지 삭제
       final msgs = await ref.collection('messages').get();
       final batch = _db.batch();
-      for (final m in msgs.docs) {
-        batch.delete(m.reference);
-      }
+      for (final m in msgs.docs) batch.delete(m.reference);
       batch.delete(ref);
       await batch.commit();
     } else {
@@ -208,7 +223,6 @@ class ChatService {
         'unreadCount.$myUid': FieldValue.delete(),
         'lastReadAt.$myUid': FieldValue.delete(),
       };
-      // 그룹방 퇴장 안내는 일반 말풍선이 아닌 시스템 메시지로 남긴다.
       if (wasGroupChat) {
         updates['lastMessage'] = '$userName님이 나갔습니다.';
         updates['lastMessageAt'] = FieldValue.serverTimestamp();
@@ -227,12 +241,12 @@ class ChatService {
     }
   }
 
-  // 채팅방 이름 변경 (그룹 채팅만)
+  // 채팅방 이름 변경
   Future<void> renameChat(String chatId, String newName) async {
     await _db.collection('chats').doc(chatId).update({'name': newName});
   }
 
-  // 그룹 채팅 멤버 추가 — unreadCount/lastReadAt 초기화
+  // 그룹 채팅 멤버 추가
   Future<void> addMembers(String chatId, List<String> newUids) async {
     if (newUids.isEmpty) return;
     final updates = <String, dynamic>{
@@ -245,7 +259,7 @@ class ChatService {
     await _db.collection('chats').doc(chatId).update(updates);
   }
 
-  // 전체 미읽음 실시간 스트림 — 소셜 탭 배지용
+  // 전체 미읽음 실시간 스트림
   Stream<int> unreadCountStream(String uid) {
     return _db
         .collection('chats')
@@ -254,17 +268,14 @@ class ChatService {
         .map((snap) {
       int total = 0;
       for (final doc in snap.docs) {
-        final unread =
-            (doc.data()['unreadCount'] as Map<String, dynamic>?) ?? {};
+        final unread = (doc.data()['unreadCount'] as Map<String, dynamic>?) ?? {};
         total += (unread[uid] as int? ?? 0);
       }
       return total;
     });
   }
 
-  // 그룹 메시지 미읽음 수신자 수 조회
-  // 그룹 채팅에서 내 메시지를 아직 읽지 않은 수신자 수를 반환
-  // lastReadAt이 메시지 작성 시각보다 이전이면 아직 읽지 않은 것으로 판단
+  // 그룹 메시지 미읽음 수신자 수
   Future<int> getGroupUnreadReceiverCount(
     String chatId,
     String myUid,
@@ -273,7 +284,6 @@ class ChatService {
     List<String> memberUids,
   ) async {
     if (msgCreatedAt == null) return 0;
-    // 나를 제외한 멤버 중 msgCreatedAt 이후에 lastReadAt이 없거나 이전인 경우 카운트
     int count = 0;
     for (final uid in memberUids) {
       if (uid == myUid) continue;
@@ -294,18 +304,22 @@ class MessageModel {
   final String senderUid;
   final List<String> receiverUids;
   final String content;
+  // type: 'text' | 'image' | 'system' | 'deleted'
   final String type;
   final Map<String, List<String>> reactions;
   final DateTime? createdAt;
+  // 5번: 수정 여부
+  final bool isEdited;
 
   MessageModel({
     required this.id,
     required this.senderUid,
     this.receiverUids = const [],
     required this.content,
-    this.type = 'message',
+    this.type = 'text',
     required this.reactions,
     this.createdAt,
+    this.isEdited = false,
   });
 
   factory MessageModel.fromDoc(DocumentSnapshot doc) {
@@ -316,11 +330,12 @@ class MessageModel {
       senderUid: data['senderUid'] ?? '',
       receiverUids: List<String>.from(data['receiverUids'] ?? []),
       content: data['content'] ?? '',
-      type: data['type'] ?? 'message',
+      type: data['type'] ?? 'text',
       reactions: rawReactions.map((k, v) => MapEntry(k, List<String>.from(v))),
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] as Timestamp).toDate()
           : null,
+      isEdited: data['isEdited'] as bool? ?? false,
     );
   }
 
@@ -330,11 +345,7 @@ class MessageModel {
     final h = createdAt!.hour;
     final m = createdAt!.minute.toString().padLeft(2, '0');
     final amPm = h < 12 ? '오전' : '오후';
-    final hour = h == 0
-        ? 12
-        : h > 12
-            ? h - 12
-            : h;
+    final hour = h == 0 ? 12 : h > 12 ? h - 12 : h;
     return '$amPm $hour:$m';
   }
 }

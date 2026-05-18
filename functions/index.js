@@ -1,4 +1,4 @@
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentDeleted } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -20,21 +20,18 @@ async function getNotifSettings(uid) {
 }
 
 // FCM 발송 헬퍼
-// tag가 있으면 같은 tag의 이전 알림을 덮어씀 (채팅방별 알림 합치기)
 async function sendPush(token, title, body, data = {}, tag = null) {
   if (!token) return;
   try {
     await getMessaging().send({
       token,
       notification: { title, body },
-      // FCM data 필드는 문자열만 허용 — 모든 값을 String으로 변환
       data: Object.fromEntries(Object.entries({ ...data }).map(([k, v]) => [k, String(v)])),
       android: {
         priority: "high",
         notification: {
           sound: "default",
           clickAction: "FLUTTER_NOTIFICATION_CLICK",
-          // tag가 같으면 이전 알림을 새 알림으로 교체
           ...(tag ? { tag: String(tag) } : {}),
         },
       },
@@ -55,9 +52,7 @@ exports.onActivityNotification = onDocumentCreated(
     const token = await getFcmToken(uid);
     if (!token) return;
 
-    // 알림 설정 확인
     const settings = await getNotifSettings(uid);
-
     const fromName = data.fromName ?? "누군가";
     let title = "Motivating";
     let body = "";
@@ -93,9 +88,7 @@ exports.onActivityNotification = onDocumentCreated(
         return;
     }
 
-    // 해당 알림 설정이 꺼져있으면 발송 안 함 (기본값 true)
     if (settings[settingKey] === false) return;
-
     await sendPush(token, title, body, { type: data.type, fromUid: data.fromUid ?? "" });
   }
 );
@@ -111,7 +104,6 @@ exports.onChatMessage = onDocumentCreated(
     const senderUid = data.senderUid;
     const content = data.content ?? "";
 
-    // 채팅방 참여자 조회
     const chatSnap = await db.collection("chats").doc(chatId).get();
     const chatData = chatSnap.data();
     if (!chatData) return;
@@ -120,35 +112,45 @@ exports.onChatMessage = onDocumentCreated(
     const isGroup = chatData.type === "group";
     const chatName = isGroup ? (chatData.name ?? "그룹 채팅") : null;
 
-    // 보낸 사람 이름 조회
     const senderSnap = await db.collection("users").doc(senderUid).get();
     const senderName = senderSnap.data()?.name ?? "모험가";
 
-    // 발신자 제외한 참여자 전원에게 FCM 발송
     const receivers = users.filter((uid) => uid !== senderUid);
     await Promise.all(
       receivers.map(async (uid) => {
         try {
           const token = await getFcmToken(uid);
           if (!token) return;
-
-          // 채팅 알림 설정 확인 (기본값 true)
           const settings = await getNotifSettings(uid);
           if (settings["activity_chat"] === false) return;
-
           const title = isGroup ? `${chatName} · ${senderName}` : senderName;
           const body = content.length > 30 ? `${content.substring(0, 30)}...` : content;
-
-          await sendPush(token, title, body, {
-            type: "chat",
-            chatId,
-            senderUid,
-          }, chatId);  // tag = chatId → 같은 채팅방 알림은 하나로 합침
+          await sendPush(token, title, body, { type: "chat", chatId, senderUid }, chatId);
         } catch (e) {
           console.error(`채팅 알림 발송 실패 (uid: ${uid}):`, e);
         }
       })
     );
+  }
+);
+
+// 1번: users 문서 삭제 시 presence 자동 삭제
+// 탈퇴, 문서 삭제 등으로 users/{uid} 문서가 삭제되면 presence/{uid}도 함께 삭제
+exports.onUserDeleted = onDocumentDeleted(
+  "users/{uid}",
+  async (event) => {
+    const uid = event.params.uid;
+    try {
+      const presenceRef = db.collection("presence").doc(uid);
+      const presenceSnap = await presenceRef.get();
+      // presence 문서가 존재할 때만 삭제
+      if (presenceSnap.exists) {
+        await presenceRef.delete();
+        console.log(`presence/${uid} 삭제 완료`);
+      }
+    } catch (e) {
+      console.error(`presence 삭제 실패 (uid: ${uid}):`, e);
+    }
   }
 );
 
@@ -165,7 +167,6 @@ const KAKAO_REDIRECT_URI = "https://kakaologin-kyremexayq-uc.a.run.app/callback"
 exports.kakaologin = onRequest({ region: "us-central1" }, async (req, res) => {
   const path = req.path;
 
-  // GET / → 카카오 인증 URL 반환
   if (req.method === "GET" && (path === "/" || path === "")) {
     const kakaoAuthUrl =
       `https://kauth.kakao.com/oauth/authorize` +
@@ -176,16 +177,13 @@ exports.kakaologin = onRequest({ region: "us-central1" }, async (req, res) => {
     return;
   }
 
-  // GET /callback → 인증 코드로 카카오 토큰 교환 후 Firebase Custom Token 발급
   if (req.method === "GET" && path === "/callback") {
     const code = req.query.code;
     if (!code) {
       res.redirect(`motivating://kakao-callback?error=no_code`);
       return;
     }
-
     try {
-      // 카카오 액세스 토큰 교환
       const tokenData = await new Promise((resolve, reject) => {
         const body = querystring.stringify({
           grant_type: "authorization_code",
@@ -215,7 +213,6 @@ exports.kakaologin = onRequest({ region: "us-central1" }, async (req, res) => {
 
       if (!tokenData.access_token) throw new Error("카카오 토큰 교환 실패");
 
-      // 카카오 사용자 정보 조회
       const userInfo = await new Promise((resolve, reject) => {
         const options = {
           hostname: "kapi.kakao.com",
@@ -234,14 +231,7 @@ exports.kakaologin = onRequest({ region: "us-central1" }, async (req, res) => {
 
       const kakaoId = String(userInfo.id);
       const uid = `kakao:${kakaoId}`;
-
-      // Firebase Custom Token 발급
-      const customToken = await getAuth().createCustomToken(uid, {
-        provider: "kakao",
-        kakaoId,
-      });
-
-      // 앱으로 토큰 전달
+      const customToken = await getAuth().createCustomToken(uid, { provider: "kakao", kakaoId });
       res.redirect(`motivating://kakao-callback?token=${customToken}`);
     } catch (e) {
       console.error("카카오 로그인 오류:", e);

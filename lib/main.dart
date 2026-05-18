@@ -40,14 +40,26 @@ void main() async {
 Future<void> _requestNotificationPermissionOnFirstLaunch() async {
   final prefs = await SharedPreferences.getInstance();
   final alreadyAsked = prefs.getBool('notif_permission_asked') ?? false;
-  if (alreadyAsked) return;
+  final notifEnabled = [
+    prefs.getBool('notif_goal') ?? true,
+    prefs.getBool('notif_streak') ?? true,
+    prefs.getBool('notif_mail') ?? true,
+    prefs.getBool('notif_activity_like') ?? true,
+    prefs.getBool('notif_activity_comment') ?? true,
+    prefs.getBool('notif_activity_friend') ?? true,
+    prefs.getBool('notif_activity_chat') ?? true,
+  ].any((enabled) => enabled);
+  if (alreadyAsked && (!notifEnabled || await NotificationService.hasPermission())) return;
 
-  await prefs.setBool('notif_permission_asked', true);
-  await prefs.setBool('notif_goal', true);
-  await prefs.setBool('notif_streak', true);
-  await prefs.setBool('notif_mail', true);
+  // 업데이트 후 권한이 사라진 기존 사용자도 다시 알림 권한을 확인한다.
+  if (!alreadyAsked) {
+    await prefs.setBool('notif_goal', true);
+    await prefs.setBool('notif_streak', true);
+    await prefs.setBool('notif_mail', true);
+  }
 
   final granted = await NotificationService.requestPermission();
+  await prefs.setBool('notif_permission_asked', true);
   if (granted) {
     await NotificationService.scheduleDailyGoalReminder();
     await NotificationService.scheduleStreakRiskReminder(0);
@@ -133,13 +145,14 @@ class _RootScreenState extends State<RootScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
 
-    if (app.loading) {
+    if (app.loading || (app.authUser != null && app.userData == null)) {
+      // 인증 세션이 남아있으면 사용자 문서 복구가 끝날 때까지 로그인 화면을 숨긴다.
       return Scaffold(
         backgroundColor: context.bgColor,
         body: Center(child: CircularProgressIndicator(color: context.primaryColor)),
       );
     }
-    if (app.authUser == null || app.userData == null) return const LoginScreen();
+    if (app.authUser == null) return const LoginScreen();
     if (app.userData!.withdrawScheduledAt != null) return const WithdrawPendingScreen();
     if (!app.userData!.onboardingDone) return const OnboardingScreen();
     return const MainNav();

@@ -147,11 +147,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
             ]),
             const SizedBox(height: 12),
             GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 4,
-              childAspectRatio: 2.0,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
+              shrinkWrap: true, crossAxisCount: 4,
+              childAspectRatio: 2.0, mainAxisSpacing: 8, crossAxisSpacing: 8,
               children: List.generate(12, (i) {
                 final m = i + 1;
                 final isSelected = m == pickerMonth && pickerYear == _viewYear;
@@ -208,11 +205,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
     // 오늘이면 날짜 (오늘) 형식
     final dateFormatted = _selectedDate.replaceAll('-', '.');
-    final dateHeader = _selectedDate == _todayStr
-        ? '$dateFormatted (오늘)'
-        : dateFormatted;
+    final dateHeader = _selectedDate == _todayStr ? '$dateFormatted (오늘)' : dateFormatted;
     // 공휴일 이름
     final holidayName = _holidays[_selectedDate];
+
+    // 4번: 선택된 날짜의 목표 완료도 계산
+    final allGoalsForDate = _goalsForDate(goals, _selectedDate);
+    final dateTotal = allGoalsForDate.length;
+    final dateDone = allGoalsForDate.where((g) => g.done).length;
+    final dateActive = dateTotal - dateDone;
+    final datePct = dateTotal == 0 ? 0 : (dateDone / dateTotal * 100).round();
 
     // 현재 보이는 달의 행 수 계산 — 5주 또는 6주
     final rowCount = _calendarRowCount(_viewYear, _viewMonth);
@@ -304,8 +306,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       ))),
                     ),
                     const SizedBox(height: 4),
-                    // PageView — 월 단위 좌우 스와이프
-                    // 6주(42칸) 달도 잘리지 않도록 동적 높이 사용
+                    // PageView — 월 단위 좌우 스와이프, 6주 달도 동적 높이
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       height: calendarHeight,
@@ -388,65 +389,81 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   ]),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
+              // 날짜 + 공휴일 — 단독 줄
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  // 공휴일 이름 + 오늘 표시
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(dateHeader, style: TextStyle(fontSize: 14,
-                        fontWeight: FontWeight.w500, color: context.textPrimary)),
-                    if (holidayName != null) ...[
-                      const SizedBox(height: 2),
-                      Text(holidayName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: AppTheme.danger,
-                              fontWeight: FontWeight.w500)),
-                    ],
-                  ])),
-                  Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                          border: Border.all(color: context.borderColor),
-                          borderRadius: BorderRadius.circular(99)),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _sort,
-                          isDense: true,
-                          style: TextStyle(fontSize: 11, color: context.textSecondary),
-                          dropdownColor: context.surfaceColor,
-                          icon: Icon(Icons.arrow_drop_down, size: 14, color: context.textSecondary),
-                          items: const [
-                            DropdownMenuItem(value: 'recent', child: Text('최근순')),
-                            DropdownMenuItem(value: 'alpha', child: Text('가나다순')),
-                          ],
-                          onChanged: (v) {
-                            if (v != null) { setState(() => _sort = v); _saveSortPref(v); }
-                          },
-                        ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(dateHeader, style: TextStyle(fontSize: 14,
+                      fontWeight: FontWeight.w500, color: context.textPrimary)),
+                  if (holidayName != null) ...[
+                    const SizedBox(height: 2),
+                    Text(holidayName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: AppTheme.danger,
+                            fontWeight: FontWeight.w500)),
+                  ],
+                  // 4번: 목표가 있을 때 진행중/완료/% 완료를 날짜 바로 아래 별도 줄에 표시
+                  if (dateTotal > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '진행중 : $dateActive개  완료 : $dateDone개  $datePct% 완료',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: datePct == 100
+                            ? const Color(0xFF1b8a5a)
+                            : context.textSecondary,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    ...[['all', '전체'], ['active', '진행'], ['done', '완료']].map((f) =>
-                      GestureDetector(
-                        onTap: () => setState(() => _filter = f[0]),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          margin: const EdgeInsets.only(left: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _filter == f[0] ? context.primaryColor : Colors.transparent,
-                            border: Border.all(color: _filter == f[0]
-                                ? context.primaryColor : context.borderColor),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(f[1], style: TextStyle(fontSize: 11,
-                              color: _filter == f[0] ? context.onPrimary : context.textSecondary)),
-                        ),
-                      )
+                  ],
+                ]),
+              ),
+              const SizedBox(height: 8),
+
+              // 정렬/필터 버튼 — 별도 줄
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                        border: Border.all(color: context.borderColor),
+                        borderRadius: BorderRadius.circular(99)),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _sort, isDense: true,
+                        style: TextStyle(fontSize: 11, color: context.textSecondary),
+                        dropdownColor: context.surfaceColor,
+                        icon: Icon(Icons.arrow_drop_down, size: 14, color: context.textSecondary),
+                        items: const [
+                          DropdownMenuItem(value: 'recent', child: Text('최근순')),
+                          DropdownMenuItem(value: 'alpha', child: Text('가나다순')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) { setState(() => _sort = v); _saveSortPref(v); }
+                        },
+                      ),
                     ),
-                  ]),
+                  ),
+                  const SizedBox(width: 6),
+                  ...[['all', '전체'], ['active', '진행'], ['done', '완료']].map((f) =>
+                    GestureDetector(
+                      onTap: () => setState(() => _filter = f[0]),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: _filter == f[0] ? context.primaryColor : Colors.transparent,
+                          border: Border.all(color: _filter == f[0]
+                              ? context.primaryColor : context.borderColor),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(f[1], style: TextStyle(fontSize: 11,
+                            color: _filter == f[0] ? context.onPrimary : context.textSecondary)),
+                      ),
+                    )
+                  ),
                 ]),
               ),
               const SizedBox(height: 10),
@@ -477,8 +494,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 ...selectedGoals.map((g) => Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                   child: _GoalCard(
-                    goal: g,
-                    willAllDone: _willAllDone(g, goals),
+                    goal: g, willAllDone: _willAllDone(g, goals),
                     onComplete: () => app.completeGoal(g.id),
                     onUncomplete: () => app.uncompleteGoal(g.id),
                     onDelete: () => _handleDeleteRequest(g, app),
@@ -489,7 +505,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       final snap = await app.firestoreService.getGoalDoc(uid, g.id);
                       if (!context.mounted || snap == null) return;
                       // repeatId가 있으면 같은 반복 목표들의 날짜 범위 계산
-                      // Firestore에 startDate/endDate가 없는 구버전 목표도 복원 가능
                       if (g.repeatId != null) {
                         final repeatGoals = goals
                             .where((r) => r.repeatId == g.repeatId)
@@ -505,8 +520,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         page: AddGoalScreen(editGoalId: g.id, editGoalData: snap),
                       ));
                     },
-                    selectedDate: _selectedDate,
-                    todayStr: _todayStr,
+                    selectedDate: _selectedDate, todayStr: _todayStr,
                     showToast: app.showToast,
                   ),
                 )),
@@ -585,147 +599,141 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
         : g.type == 'mid' ? const Color(0xFFf9a825) : const Color(0xFF3949ab);
     final tagLabel = g.type == 'short' ? '단기' : g.type == 'mid' ? '중기' : '장기';
     final isRepeat = g.repeatId != null;
-    final displayXp = isRepeat
-        ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp) : g.xp;
+    final displayXp = isRepeat ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp) : g.xp;
 
     return GestureDetector(
-      // 꾹 누르면 수정 화면 열기
       onLongPress: widget.onEdit,
       child: AnimatedOpacity(
-      duration: const Duration(milliseconds: 300),
-      opacity: g.done ? 0.65 : 1.0,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: context.surfaceColor,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: context.borderColor, width: 0.5)),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          TapScale(
-            onTap: () {
-              if (!g.done && widget.selectedDate.compareTo(widget.todayStr) > 0) {
-                widget.showToast('도달하지 않은 날짜의 목표는 완료 처리할 수 없어요.');
-                return;
-              }
-              g.done ? widget.onUncomplete() : widget.onComplete();
-            },
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.8, end: 1.0).animate(_checkScale),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 24, height: 24, margin: const EdgeInsets.only(top: 1),
-                decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: g.done ? context.primaryColor : Colors.transparent,
-                    border: g.done ? null : Border.all(color: context.borderColor, width: 1.5)),
-                child: g.done ? Icon(Icons.check, color: context.onPrimary, size: 13) : null,
+        duration: const Duration(milliseconds: 300),
+        opacity: g.done ? 0.65 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: context.surfaceColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: context.borderColor, width: 0.5)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            TapScale(
+              onTap: () {
+                if (!g.done && widget.selectedDate.compareTo(widget.todayStr) > 0) {
+                  widget.showToast('도달하지 않은 날짜의 목표는 완료 처리할 수 없어요.');
+                  return;
+                }
+                g.done ? widget.onUncomplete() : widget.onComplete();
+              },
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.8, end: 1.0).animate(_checkScale),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 24, height: 24, margin: const EdgeInsets.only(top: 1),
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: g.done ? context.primaryColor : Colors.transparent,
+                      border: g.done ? null : Border.all(color: context.borderColor, width: 1.5)),
+                  child: g.done ? Icon(Icons.check, color: context.onPrimary, size: 13) : null,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: tagColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(4)),
-                    child: Text(isRepeat ? '반복' : tagLabel,
-                        style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 200),
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,
-                          color: g.done ? context.textSecondary : context.textPrimary,
-                          decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none),
-                      child: Text(g.title),
+            const SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: tagColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4)),
+                      child: Text(isRepeat ? '반복' : tagLabel,
+                          style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,
+                            color: g.done ? context.textSecondary : context.textPrimary,
+                            decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none),
+                        child: Text(g.title),
+                      ),
+                    ),
+                  ]),
+                  if (g.repeat != null) ...[
+                    const SizedBox(height: 4),
+                    Text('🔄 ${g.repeat!.type == 'daily' ? '매일'
+                        : g.repeat!.type == 'weekly'
+                            // 다중 요일 — days 배열 우선, 없으면 레거시 day 사용
+                            ? '매주 ${(g.repeat!.days?.isNotEmpty == true ? g.repeat!.days! : [g.repeat!.day ?? 0]).map((d) => _weekDays[d]).join(', ')}요일'
+                            // 다중 날짜 — dates 배열 우선, 없으면 레거시 date 사용
+                            : '매달 ${(g.repeat!.dates?.isNotEmpty == true ? g.repeat!.dates! : [g.repeat!.date ?? 1]).join(', ')}일'}',
+                        style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                  ],
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    child: _expanded && g.desc.isNotEmpty
+                        ? Padding(padding: const EdgeInsets.only(top: 6),
+                            child: Text(g.desc, style: TextStyle(fontSize: 13,
+                                color: context.textSecondary, height: 1.6)))
+                        : const SizedBox(),
                   ),
-                ]),
-                if (g.repeat != null) ...[
-                  const SizedBox(height: 4),
-                  Text('🔄 ${g.repeat!.type == 'daily' ? '매일'
-                      : g.repeat!.type == 'weekly'
-                          // 다중 요일 — days 배열 우선, 없으면 레거시 day 사용
-                          ? '매주 ${(g.repeat!.days?.isNotEmpty == true ? g.repeat!.days! : [g.repeat!.day ?? 0]).map((d) => _weekDays[d]).join(', ')}요일'
-                          // 다중 날짜 — dates 배열 우선, 없으면 레거시 date 사용
-                          : '매달 ${(g.repeat!.dates?.isNotEmpty == true ? g.repeat!.dates! : [g.repeat!.date ?? 1]).join(', ')}일'}',
-                      style: TextStyle(fontSize: 11, color: context.textSecondary)),
-                ],
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  child: _expanded && g.desc.isNotEmpty
-                      ? Padding(padding: const EdgeInsets.only(top: 6),
-                          child: Text(g.desc, style: TextStyle(fontSize: 13,
-                              color: context.textSecondary, height: 1.6)))
-                      : const SizedBox(),
-                ),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: ClipRRect(
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: ClipRRect(
                       borderRadius: BorderRadius.circular(99),
                       child: TweenAnimationBuilder<double>(
                         tween: Tween<double>(begin: 0, end: g.progress / 100),
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.easeOut,
+                        duration: const Duration(milliseconds: 600), curve: Curves.easeOut,
                         builder: (_, value, __) => LinearProgressIndicator(
                             value: value, minHeight: 4,
                             backgroundColor: context.borderColor,
                             valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor)),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('${g.progress}%',
-                      style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                    )),
+                    const SizedBox(width: 8),
+                    Text('${g.progress}%', style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                  ]),
                 ]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              // 수정 / 삭제 버튼 — 상단 우측에 나란히 배치
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                GestureDetector(
+                  onTap: widget.onEdit,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(border: Border.all(color: context.borderColor),
+                        borderRadius: BorderRadius.circular(6)),
+                    child: Text('수정', style: TextStyle(fontSize: 11, color: context.textSecondary)),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                TapScale(
+                  onTap: widget.onDelete,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    // 삭제 버튼 — 빨간색으로 강조
+                    decoration: BoxDecoration(
+                        border: Border.all(color: AppTheme.danger.withOpacity(0.5)),
+                        borderRadius: BorderRadius.circular(6)),
+                    child: Text('삭제', style: const TextStyle(fontSize: 11, color: AppTheme.danger)),
+                  ),
+                ),
               ]),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            // 수정 / 삭제 버튼 — 상단 우측에 나란히 배치
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              GestureDetector(
-                onTap: widget.onEdit,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(border: Border.all(color: context.borderColor),
-                      borderRadius: BorderRadius.circular(6)),
-                  child: Text('수정', style: TextStyle(fontSize: 11, color: context.textSecondary)),
-                ),
+              const SizedBox(height: 8),
+              // XP — 항상 표시 (완료 시 초록색)
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
+                    color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary),
+                child: Text('+$displayXp XP'),
               ),
-              const SizedBox(width: 4),
-              TapScale(
-                onTap: widget.onDelete,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  // 삭제 버튼 — 빨간색으로 강조
-                  decoration: BoxDecoration(
-                      border: Border.all(color: AppTheme.danger.withOpacity(0.5)),
-                      borderRadius: BorderRadius.circular(6)),
-                  child: Text('삭제', style: const TextStyle(fontSize: 11, color: AppTheme.danger)),
-                ),
-              ),
+              // 취소는 왼쪽 원형 체크 버튼으로 대체 — 별도 취소 버튼 없음
             ]),
-            const SizedBox(height: 8),
-            // XP — 항상 표시 (완료 시 초록색)
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                  color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary),
-              child: Text('+$displayXp XP'),
-            ),
-            // 취소는 왼쪽 원형 체크 버튼으로 대체 — 별도 취소 버튼 없음
           ]),
-        ]),
+        ),
       ),
-      ), // AnimatedOpacity
-    ); // GestureDetector
+    );
   }
 }
 
@@ -763,8 +771,7 @@ class _DeleteModal extends StatelessWidget {
             ],
             const SizedBox(height: 16),
             // 단일 목표는 '삭제', 반복 목표는 '모두 삭제'
-            _ModalBtn(
-                label: isSingle ? '삭제' : '모두 삭제',
+            _ModalBtn(label: isSingle ? '삭제' : '모두 삭제',
                 color: AppTheme.danger, textColor: Colors.white,
                 onTap: isSingle ? onDeleteOne : onDeleteAll),
             if (!isSingle) ...[

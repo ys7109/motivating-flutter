@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/notification_model.dart';
 
 class ActivityNotificationService {
@@ -11,9 +10,17 @@ class ActivityNotificationService {
     if (data['fromUid'] == targetUid) return;
     // 수신자의 알림 설정 확인 (prefKey가 있는 경우)
     if (prefKey != null) {
-      final prefs = await SharedPreferences.getInstance();
-      final enabled = prefs.getBool('notif_$prefKey') ?? true;
-      if (!enabled) return;
+      try {
+        final targetSnap = await _db.collection('users').doc(targetUid).get();
+        final rawSettings = targetSnap.data()?['notifSettings'];
+        final settings = rawSettings is Map
+            ? Map<String, dynamic>.from(rawSettings)
+            : <String, dynamic>{};
+        // 알림 생성 여부도 발신자 기기가 아닌 수신자 설정을 기준으로 판단한다.
+        if (settings[prefKey] == false) return;
+      } catch (_) {
+        // 수신자 설정을 읽지 못해도 알림 문서는 생성해 Cloud Functions 판단에 맡긴다.
+      }
     }
     await _db.collection('users').doc(targetUid).collection('notifications').add({
       ...data,

@@ -18,12 +18,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
   String _filter = 'all';
   // 이름 캐시 — uid → 닉네임
   final Map<String, String> _nameCache = {};
-  // 4번: 프로필 이미지 캐시 — uid → profileImageUrl
+  // 프로필 이미지 캐시 — uid → profileImageUrl
   final Map<String, String?> _profileImageCache = {};
-  // 4번: 캐릭터 캐시 — uid → character
+  // 캐릭터 캐시 — uid → character
   final Map<String, Map<String, dynamic>?> _characterCache = {};
 
-  // names 필드 없는 기존 채팅방용 — 한 번만 Firestore 조회 후 캐시 + 저장
+  // names 필드 없는 기존 채팅방용 — 한 번만 조회 후 캐시 + Firestore 저장
   Future<String> _resolveName(String chatId, String myUid, String otherUid) async {
     if (_nameCache.containsKey(otherUid)) return _nameCache[otherUid]!;
     final snap = await FirebaseFirestore.instance.collection('users').doc(otherUid).get();
@@ -31,18 +31,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final otherName = snap.data()?['name'] as String? ?? '모험가';
     final myName = mySnap.data()?['name'] as String? ?? '모험가';
     _nameCache[otherUid] = otherName;
-    // 4번: 프로필 이미지/캐릭터 캐시 저장
     _profileImageCache[otherUid] = snap.data()?['profileImageUrl'] as String?;
     _characterCache[otherUid] = snap.data()?['character'] != null
         ? Map<String, dynamic>.from(snap.data()!['character']) : null;
-    // Firestore에 names 필드 저장해서 다음엔 조회 불필요
+    // Firestore에 names 필드 저장 — 다음엔 조회 불필요
     FirebaseFirestore.instance.collection('chats').doc(chatId).update({
       'names': {myUid: otherName, otherUid: myName},
     });
     return otherName;
   }
 
-  // 4번: 상대방 uid로 프로필 정보 로드 (이름 외 이미지/캐릭터도)
+  // 상대방 uid로 프로필 정보 로드 (이름 외 이미지/캐릭터도)
   Future<void> _resolveProfile(String chatId, String myUid, String otherUid) async {
     if (_profileImageCache.containsKey(otherUid)) return;
     final snap = await FirebaseFirestore.instance.collection('users').doc(otherUid).get();
@@ -78,7 +77,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
-  // 이름 변경 다이얼로그
+  // 그룹 채팅방 이름 변경 다이얼로그
   Future<void> _showRenameDialog(BuildContext context, String chatId, String currentTitle) async {
     final ctrl = TextEditingController(text: currentTitle);
     final newName = await showDialog<String>(
@@ -114,8 +113,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
-  // 꾹 눌렀을 때 바텀시트 메뉴
-  void _showMenu(BuildContext context, String chatId, String title, String myUid) {
+  // 꾹 눌렀을 때 바텀시트 메뉴 — isGroup에 따라 이름 변경 항목 분기
+  void _showMenu(BuildContext context, String chatId, String title, String myUid, bool isGroup) {
     showModalBottomSheet(
       context: context,
       backgroundColor: context.modalBg,
@@ -130,12 +129,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 decoration: BoxDecoration(color: ctx.borderColor,
                     borderRadius: BorderRadius.circular(99))),
             const SizedBox(height: 16),
-            ListTile(
-              leading: Icon(Icons.edit_outlined, color: ctx.textPrimary),
-              title: Text('채팅방 이름 변경',
-                  style: TextStyle(color: ctx.textPrimary, fontWeight: FontWeight.w500)),
-              onTap: () { Navigator.pop(ctx); _showRenameDialog(context, chatId, title); },
-            ),
+            // 그룹 채팅에서만 이름 변경 표시 — 1:1은 제거
+            if (isGroup)
+              ListTile(
+                leading: Icon(Icons.edit_outlined, color: ctx.textPrimary),
+                title: Text('채팅방 이름 변경',
+                    style: TextStyle(color: ctx.textPrimary, fontWeight: FontWeight.w500)),
+                onTap: () { Navigator.pop(ctx); _showRenameDialog(context, chatId, title); },
+              ),
             ListTile(
               leading: const Icon(Icons.exit_to_app_rounded, color: AppTheme.danger),
               title: const Text('채팅방 나가기',
@@ -231,19 +232,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   final namesMap = (data['names'] as Map<String, dynamic>?) ?? {};
                   final cachedName = namesMap[myUid] as String?;
 
-                  // 4번: 프로필 정보 비동기 로드 트리거
                   if (otherUid.isNotEmpty && !_profileImageCache.containsKey(otherUid)) {
                     _resolveProfile(chatId, myUid, otherUid);
                   }
 
                   if (cachedName != null) {
                     return GestureDetector(
-                      onLongPress: () => _showMenu(context, chatId, cachedName, myUid),
+                      // 1:1 채팅은 나가기만 — isGroup: false 전달
+                      onLongPress: () => _showMenu(context, chatId, cachedName, myUid, false),
                       child: _ChatTile(
                         title: cachedName,
                         lastMsg: lastMsg, lastMsgAt: lastMsgAt,
                         unread: unread, isGroup: false,
-                        // 4번: 상대방 프로필 이미지/캐릭터 전달
                         otherProfileImageUrl: _profileImageCache[otherUid],
                         otherCharacter: _characterCache[otherUid],
                         onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -261,12 +261,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     builder: (_, snap) {
                       final name = snap.data ?? _nameCache[otherUid] ?? '...';
                       return GestureDetector(
-                        onLongPress: () => _showMenu(context, chatId, name, myUid),
+                        onLongPress: () => _showMenu(context, chatId, name, myUid, false),
                         child: _ChatTile(
                           title: name,
                           lastMsg: lastMsg, lastMsgAt: lastMsgAt,
                           unread: unread, isGroup: false,
-                          // 4번: 상대방 프로필 이미지/캐릭터 전달
                           otherProfileImageUrl: _profileImageCache[otherUid],
                           otherCharacter: _characterCache[otherUid],
                           onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -280,10 +279,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   );
                 }
 
-                // 그룹 채팅
+                // 그룹 채팅 — 이름 변경 가능
                 final groupName = data['name'] as String? ?? '그룹 채팅';
                 return GestureDetector(
-                  onLongPress: () => _showMenu(context, chatId, groupName, myUid),
+                  onLongPress: () => _showMenu(context, chatId, groupName, myUid, true),
                   child: _ChatTile(
                     title: groupName,
                     lastMsg: lastMsg, lastMsgAt: lastMsgAt,
@@ -340,7 +339,6 @@ class _ChatTile extends StatelessWidget {
   final int unread;
   final bool isGroup;
   final int? memberCount;
-  // 4번: 상대방 프로필 이미지 및 캐릭터
   final String? otherProfileImageUrl;
   final Map<String, dynamic>? otherCharacter;
   final VoidCallback onTap;
@@ -378,7 +376,7 @@ class _ChatTile extends StatelessWidget {
           border: Border.all(color: context.borderColor, width: 0.5),
         ),
         child: Row(children: [
-          // 4번: 1:1 채팅에 프로필 이미지/캐릭터 아바타 표시
+          // 1:1 채팅에 프로필 이미지/캐릭터 아바타 표시
           if (isGroup)
             Container(width: 46, height: 46,
                 decoration: BoxDecoration(color: context.subtleBg, shape: BoxShape.circle),
@@ -415,8 +413,7 @@ class _ChatTile extends StatelessWidget {
                   margin: const EdgeInsets.only(left: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                    color: context.primaryColor,
-                    borderRadius: BorderRadius.circular(99),
+                    color: context.primaryColor, borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text('$unread', style: TextStyle(fontSize: 11,
                       fontWeight: FontWeight.w600, color: context.onPrimary)),

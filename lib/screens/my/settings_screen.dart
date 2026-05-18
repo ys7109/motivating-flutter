@@ -53,6 +53,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _toggleNotif(String key) async {
     final newVal = !_notif[key]!;
+    final app = context.read<AppProvider>();
+    final uid = app.authUser?.uid;
+    final streak = app.userData?.streak ?? 0;
 
     if (newVal) {
       final hasPermission = await NotificationService.hasPermission();
@@ -89,17 +92,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('notif_$key', newVal);
     setState(() => _notif[key] = newVal);
 
-    final app = context.read<AppProvider>();
+    if (key.startsWith('activity_') && uid != null) {
+      try {
+        // Cloud Functions가 수신자 기준 푸시 설정을 읽을 수 있게 Firestore에도 저장한다.
+        await app.firestoreService.updateUser(uid, {
+          'notifSettings.$key': newVal,
+        });
+      } catch (e) {
+        debugPrint('알림 설정 저장 실패: $e');
+      }
+    }
     if (key == 'goal') {
       if (newVal) await NotificationService.scheduleDailyGoalReminder();
       else await NotificationService.cancelNotification(1);
     } else if (key == 'streak') {
-      if (newVal) await NotificationService.scheduleStreakRiskReminder(app.userData?.streak ?? 0);
+      if (newVal) await NotificationService.scheduleStreakRiskReminder(streak);
       else await NotificationService.cancelNotification(2);
     } else if (key == 'mail') {
       if (!newVal) await NotificationService.cancelNotification(3);
     }
-    // activity_* 는 Cloud Functions 발송 시점에 SharedPreferences 값 체크
+    // activity_* 는 Cloud Functions 발송 시점에 Firestore 설정을 확인
   }
 
   @override
@@ -204,8 +216,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               // 앱 정보 섹션
               _Section(title: '앱 정보', children: [
-                const _InfoItem(label: '버전', value: '1.1.4'),
-                const _InfoItem(label: '빌드', value: '2026.05.14'),
+                const _InfoItem(label: '버전', value: '1.2.0'),
+                const _InfoItem(label: '빌드', value: '2026.05.18'),
               ]),
 
               // 계정 섹션

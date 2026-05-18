@@ -27,6 +27,8 @@ class _RankingTabState extends State<RankingTab> {
   List<Map<String, dynamic>> _rankings = [];
   bool _loading = true;
   String? _lastHash;
+  // 친구 uid 캐시 — 비공개 처리 여부 판단
+  Set<String> _friendUids = {};
 
   @override
   void initState() {
@@ -58,6 +60,12 @@ class _RankingTabState extends State<RankingTab> {
         // 랭킹에서도 프로필 이미지 표시
         'profileImageUrl': app.userData!.profileImageUrl,
       });
+      // 친구 uid 목록 로드 — 달성목표 비공개 처리 기준
+      try {
+        final friends = await FriendService().getFriends(app.authUser!.uid);
+        _friendUids = friends.map((f) => f['uid'] as String).toSet();
+        _friendUids.add(app.authUser!.uid); // 내 uid는 항상 공개
+      } catch (_) {}
     }
     await _loadRankings();
   }
@@ -65,13 +73,10 @@ class _RankingTabState extends State<RankingTab> {
   Future<void> _loadRankings() async {
     if (!mounted) return;
     setState(() => _loading = true);
-    try { _rankings = await FirestoreService().getRankings(_tab); } catch (e) {}
+    try {
+      _rankings = await FirestoreService().getRankings(_tab);
+    } catch (e) {}
     if (mounted) setState(() => _loading = false);
-  }
-
-  // 프로필 터치 시 — showUserProfileSheet 사용 (user_profile_sheet.dart와 동일한 UI)
-  void _openProfile(BuildContext context, String uid) {
-    showUserProfileSheet(context, uid);
   }
 
   @override
@@ -127,6 +132,7 @@ class _RankingTabState extends State<RankingTab> {
                     itemBuilder: (_, i) {
                       final user = _rankings[i];
                       final isMe = user['uid'] == myUid;
+                      final isFriend = _friendUids.contains(user['uid'] as String?);
                       final focusMin = _tab == 'total' ? user['totalFocusMin']
                           : _tab == 'daily' ? user['todayFocusMin']
                           : user['avgFocusMin'];
@@ -138,7 +144,8 @@ class _RankingTabState extends State<RankingTab> {
                           ? Achievements.findById(equippedId) : null;
                       return GestureDetector(
                         // 프로필 터치 시 showUserProfileSheet 호출
-                        onTap: () => _openProfile(context, user['uid'] as String),
+                        // user_profile_sheet에서 친구 여부에 따라 달성목표 비공개 처리
+                        onTap: () => showUserProfileSheet(context, user['uid'] as String),
                         child: Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
@@ -160,7 +167,8 @@ class _RankingTabState extends State<RankingTab> {
                                 size: 40,
                                 profileImageUrl: user['profileImageUrl'] as String?),
                             const SizedBox(width: 12),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Expanded(child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Row(children: [
                                 Text(user['name'] ?? '모험가', style: TextStyle(
                                     fontSize: 14, fontWeight: FontWeight.w500,
@@ -177,7 +185,7 @@ class _RankingTabState extends State<RankingTab> {
                                   ),
                                 ],
                               ]),
-                              // 업적 칭호 (닉네임 아래, 레벨 위)
+                              // 업적 칭호 (닉네임 아래)
                               if (achievement != null) ...[
                                 const SizedBox(height: 2),
                                 _AchievementTitle(achievement: achievement),
