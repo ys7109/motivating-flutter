@@ -549,6 +549,8 @@ class AppProvider extends ChangeNotifier {
     }
     final milestone = _milestones.firstWhere((m) => m['days'] == newStreak, orElse: () => <String, Object>{});
     if (milestone.isNotEmpty) { currentMilestone = milestone.map((k, v) => MapEntry(k, v)); streakModalType = 'milestone'; }
+    // 출석 처리 완료 — 출석 모달 표시
+    showAttendModal = true;
     await _checkAchievements();
     notifyListeners();
   }

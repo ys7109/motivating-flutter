@@ -305,6 +305,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         nextMsg!.senderUid == msg.senderUid &&
                         nextMsg.type != 'system' && msg.type != 'system' &&
                         nextMsg.timeStr == msg.timeStr;
+                    // 하단 간격 — 다음 메시지가 같은 사람 연속이면 좁게, 아니면 넓게
+                    final isNextContinued = hasNext &&
+                        nextMsg!.senderUid == msg.senderUid &&
+                        nextMsg.type != 'system' && msg.type != 'system';
 
                     // 2번: hideTime과 무관하게 모든 말풍선에 읽음 표시
                     final isRead = isMe && !widget.isGroup ? _isReadDirect(msg) : false;
@@ -331,7 +335,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         senderCharacter: _characterOf(msg.senderUid),
                         senderProfileImageUrl: _profileImageOf(msg.senderUid),
                         onProfileTap: () => _openUserProfile(msg.senderUid),
-                        isContinued: isContinued, chatId: widget.chatId,
+                        isContinued: isContinued,
+                        isNextContinued: isNextContinued,
+                        chatId: widget.chatId,
                         chatService: _chatService,
                         // 5번: 꾹 누르면 바텀시트 표시
                         onLongPress: () => _showMessageActions(context, msg, isMe),
@@ -427,10 +433,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 title: const Text('메시지 삭제', style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w500)),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  // 5번: 삭제 시 '메시지가 삭제되었습니다.' 시스템 메시지로 교체
-                  await _chatService.deleteMessage(
-                      widget.chatId, msg.id,
-                      senderName: _displayNameOf(_myUid!));
+                  // 삭제 확인 다이얼로그
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      backgroundColor: context.modalBg,
+                      title: Text('메시지 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                      content: Text('이 메시지를 삭제하시겠어요?\n삭제된 메시지는 복구할 수 없어요.', style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.5)),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: Text('취소', style: TextStyle(color: context.textSecondary))),
+                        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제', style: TextStyle(color: AppTheme.danger))),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await _chatService.deleteMessage(widget.chatId, msg.id, senderName: _displayNameOf(_myUid!));
+                  }
                 },
               ),
             ],
@@ -740,7 +758,7 @@ class _ChatInputBarState extends State<_ChatInputBar> {
 
 class _MessageBubble extends StatelessWidget {
   final MessageModel message;
-  final bool isMe, isGroup, isContinued, isRead;
+  final bool isMe, isGroup, isContinued, isNextContinued, isRead;
   final bool hideTime;
   final int groupUnreadCount;
   final String myUid, chatId;
@@ -754,7 +772,8 @@ class _MessageBubble extends StatelessWidget {
 
   const _MessageBubble({
     required this.message, required this.isMe, required this.isGroup,
-    required this.myUid, required this.isContinued, required this.isRead,
+    required this.myUid, required this.isContinued, required this.isNextContinued,
+    required this.isRead,
     required this.hideTime, required this.groupUnreadCount,
     required this.chatId, required this.senderName,
     this.senderCharacter, this.senderProfileImageUrl,
@@ -794,7 +813,7 @@ class _MessageBubble extends StatelessWidget {
             // 5번: 삭제된 메시지는 이탤릭 표시
             child: Text(message.content,
                 style: TextStyle(fontSize: 12, color: context.textSecondary,
-                    fontStyle: _isDeleted ? FontStyle.italic : FontStyle.normal)),
+                    fontStyle: FontStyle.normal)),
           ),
         ),
       );
@@ -836,8 +855,7 @@ class _MessageBubble extends StatelessWidget {
             if (message.isEdited) ...[
               const SizedBox(height: 2),
               Text('수정됨', style: TextStyle(fontSize: 10,
-                  color: isMyBubble ? context.onPrimary.withOpacity(0.6) : context.textSecondary,
-                  fontStyle: FontStyle.italic)),
+                  color: isMyBubble ? context.onPrimary.withOpacity(0.6) : context.textSecondary)),
             ],
           ]),
         ),
@@ -845,7 +863,7 @@ class _MessageBubble extends StatelessWidget {
     }
 
     return Padding(
-      padding: EdgeInsets.only(bottom: reactionSummary.isNotEmpty ? 4 : isContinued ? 2 : 7),
+      padding: EdgeInsets.only(bottom: reactionSummary.isNotEmpty ? 4 : isNextContinued ? 2 : 7),
       child: Column(
         crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [

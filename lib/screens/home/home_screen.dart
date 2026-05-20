@@ -13,20 +13,13 @@ import '../my/mailbox_screen.dart';
 import '../my/activity_notification_screen.dart';
 import '../social/character_avatar.dart';
 
-const _kPatchId = 'patch_v1.2.0';
-const _kPatchTitle = '패치노트 - 버전 1.2.0';
+const _kPatchId = 'patchnote';
+const _kPatchTitle = '패치노트';
 const _kPatchItems = [
-  '1. 반복 목표를 수정 시 일괄/개별 수정 선택 기능이 추가됩니다.',
-  '2. 목표 페이지에 날짜별 진행 목표 개수와 완료율이 표시됩니다.',
-  '3. 홈 화면에 오늘의 목표 완료율이 표시됩니다.',
-  '4. 연속 출석 알림이 중복으로 발송되는 오류가 수정됩니다.',
-  '5. 채팅방 이름 변경을 그룹채팅에만 적용 가능하도록 변경됩니다.',
-  '6. 소셜 게시판 탭이 일기 탭으로 명칭 변경됩니다.',
-  '7. 랭킹 탭에 전체 유저를 표시하도록 변경됩니다. 친구가 아닌 유저의 달성 목표는 비공개 처리됩니다.',
-  '8. 친구 프로필에 메모 기능이 추가됩니다.',
-  '9. 채팅방 내에서 반응 추가 버튼이 제거되고, 메시지를 길게 눌러 추가할 수 있도록 변경됩니다.',
-  '10. 채팅방 내에서 자신이 전송한 메시지를 길게 눌러 수정, 삭제가 가능해졌습니다.',
-  '11. 채팅방 내에서 사진 전송이 가능해졌습니다.',
+  '1. 목표 이월 기능이 추가되었습니다. 미완료 목표를 오늘로 이월이 가능하며, 1일당 20XP의 패널티가 적용됩니다.'
+  '2. 채팅 메시지를 길게 눌러 반응을 남기거나 수정, 삭제를 할 수 있습니다. 기존의 반응추가 버튼은 삭제됩니다.'
+  '3. 자신의 메시지에도 반응을 추가할 수 있게 되었습니다.'
+  '4. 일기 탭에서도 사진을 추가할 수 있도록 변경되었습니다.',
 ];
 
 class HomeScreen extends StatefulWidget {
@@ -37,32 +30,26 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // 1번: 출석 모달 로컬 표시 상태 — showDialog 타이밍 문제를 피하기 위해 Stack 오버레이로 직접 제어
+  // 출석 모달 로컬 표시 상태 — app.showAttendModal을 로컬로 캐싱해서 Stack 오버레이로 표시
   bool _showAttend = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // 1번: 출석 모달 먼저 확인
-      await _checkAttendance();
-      // 패치노트는 출석 모달 이후에 표시 (출석 모달이 없으면 바로 표시)
+      // 출석 모달 먼저 확인 후 패치노트 표시
+      _syncAttendModal();
       if (mounted && !_showAttend) await _checkAndShowPatch();
     });
   }
 
-  // 1번: lastAttendDate가 오늘이 아니거나 비어있으면 출석 모달 표시
-  Future<void> _checkAttendance() async {
+  // app.showAttendModal 상태를 로컬 _showAttend에 동기화
+  void _syncAttendModal() {
     if (!mounted) return;
     final app = context.read<AppProvider>();
-    final userData = app.userData;
-    if (userData == null) return;
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    // app.showAttendModal OR lastAttendDate가 오늘이 아닌 경우 모달 표시
-    final needsAttend = app.showAttendModal ||
-        userData.lastAttendDate.isEmpty ||
-        userData.lastAttendDate != today;
-    if (needsAttend && mounted) setState(() => _showAttend = true);
+    if (app.showAttendModal && !_showAttend) {
+      setState(() => _showAttend = true);
+    }
   }
 
   Future<void> _checkAndShowPatch() async {
@@ -94,7 +81,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final app = context.read<AppProvider>();
     app.dismissAttendModal();
     setState(() => _showAttend = false);
-    // 출석 모달 닫힌 후 패치노트 표시
     await _checkAndShowPatch();
   }
 
@@ -105,18 +91,15 @@ class _HomeScreenState extends State<HomeScreen> {
     if (userData == null) return const SizedBox();
 
     final today = DateTime.now();
-    final todayStr =
-        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
     final weekDays = ['일', '월', '화', '수', '목', '금', '토'];
-    final todayLabel =
-        '${today.month}월 ${today.day}일 (${weekDays[today.weekday % 7]})';
+    final todayLabel = '${today.month}월 ${today.day}일 (${weekDays[today.weekday % 7]})';
 
     final todayGoals = app.goals.where((g) {
       if (g.scheduledDate != null) return g.scheduledDate == todayStr;
       if (g.createdAt != null) {
         final d = g.createdAt!;
-        final ds =
-            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        final ds = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
         return ds == todayStr;
       }
       return false;
@@ -124,11 +107,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final todayTotal = todayGoals.length;
     final todayDone = todayGoals.where((g) => g.done).length;
-    final todayPct =
-        todayTotal == 0 ? 0 : (todayDone / todayTotal * 100).round();
+    final todayPct = todayTotal == 0 ? 0 : (todayDone / todayTotal * 100).round();
     final focusHours = (userData.totalFocusMin / 60).floor();
 
-    // app.showAttendModal이 외부(부활 아이템 등)에서 true로 바뀌면 로컬도 동기화
+    // 외부(부활 아이템 등)에서 app.showAttendModal이 true로 바뀌면 로컬도 동기화
     if (app.showAttendModal && !_showAttend) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _showAttend = true);
@@ -141,160 +123,76 @@ class _HomeScreenState extends State<HomeScreen> {
         SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 24),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: SizedBox(
                   height: 48,
                   child: Stack(alignment: Alignment.center, children: [
-                    Center(
-                      child: Text(todayLabel,
-                          style: TextStyle(
-                              color: context.textPrimary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500)),
-                    ),
+                    Center(child: Text(todayLabel, style: TextStyle(color: context.textPrimary, fontSize: 13, fontWeight: FontWeight.w500))),
                     Positioned(
                       left: 0,
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        Text('좋은 하루예요,',
-                            style: TextStyle(
-                                color: context.textSecondary,
-                                fontSize: 13)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('좋은 하루예요,', style: TextStyle(color: context.textSecondary, fontSize: 13)),
                         const SizedBox(height: 2),
-                        Text('${userData.name} 님',
-                            style: TextStyle(
-                                color: context.textPrimary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600)),
+                        Text('${userData.name} 님', style: TextStyle(color: context.textPrimary, fontSize: 20, fontWeight: FontWeight.w600)),
                       ]),
                     ),
                     Positioned(
                       right: 0,
-                      child:
-                          Row(mainAxisSize: MainAxisSize.min, children: [
-                        // 확성기 — 패치노트
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        // 패치노트 버튼
                         GestureDetector(
                           onTap: _showPatchDialog,
                           child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                                border: Border.all(
-                                    color: context.borderColor),
-                                borderRadius:
-                                    BorderRadius.circular(99)),
-                            child: Center(
-                                child: Icon(Icons.campaign_outlined,
-                                    size: 18,
-                                    color: context.textSecondary)),
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(99)),
+                            child: Center(child: Icon(Icons.campaign_outlined, size: 18, color: context.textSecondary)),
                           ),
                         ),
                         const SizedBox(width: 8),
+                        // 우편함 버튼
                         GestureDetector(
-                          onTap: () => Navigator.push(
-                              context,
-                              SlideRightRoute(
-                                  page: const MailboxScreen())),
-                          child:
-                              Stack(clipBehavior: Clip.none, children: [
+                          onTap: () => Navigator.push(context, SlideRightRoute(page: const MailboxScreen())),
+                          child: Stack(clipBehavior: Clip.none, children: [
                             Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                  border: Border.all(
-                                      color: context.borderColor),
-                                  borderRadius:
-                                      BorderRadius.circular(99)),
-                              child: Center(
-                                  child: Icon(
-                                      Icons.mail_outline_rounded,
-                                      size: 18,
-                                      color: context.textSecondary)),
+                              width: 36, height: 36,
+                              decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(99)),
+                              child: Center(child: Icon(Icons.mail_outline_rounded, size: 18, color: context.textSecondary)),
                             ),
                             if (app.unreadMailCount > 0)
-                              Positioned(
-                                top: -3,
-                                right: 0,
+                              Positioned(top: -3, right: 0,
                                 child: Container(
-                                  constraints: const BoxConstraints(
-                                      minWidth: 15, minHeight: 15),
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 3),
-                                  decoration: const BoxDecoration(
-                                      color: AppTheme.danger,
-                                      shape: BoxShape.circle),
-                                  child: Center(
-                                      child: Text(
-                                    app.unreadMailCount > 99
-                                        ? '99+'
-                                        : '${app.unreadMailCount}',
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold),
-                                  )),
-                                ),
-                              ),
+                                  constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                                  decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
+                                  child: Center(child: Text(app.unreadMailCount > 99 ? '99+' : '${app.unreadMailCount}',
+                                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
+                                )),
                           ]),
                         ),
                         const SizedBox(width: 8),
+                        // 활동 알림 버튼
                         GestureDetector(
                           onTap: () async {
-                            await Navigator.push(
-                                context,
-                                SlideRightRoute(
-                                    page:
-                                        const ActivityNotificationScreen()));
-                            if (context.mounted)
-                              app.reloadUnreadNotifCount();
+                            await Navigator.push(context, SlideRightRoute(page: const ActivityNotificationScreen()));
+                            if (context.mounted) app.reloadUnreadNotifCount();
                           },
-                          child:
-                              Stack(clipBehavior: Clip.none, children: [
+                          child: Stack(clipBehavior: Clip.none, children: [
                             Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                  border: Border.all(
-                                      color: context.borderColor),
-                                  borderRadius:
-                                      BorderRadius.circular(99)),
-                              child: Center(
-                                  child: Icon(
-                                      Icons.notifications_outlined,
-                                      size: 18,
-                                      color: context.textSecondary)),
+                              width: 36, height: 36,
+                              decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(99)),
+                              child: Center(child: Icon(Icons.notifications_outlined, size: 18, color: context.textSecondary)),
                             ),
                             if (app.unreadNotifCount > 0)
-                              Positioned(
-                                top: -3,
-                                right: 0,
+                              Positioned(top: -3, right: 0,
                                 child: Container(
-                                  constraints: const BoxConstraints(
-                                      minWidth: 15, minHeight: 15),
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 3),
-                                  decoration: const BoxDecoration(
-                                      color: AppTheme.danger,
-                                      shape: BoxShape.circle),
-                                  child: Center(
-                                      child: Text(
-                                    app.unreadNotifCount > 99
-                                        ? '99+'
-                                        : '${app.unreadNotifCount}',
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold),
-                                  )),
-                                ),
-                              ),
+                                  constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+                                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                                  decoration: const BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
+                                  child: Center(child: Text(app.unreadNotifCount > 99 ? '99+' : '${app.unreadNotifCount}',
+                                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
+                                )),
                           ]),
                         ),
                       ]),
@@ -309,79 +207,35 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
                   padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                      color: context.surfaceColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: context.borderColor, width: 0.5)),
+                  decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: context.borderColor, width: 0.5)),
                   child: Column(children: [
                     Row(children: [
                       Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                            color: context.subtleBg,
-                            shape: BoxShape.circle),
-                        child: CharacterAvatar(
-                          character: userData.character.toMap(),
-                          size: 46,
-                          profileImageUrl: userData.profileImageUrl,
-                        ),
+                        width: 46, height: 46,
+                        decoration: BoxDecoration(color: context.subtleBg, shape: BoxShape.circle),
+                        child: CharacterAvatar(character: userData.character.toMap(), size: 46, profileImageUrl: userData.profileImageUrl),
                       ),
                       const SizedBox(width: 12),
-                      Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        Text('현재 등급',
-                            style: TextStyle(
-                                color: context.textSecondary,
-                                fontSize: 11)),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('현재 등급', style: TextStyle(color: context.textSecondary, fontSize: 11)),
                         const SizedBox(height: 2),
-                        Text(_levelTitle(userData.level),
-                            style: TextStyle(
-                                color: context.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500)),
+                        Text(_levelTitle(userData.level), style: TextStyle(color: context.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
                       ]),
                       const Spacer(),
-                      Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                        Text('${userData.xp}',
-                            style: TextStyle(
-                                color: context.textPrimary,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w600)),
-                        Text('/ ${userData.xpToNext} XP',
-                            style: TextStyle(
-                                color: context.textSecondary,
-                                fontSize: 12)),
+                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        Text('${userData.xp}', style: TextStyle(color: context.textPrimary, fontSize: 22, fontWeight: FontWeight.w600)),
+                        Text('/ ${userData.xpToNext} XP', style: TextStyle(color: context.textSecondary, fontSize: 12)),
                       ]),
                     ]),
                     const SizedBox(height: 14),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(99),
-                      child: LinearProgressIndicator(
-                        value: app.xpPercent / 100,
-                        minHeight: 5,
-                        backgroundColor: context.borderColor,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                            context.primaryColor),
-                      ),
+                      child: LinearProgressIndicator(value: app.xpPercent / 100, minHeight: 5, backgroundColor: context.borderColor, valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor)),
                     ),
                     const SizedBox(height: 6),
-                    Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                      Text('Lv.${userData.level}',
-                          style: TextStyle(
-                              color: context.textSecondary,
-                              fontSize: 11)),
-                      Text('${userData.xpToNext - userData.xp} XP 남음',
-                          style: TextStyle(
-                              color: context.textSecondary,
-                              fontSize: 11)),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('Lv.${userData.level}', style: TextStyle(color: context.textSecondary, fontSize: 11)),
+                      Text('${userData.xpToNext - userData.xp} XP 남음', style: TextStyle(color: context.textSecondary, fontSize: 11)),
                     ]),
                   ]),
                 ),
@@ -392,20 +246,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(children: [
-                  _StatCard(
-                      label: '달성 목표',
-                      value: '${app.goalsThisMonth}',
-                      sub: '이번 달'),
+                  _StatCard(label: '달성 목표', value: '${app.goalsThisMonth}', sub: '이번 달'),
                   const SizedBox(width: 10),
-                  _StatCard(
-                      label: '최고 출석',
-                      value: '${userData.maxStreak}일',
-                      sub: '최고 기록'),
+                  _StatCard(label: '최고 출석', value: '${userData.maxStreak}일', sub: '최고 기록'),
                   const SizedBox(width: 10),
-                  _StatCard(
-                      label: '집중 시간',
-                      value: '${focusHours}h',
-                      sub: '누적'),
+                  _StatCard(label: '집중 시간', value: '${focusHours}h', sub: '누적'),
                 ]),
               ),
               const SizedBox(height: 12),
@@ -415,32 +260,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                      color: context.surfaceColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: context.borderColor, width: 0.5)),
+                  decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: context.borderColor, width: 0.5)),
                   child: Column(children: [
                     Row(children: [
-                      const Text('🔥',
-                          style: TextStyle(fontSize: 28)),
+                      const Text('🔥', style: TextStyle(fontSize: 28)),
                       const SizedBox(width: 10),
-                      Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        Text('${userData.streak}일 연속 출석',
-                            style: TextStyle(
-                                color: context.textPrimary,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600)),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('${userData.streak}일 연속 출석', style: TextStyle(color: context.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 3),
-                        Text(
-                            userData.streak >= 7
-                                ? '대단해요! 계속 유지하세요'
-                                : '7일까지 ${7 - userData.streak}일 남음',
-                            style: TextStyle(
-                                color: context.textSecondary,
-                                fontSize: 12)),
+                        Text(userData.streak >= 7 ? '대단해요! 계속 유지하세요' : '7일까지 ${7 - userData.streak}일 남음',
+                            style: TextStyle(color: context.textSecondary, fontSize: 12)),
                       ]),
                     ]),
                     _StreakMilestone(streak: userData.streak),
@@ -452,31 +281,17 @@ class _HomeScreenState extends State<HomeScreen> {
               // 오늘의 목표 헤더
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
+                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('오늘의 목표',
-                        style: TextStyle(
-                            color: context.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500)),
+                    Text('오늘의 목표', style: TextStyle(color: context.textPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
                     if (todayTotal > 0) ...[
                       const SizedBox(width: 6),
-                      Text('($todayPct% 완료)',
-                          style: TextStyle(
-                              color: todayPct == 100
-                                  ? const Color(0xFF1b8a5a)
-                                  : context.textSecondary,
-                              fontSize: 12)),
+                      Text('($todayPct% 완료)', style: TextStyle(color: todayPct == 100 ? const Color(0xFF1b8a5a) : context.textSecondary, fontSize: 12)),
                     ],
                   ]),
                   GestureDetector(
                     onTap: () => widget.onSwitchTab?.call(1),
-                    child: Text('전체 보기 →',
-                        style: TextStyle(
-                            color: context.textSecondary,
-                            fontSize: 12)),
+                    child: Text('전체 보기 →', style: TextStyle(color: context.textSecondary, fontSize: 12)),
                   ),
                 ]),
               ),
@@ -485,17 +300,10 @@ class _HomeScreenState extends State<HomeScreen> {
               if (todayGoals.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                      child: Column(children: [
-                    Text('오늘 등록된 목표가 없어요',
-                        style: TextStyle(
-                            color: context.textSecondary,
-                            fontSize: 14)),
+                  child: Center(child: Column(children: [
+                    Text('오늘 등록된 목표가 없어요', style: TextStyle(color: context.textSecondary, fontSize: 14)),
                     const SizedBox(height: 4),
-                    Text('아래 버튼으로 목표를 추가해보세요',
-                        style: TextStyle(
-                            color: context.textSecondary,
-                            fontSize: 12)),
+                    Text('아래 버튼으로 목표를 추가해보세요', style: TextStyle(color: context.textSecondary, fontSize: 12)),
                   ])),
                 )
               else
@@ -507,19 +315,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     final repeatGoals = app.goals
                         .where((r) => r.repeatId == g.repeatId)
                         .toList()
-                      ..sort((a, b) => (a.scheduledDate ?? '')
-                          .compareTo(b.scheduledDate ?? ''));
+                      ..sort((a, b) => (a.scheduledDate ?? '').compareTo(b.scheduledDate ?? ''));
                     totalCount = repeatGoals.length;
-                    currentCount = repeatGoals
-                            .indexWhere((r) => r.id == g.id) +
-                        1;
-                    willAllDone = repeatGoals
-                        .where((r) => r.id != g.id)
-                        .every((r) => r.done);
+                    currentCount = repeatGoals.indexWhere((r) => r.id == g.id) + 1;
+                    willAllDone = repeatGoals.where((r) => r.id != g.id).every((r) => r.done);
                   }
                   return Padding(
-                    padding:
-                        const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                     child: _GoalItem(
                       goal: g,
                       currentCount: currentCount,
@@ -533,15 +335,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           context: context,
                           builder: (ctx) => _DeleteConfirmDialog(
                             repeatInfo: info,
-                            onDeleteAll: () {
-                              Navigator.pop(ctx);
-                              app.removeRepeatGoals(
-                                  info!['repeatId']);
-                            },
-                            onDeleteOne: () {
-                              Navigator.pop(ctx);
-                              app.removeGoal(g.id);
-                            },
+                            onDeleteAll: () { Navigator.pop(ctx); app.removeRepeatGoals(info!['repeatId']); },
+                            onDeleteOne: () { Navigator.pop(ctx); app.removeGoal(g.id); },
                             onCancel: () => Navigator.pop(ctx),
                           ),
                         );
@@ -549,53 +344,35 @@ class _HomeScreenState extends State<HomeScreen> {
                       onEdit: () async {
                         final uid = app.authUser?.uid;
                         if (uid == null) return;
-                        final snap = await app.firestoreService
-                            .getGoalDoc(uid, g.id);
+                        final snap = await app.firestoreService.getGoalDoc(uid, g.id);
                         if (!context.mounted || snap == null) return;
                         if (g.repeatId != null) {
                           final repeatGoals = app.goals
-                              .where(
-                                  (r) => r.repeatId == g.repeatId)
+                              .where((r) => r.repeatId == g.repeatId)
                               .map((r) => r.scheduledDate ?? '')
                               .where((d) => d.isNotEmpty)
-                              .toList()
-                            ..sort();
+                              .toList()..sort();
                           if (repeatGoals.isNotEmpty) {
                             snap['startDate'] = repeatGoals.first;
                             snap['endDate'] = repeatGoals.last;
                           }
                         }
-                        Navigator.push(
-                            context,
-                            SlideUpRoute(
-                              page: AddGoalScreen(
-                                  editGoalId: g.id,
-                                  editGoalData: snap),
-                            ));
+                        Navigator.push(context, SlideUpRoute(page: AddGoalScreen(editGoalId: g.id, editGoalData: snap)));
                       },
                     ),
                   );
                 }),
 
+              // 목표 추가 버튼
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: GestureDetector(
-                  onTap: () => Navigator.push(context,
-                      SlideUpRoute(page: const AddGoalScreen())),
+                  onTap: () => Navigator.push(context, SlideUpRoute(page: const AddGoalScreen())),
                   child: Container(
                     width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 13),
-                    decoration: BoxDecoration(
-                        border:
-                            Border.all(color: context.borderColor),
-                        borderRadius: BorderRadius.circular(12)),
-                    child: Center(
-                        child: Text('+ 목표 추가',
-                            style: TextStyle(
-                                color: context.textSecondary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500))),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)),
+                    child: Center(child: Text('+ 목표 추가', style: TextStyle(color: context.textSecondary, fontSize: 14, fontWeight: FontWeight.w500))),
                   ),
                 ),
               ),
@@ -606,49 +383,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                      color: context.surfaceColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: context.borderColor, width: 0.5)),
-                  child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
-                      children: [
-                    Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text('집중 모드',
-                          style: TextStyle(
-                              color: context.textSecondary,
-                              fontSize: 11,
-                              letterSpacing: 0.5)),
+                  decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: context.borderColor, width: 0.5)),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('집중 모드', style: TextStyle(color: context.textSecondary, fontSize: 11, letterSpacing: 0.5)),
                       const SizedBox(height: 3),
-                      Text('휴대폰 안쓰기',
-                          style: TextStyle(
-                              color: context.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500)),
+                      Text('휴대폰 안쓰기', style: TextStyle(color: context.textPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
-                      Text('집중한 시간에 비례해 XP 획득',
-                          style: TextStyle(
-                              color: context.textSecondary,
-                              fontSize: 12)),
+                      Text('집중한 시간에 비례해 XP 획득', style: TextStyle(color: context.textSecondary, fontSize: 12)),
                     ]),
                     GestureDetector(
                       onTap: () => widget.onSwitchTab?.call(2),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 10),
-                        decoration: BoxDecoration(
-                            color: context.primaryColor,
-                            borderRadius:
-                                BorderRadius.circular(99)),
-                        child: Text('시작',
-                            style: TextStyle(
-                                color: context.onPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600)),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
+                        child: Text('시작', style: TextStyle(color: context.onPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ]),
@@ -659,36 +408,20 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
 
         if (app.levelUpTo != null)
-          LevelUpModal(
-              level: app.levelUpTo!,
-              onClose: () => app.dismissLevelUp()),
+          LevelUpModal(level: app.levelUpTo!, onClose: () => app.dismissLevelUp()),
 
-        // 1번: 출석 모달 — Stack 최상단, showDialog와 무관하게 항상 위에 표시
+        // 출석 모달 — Stack 최상단
         if (_showAttend)
           AttendanceModal(onClose: _dismissAttend),
 
         if (app.streakModalType != null)
-          StreakModal(
-              type: app.streakModalType!,
-              onClose: () => app.dismissStreakModal()),
+          StreakModal(type: app.streakModalType!, onClose: () => app.dismissStreakModal()),
       ]),
     );
   }
 
   String _levelTitle(int level) {
-    const prefixes = [
-      '',
-      '새내기',
-      '성장하는',
-      '도전하는',
-      '달리는',
-      '노력하는',
-      '빛나는',
-      '도약하는',
-      '질주하는',
-      '각성한',
-      '눈뜬'
-    ];
+    const prefixes = ['', '새내기', '성장하는', '도전하는', '달리는', '노력하는', '빛나는', '도약하는', '질주하는', '각성한', '눈뜬'];
     final prefix = level <= 10 ? prefixes[level] : '';
     final title = AppProvider.levelTitle(level);
     return prefix.isEmpty ? title : '$prefix $title';
@@ -700,12 +433,7 @@ class _PatchDialog extends StatelessWidget {
   final List<String> items;
   final VoidCallback onClose;
   final VoidCallback onHidePermanently;
-  const _PatchDialog({
-    required this.title,
-    required this.items,
-    required this.onClose,
-    required this.onHidePermanently,
-  });
+  const _PatchDialog({required this.title, required this.items, required this.onClose, required this.onHidePermanently});
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -713,10 +441,7 @@ class _PatchDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(Icons.campaign_outlined, size: 20, color: context.primaryColor),
             const SizedBox(width: 8),
@@ -755,10 +480,7 @@ class _StatCard extends StatelessWidget {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-            color: context.surfaceColor,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: context.borderColor, width: 0.5)),
+        decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.borderColor, width: 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(color: context.textSecondary, fontSize: 11)),
           const SizedBox(height: 4),
@@ -791,10 +513,7 @@ class _StreakMilestone extends StatelessWidget {
       const SizedBox(height: 4),
       ClipRRect(
         borderRadius: BorderRadius.circular(99),
-        child: LinearProgressIndicator(
-          value: pct, minHeight: 5, backgroundColor: context.borderColor,
-          valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor),
-        ),
+        child: LinearProgressIndicator(value: pct, minHeight: 5, backgroundColor: context.borderColor, valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor)),
       ),
     ]);
   }
@@ -856,21 +575,29 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Container(margin: const EdgeInsets.only(right: 6), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
-                      child: Text(isRepeat ? '반복' : tagLabel, style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500))),
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
+                    child: Text(isRepeat ? '반복' : tagLabel, style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
+                  ),
                   Expanded(child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 200),
                     style: TextStyle(color: g.done ? context.textSecondary : context.textPrimary, fontSize: 14, fontWeight: FontWeight.w500, decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none),
-                    child: Text(isRepeat && widget.currentCount != null && widget.totalCount != null ? '${g.title} (${widget.currentCount} / ${widget.totalCount})' : g.title),
+                    child: Text(isRepeat && widget.currentCount != null && widget.totalCount != null
+                        ? '${g.title} (${widget.currentCount} / ${widget.totalCount})' : g.title),
                   )),
                 ]),
                 const SizedBox(height: 8),
                 Row(children: [
-                  Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(99), child: TweenAnimationBuilder<double>(
-                    tween: Tween<double>(begin: 0, end: (g.progress ?? 0) / 100),
-                    duration: const Duration(milliseconds: 600), curve: Curves.easeOut,
-                    builder: (_, value, __) => LinearProgressIndicator(value: value, minHeight: 4, backgroundColor: context.borderColor, valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor)),
-                  ))),
+                  Expanded(child: ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: (g.progress ?? 0) / 100),
+                      duration: const Duration(milliseconds: 600), curve: Curves.easeOut,
+                      builder: (_, value, __) => LinearProgressIndicator(value: value, minHeight: 4, backgroundColor: context.borderColor, valueColor: AlwaysStoppedAnimation<Color>(context.primaryColor)),
+                    ),
+                  )),
                   const SizedBox(width: 8),
                   Text('${g.progress ?? 0}%', style: TextStyle(color: context.textSecondary, fontSize: 11)),
                 ]),
@@ -878,12 +605,22 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
               const SizedBox(width: 10),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Row(mainAxisSize: MainAxisSize.min, children: [
-                  GestureDetector(onTap: widget.onEdit, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(6)), child: Text('수정', style: TextStyle(fontSize: 11, color: context.textSecondary)))),
+                  GestureDetector(
+                    onTap: widget.onEdit,
+                    child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(6)), child: Text('수정', style: TextStyle(fontSize: 11, color: context.textSecondary))),
+                  ),
                   const SizedBox(width: 4),
-                  TapScale(onTap: widget.onDelete, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(border: Border.all(color: AppTheme.danger.withOpacity(0.5)), borderRadius: BorderRadius.circular(6)), child: Text('삭제', style: const TextStyle(fontSize: 11, color: AppTheme.danger)))),
+                  TapScale(
+                    onTap: widget.onDelete,
+                    child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2), decoration: BoxDecoration(border: Border.all(color: AppTheme.danger.withOpacity(0.5)), borderRadius: BorderRadius.circular(6)), child: Text('삭제', style: const TextStyle(fontSize: 11, color: AppTheme.danger))),
+                  ),
                 ]),
                 const SizedBox(height: 6),
-                AnimatedDefaultTextStyle(duration: const Duration(milliseconds: 200), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary), child: Text('+$displayXp XP')),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary),
+                  child: Text('+$displayXp XP'),
+                ),
               ]),
             ]),
           ),
@@ -903,24 +640,27 @@ class _DeleteConfirmDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: context.modalBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(isSingle ? '목표 삭제' : '반복 목표 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
-        const SizedBox(height: 8),
-        Text(isSingle ? '이 목표를 삭제하시겠습니까?' : '반복 목표를 모두 함께 삭제하시겠습니까?', style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.6)),
-        if (!isSingle) ...[
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(isSingle ? '목표 삭제' : '반복 목표 삭제', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
           const SizedBox(height: 8),
-          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(10)),
-              child: Text('삭제되는 목표: ${repeatInfo!["undone"]}개', style: TextStyle(fontSize: 12, color: context.textSecondary))),
-        ],
-        const SizedBox(height: 16),
-        GestureDetector(onTap: isSingle ? onDeleteOne : onDeleteAll, child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 13), decoration: BoxDecoration(color: AppTheme.danger, borderRadius: BorderRadius.circular(12)), child: Center(child: Text(isSingle ? '삭제' : '모두 삭제', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white))))),
-        if (!isSingle) ...[
+          Text(isSingle ? '이 목표를 삭제하시겠습니까?' : '반복 목표를 모두 함께 삭제하시겠습니까?', style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.6)),
+          if (!isSingle) ...[
+            const SizedBox(height: 8),
+            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: context.subtleBg, borderRadius: BorderRadius.circular(10)),
+                child: Text('삭제되는 목표: ${repeatInfo!["undone"]}개', style: TextStyle(fontSize: 12, color: context.textSecondary))),
+          ],
+          const SizedBox(height: 16),
+          GestureDetector(onTap: isSingle ? onDeleteOne : onDeleteAll, child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 13), decoration: BoxDecoration(color: AppTheme.danger, borderRadius: BorderRadius.circular(12)), child: Center(child: Text(isSingle ? '삭제' : '모두 삭제', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white))))),
+          if (!isSingle) ...[
+            const SizedBox(height: 8),
+            GestureDetector(onTap: onDeleteOne, child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 13), decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)), child: Center(child: Text('하나만 삭제', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: context.textPrimary))))),
+          ],
           const SizedBox(height: 8),
-          GestureDetector(onTap: onDeleteOne, child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 13), decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)), child: Center(child: Text('하나만 삭제', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: context.textPrimary))))),
-        ],
-        const SizedBox(height: 8),
-        GestureDetector(onTap: onCancel, child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 13), decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)), child: Center(child: Text('취소', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: context.textPrimary))))),
-      ])),
+          GestureDetector(onTap: onCancel, child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 13), decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(12)), child: Center(child: Text('취소', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: context.textPrimary))))),
+        ]),
+      ),
     );
   }
 }

@@ -4,7 +4,7 @@
  
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage%20%7C%20Messaging-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.1.5-green)]()
+[![Version](https://img.shields.io/badge/version-1.2.1-green)]()
  
 ---
  
@@ -228,6 +228,22 @@ chats/{chatId}/messages/{msgId}
  
 ## 📋 버전 히스토리
 <!-- 다음버전에서 고칠것 - 🔧 소셜탭의 친구 접속 시간이 비정상적으로 표시되는 문제 해결 -->
+
+### v1.2.1 (2026.05.20)
+- ✨ 목표 이월 기능 추가 — 미완료 목표를 오늘로 이월, 경과 1일당 20XP 패널티
+- ✨ 자신의 메시지에도 반응 추가 가능
+- ✨ 일기탭에서 사진 업로드 기능 추가
+- 🔧 반복 목표 삭제 시 완료된 목표 포함 전체 삭제 및 속도 개선
+- 🔧 연속 메시지 간격 버그 수정
+- 🔧 미읽음 표시가 일부 말풍선에만 표시되던 문제 수정
+- 🔧 메시지 삭제 시 확인 다이얼로그 표시
+- 🔧 출석 보상 수령 UI가 표시되지 않던 문제 수정
+- 🔧 연속 출석 위기 알림 텍스트 수정
+- 🔧 푸시 알림 탭 시 해당 알림 자동 삭제
+- 🔧 채팅방 입장 시 해당 채팅 알림 자동 삭제
+- 🔧 회원 탈퇴 시 접속 상태 데이터 자동 삭제
+- 🔧 백그라운드 푸시 알림 중복 등록 버그 수정
+
 
 ### v1.2.0 (2026.05.18)
 - ✨ 채팅방에서 사진 전송 기능 추가

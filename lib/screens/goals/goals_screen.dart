@@ -22,7 +22,6 @@ List<int?> _calendarDays(int year, int month) {
   return [...List.filled(firstDay, null), ...List.generate(lastDate, (i) => i + 1)];
 }
 
-// 해당 월 달력이 몇 주(행)인지 계산 — 5주 또는 6주
 int _calendarRowCount(int year, int month) {
   final totalCells = _calendarDays(year, month).length;
   return (totalCells / 7).ceil();
@@ -52,7 +51,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
     _loadSortPref();
     _loadHolidays();
     final now = DateTime.now();
-    // 현재 년월을 페이지 인덱스로 변환 — year * 12 + (month - 1)
     final initialPage = now.year * 12 + (now.month - 1);
     _pageCtrl = PageController(initialPage: initialPage);
   }
@@ -86,7 +84,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   String get _todayStr => _toDateStr(_today.year, _today.month, _today.day);
 
-  // 페이지 인덱스 → DateTime 변환
   DateTime _pageToDate(int page) {
     final year = page ~/ 12;
     final month = page % 12 + 1;
@@ -107,10 +104,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
   void _handleDeleteRequest(GoalModel goal, AppProvider app) {
     final info = app.getRepeatInfo(goal.id);
     if (info != null) {
-      // 반복 목표 — 전체/하나만 선택 모달
       setState(() => _deleteModal = {'goalId': goal.id, 'repeatInfo': info});
     } else {
-      // 단일 목표도 삭제 확인 모달 표시
       setState(() => _deleteModal = {'goalId': goal.id, 'repeatInfo': null});
     }
   }
@@ -119,6 +114,65 @@ class _GoalsScreenState extends State<GoalsScreen> {
     if (g.repeatId == null) return false;
     final repeatGoals = allGoals.where((r) => r.repeatId == g.repeatId).toList();
     return repeatGoals.where((r) => r.id != g.id).every((r) => r.done);
+  }
+
+  // 6번: 이월 가능 여부 — 미완료 + 다음 회차 도래 전까지만
+  // 단일 목표: 선택 날짜가 오늘 이전인 미완료 목표
+  // 반복 목표: scheduledDate가 오늘 이전이고 미완료인 목표
+  bool _canCarryOver(GoalModel g) {
+    if (g.done) return false;
+    final scheduledDate = g.scheduledDate;
+    if (scheduledDate == null) return false;
+    // 오늘 날짜보다 이전이어야 이월 가능
+    return scheduledDate.compareTo(_todayStr) < 0;
+  }
+
+  // 6번: 이월 처리 — 오늘 날짜로 새 목표 생성, XP 1일당 20 감소, 이월 뱃지 표시
+  Future<void> _carryOverGoal(GoalModel g, AppProvider app) async {
+    final uid = app.authUser?.uid;
+    if (uid == null) return;
+
+    // 경과 일수 계산
+    final scheduled = DateTime.parse(g.scheduledDate!);
+    final today = DateTime.now();
+    final diffDays = today.difference(scheduled).inDays;
+
+    // XP 감소 — 1일당 20XP, 최소 0
+    final penalty = diffDays * 20;
+    // 반복 목표는 repeatXp 기준, 단일 목표는 xp 기준
+    final isRepeatGoal = g.repeatId != null;
+    final baseXp = isRepeatGoal ? g.repeatXp : g.xp;
+    final newRepeatXp = (baseXp - penalty).clamp(0, baseXp);
+    final newXp = isRepeatGoal ? g.xp : newRepeatXp; // 반복 전체 완료 보너스 xp는 유지
+
+    // 오늘 날짜로 새 목표 생성 — isCarriedOver: true, carryOverFrom: 원본 날짜
+    final goalData = <String, dynamic>{
+      'title': g.title,
+      'desc': g.desc,
+      'type': g.type,
+      'xp': newXp,
+      'repeatXp': newRepeatXp,
+      'scheduledDate': _todayStr,
+      'isCarriedOver': true,
+      'carryOverFrom': g.scheduledDate,
+      'xpMode': g.xpMode ?? 'manual',
+      if (g.alarm != null) 'alarm': g.alarm,
+      if (g.repeatId != null) 'repeatId': g.repeatId,
+      if (g.repeat != null) 'repeat': g.repeat!.toMap(),
+      if (g.startDate != null) 'startDate': g.startDate,
+      if (g.endDate != null) 'endDate': g.endDate,
+    };
+    await app.firestoreService.addGoal(uid, goalData);
+    // 원본 목표 삭제
+    await app.firestoreService.deleteGoal(uid, g.id);
+    await app.loadGoals();
+
+    final xpDiff = baseXp - newRepeatXp;
+    if (xpDiff > 0) {
+      app.showToast('목표를 이월했어요! XP -$xpDiff (${diffDays}일 경과)');
+    } else {
+      app.showToast('목표를 이월했어요!');
+    }
   }
 
   Future<void> _showYearMonthPicker() async {
@@ -134,16 +188,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
           padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).padding.bottom + 20),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              IconButton(
-                onPressed: () => setModal(() => pickerYear--),
-                icon: Icon(Icons.chevron_left, color: ctx.textSecondary),
-              ),
-              Text('$pickerYear년', style: TextStyle(fontSize: 17,
-                  fontWeight: FontWeight.w600, color: ctx.textPrimary)),
-              IconButton(
-                onPressed: () => setModal(() => pickerYear++),
-                icon: Icon(Icons.chevron_right, color: ctx.textSecondary),
-              ),
+              IconButton(onPressed: () => setModal(() => pickerYear--),
+                  icon: Icon(Icons.chevron_left, color: ctx.textSecondary)),
+              Text('$pickerYear년', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: ctx.textPrimary)),
+              IconButton(onPressed: () => setModal(() => pickerYear++),
+                  icon: Icon(Icons.chevron_right, color: ctx.textSecondary)),
             ]),
             const SizedBox(height: 12),
             GridView.count(
@@ -166,9 +215,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     decoration: BoxDecoration(
-                      color: isSelected ? ctx.primaryColor : ctx.subtleBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                        color: isSelected ? ctx.primaryColor : ctx.subtleBg,
+                        borderRadius: BorderRadius.circular(8)),
                     child: Center(child: Text('$m월', style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w500,
                         color: isSelected ? ctx.onPrimary : ctx.textPrimary))),
@@ -187,38 +235,33 @@ class _GoalsScreenState extends State<GoalsScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
     final goals = app.goals;
-    final _filteredGoals = _goalsForDate(goals, _selectedDate).where((g) {
+    final filteredGoals = _goalsForDate(goals, _selectedDate).where((g) {
       if (_filter == 'active') return !g.done;
       if (_filter == 'done') return g.done;
       return true;
     }).toList();
-    _filteredGoals.sort((a, b) {
+    filteredGoals.sort((a, b) {
       if (a.done != b.done) return a.done ? 1 : -1;
       if (_sort == 'alpha') return a.title.compareTo(b.title);
       final at = a.createdAt ?? DateTime(0);
       final bt = b.createdAt ?? DateTime(0);
       return bt.compareTo(at);
     });
-    final selectedGoals = _filteredGoals;
+    final selectedGoals = filteredGoals;
     final doneCount = goals.where((g) => g.done).length;
     final activeCount = goals.where((g) => !g.done).length;
 
-    // 오늘이면 날짜 (오늘) 형식
     final dateFormatted = _selectedDate.replaceAll('-', '.');
     final dateHeader = _selectedDate == _todayStr ? '$dateFormatted (오늘)' : dateFormatted;
-    // 공휴일 이름
     final holidayName = _holidays[_selectedDate];
 
-    // 4번: 선택된 날짜의 목표 완료도 계산
     final allGoalsForDate = _goalsForDate(goals, _selectedDate);
     final dateTotal = allGoalsForDate.length;
     final dateDone = allGoalsForDate.where((g) => g.done).length;
     final dateActive = dateTotal - dateDone;
     final datePct = dateTotal == 0 ? 0 : (dateDone / dateTotal * 100).round();
 
-    // 현재 보이는 달의 행 수 계산 — 5주 또는 6주
     final rowCount = _calendarRowCount(_viewYear, _viewMonth);
-    // 셀 높이 × 행 수 + 하단 패딩 — 6주 달도 잘리지 않게 동적 계산
     const cellHeight = 46.0;
     final calendarHeight = cellHeight * rowCount + 12;
 
@@ -233,28 +276,24 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('목표', style: TextStyle(fontSize: 22,
-                        fontWeight: FontWeight.w600, color: context.textPrimary)),
+                    Text('목표', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: context.textPrimary)),
                     const SizedBox(height: 4),
                     Text('진행 중 ${activeCount}개 · 완료 ${doneCount}개',
                         style: TextStyle(fontSize: 13, color: context.textSecondary)),
                   ]),
                   TapScale(
-                    onTap: () => Navigator.push(context,
-                        SlideUpRoute(page: AddGoalScreen(initialDate: _selectedDate))),
+                    onTap: () => Navigator.push(context, SlideUpRoute(page: AddGoalScreen(initialDate: _selectedDate))),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(color: context.primaryColor,
-                          borderRadius: BorderRadius.circular(99)),
-                      child: Text('+ 추가', style: TextStyle(color: context.onPrimary,
-                          fontSize: 13, fontWeight: FontWeight.w600)),
+                      decoration: BoxDecoration(color: context.primaryColor, borderRadius: BorderRadius.circular(99)),
+                      child: Text('+ 추가', style: TextStyle(color: context.onPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ]),
               ),
               const SizedBox(height: 16),
 
-              // 달력 — PageView 좌우 스와이프
+              // 달력
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -262,51 +301,37 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: context.borderColor, width: 0.5)),
                   child: Column(children: [
-                    // 년월 헤더 + 이전/다음 버튼
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
                       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                         IconButton(
-                          onPressed: () => _pageCtrl.previousPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut),
+                          onPressed: () => _pageCtrl.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
                           icon: Icon(Icons.chevron_left, color: context.textSecondary),
-                          padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                        ),
-                        // 년월 터치 → 피커
+                          padding: EdgeInsets.zero, constraints: const BoxConstraints()),
                         GestureDetector(
                           onTap: _showYearMonthPicker,
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text('$_viewYear년 $_viewMonth월', style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600,
-                                color: context.textPrimary)),
+                            Text('$_viewYear년 $_viewMonth월', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
                             const SizedBox(width: 4),
                             Icon(Icons.arrow_drop_down, size: 18, color: context.textSecondary),
                           ]),
                         ),
                         IconButton(
-                          onPressed: () => _pageCtrl.nextPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut),
+                          onPressed: () => _pageCtrl.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
                           icon: Icon(Icons.chevron_right, color: context.textSecondary),
-                          padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                        ),
+                          padding: EdgeInsets.zero, constraints: const BoxConstraints()),
                       ]),
                     ),
-                    // 요일 헤더 — 일~토
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(children: List.generate(7, (i) => Expanded(
                         child: Center(child: Text(_weekDays[i], style: TextStyle(
                           fontSize: 11, fontWeight: FontWeight.w500,
-                          color: i == 0 ? AppTheme.danger
-                              : i == 6 ? const Color(0xFF3949ab)
-                              : context.textSecondary,
+                          color: i == 0 ? AppTheme.danger : i == 6 ? const Color(0xFF3949ab) : context.textSecondary,
                         ))),
                       ))),
                     ),
                     const SizedBox(height: 4),
-                    // PageView — 월 단위 좌우 스와이프, 6주 달도 동적 높이
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       height: calendarHeight,
@@ -324,7 +349,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           final y = dt.year;
                           final m = dt.month;
                           final calDays = _calendarDays(y, m);
-                          // 이 페이지의 행 수 — 6주 달이면 6행
                           final pageRowCount = (calDays.length / 7).ceil();
                           return Padding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -332,7 +356,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               crossAxisCount: 7,
-                              // 셀 높이를 행 수에 맞게 조정 — 6주 달은 셀이 약간 작아짐
                               childAspectRatio: 1 / (pageRowCount == 6 ? 1.05 : 0.95),
                               children: calDays.asMap().entries.map((e) {
                                 final idx = e.key;
@@ -352,8 +375,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                     AnimatedContainer(
                                       duration: const Duration(milliseconds: 200),
                                       width: 30, height: 30,
-                                      decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
+                                      decoration: BoxDecoration(shape: BoxShape.circle,
                                           color: isSelected ? context.primaryColor : Colors.transparent),
                                       child: Center(child: Text('$day', style: TextStyle(
                                         fontSize: 13,
@@ -365,7 +387,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                             : context.textPrimary,
                                       ))),
                                     ),
-                                    // 목표 있는 날 점 표시 — 완료 여부에 따라 색상 분기
                                     Container(
                                       width: 4, height: 4,
                                       margin: const EdgeInsets.only(top: 3),
@@ -373,8 +394,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                         shape: BoxShape.circle,
                                         color: hasGoals
                                             ? (isSelected ? context.onPrimary
-                                                : allDone ? const Color(0xFF1b8a5a)
-                                                : const Color(0xFFf9a825))
+                                                : allDone ? const Color(0xFF1b8a5a) : const Color(0xFFf9a825))
                                             : Colors.transparent,
                                       ),
                                     ),
@@ -391,44 +411,33 @@ class _GoalsScreenState extends State<GoalsScreen> {
               ),
               const SizedBox(height: 14),
 
-              // 날짜 + 공휴일 — 단독 줄
+              // 날짜 + 공휴일
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(dateHeader, style: TextStyle(fontSize: 14,
-                      fontWeight: FontWeight.w500, color: context.textPrimary)),
+                  Text(dateHeader, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textPrimary)),
                   if (holidayName != null) ...[
                     const SizedBox(height: 2),
                     Text(holidayName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: AppTheme.danger,
-                            fontWeight: FontWeight.w500)),
+                        style: const TextStyle(fontSize: 12, color: AppTheme.danger, fontWeight: FontWeight.w500)),
                   ],
-                  // 4번: 목표가 있을 때 진행중/완료/% 완료를 날짜 바로 아래 별도 줄에 표시
                   if (dateTotal > 0) ...[
                     const SizedBox(height: 4),
-                    Text(
-                      '진행중 : $dateActive개  완료 : $dateDone개  $datePct% 완료',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: datePct == 100
-                            ? const Color(0xFF1b8a5a)
-                            : context.textSecondary,
-                      ),
-                    ),
+                    Text('진행중 : $dateActive개  완료 : $dateDone개  $datePct% 완료',
+                        style: TextStyle(fontSize: 12,
+                            color: datePct == 100 ? const Color(0xFF1b8a5a) : context.textSecondary)),
                   ],
                 ]),
               ),
               const SizedBox(height: 8),
 
-              // 정렬/필터 버튼 — 별도 줄
+              // 정렬/필터
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                        border: Border.all(color: context.borderColor),
-                        borderRadius: BorderRadius.circular(99)),
+                    decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(99)),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _sort, isDense: true,
@@ -455,8 +464,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
                           color: _filter == f[0] ? context.primaryColor : Colors.transparent,
-                          border: Border.all(color: _filter == f[0]
-                              ? context.primaryColor : context.borderColor),
+                          border: Border.all(color: _filter == f[0] ? context.primaryColor : context.borderColor),
                           borderRadius: BorderRadius.circular(99),
                         ),
                         child: Text(f[1], style: TextStyle(fontSize: 11,
@@ -474,18 +482,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   child: Center(child: Column(children: [
                     const Text('📅', style: TextStyle(fontSize: 32)),
                     const SizedBox(height: 8),
-                    Text('이 날의 목표가 없어요',
-                        style: TextStyle(fontSize: 14, color: context.textSecondary)),
+                    Text('이 날의 목표가 없어요', style: TextStyle(fontSize: 14, color: context.textSecondary)),
                     const SizedBox(height: 12),
                     TapScale(
-                      onTap: () => Navigator.push(context,
-                          SlideUpRoute(page: AddGoalScreen(initialDate: _selectedDate))),
+                      onTap: () => Navigator.push(context, SlideUpRoute(page: AddGoalScreen(initialDate: _selectedDate))),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        decoration: BoxDecoration(border: Border.all(color: context.borderColor),
-                            borderRadius: BorderRadius.circular(99)),
-                        child: Text('+ 목표 추가',
-                            style: TextStyle(fontSize: 13, color: context.textSecondary)),
+                        decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(99)),
+                        child: Text('+ 목표 추가', style: TextStyle(fontSize: 13, color: context.textSecondary)),
                       ),
                     ),
                   ])),
@@ -494,17 +498,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 ...selectedGoals.map((g) => Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                   child: _GoalCard(
-                    goal: g, willAllDone: _willAllDone(g, goals),
+                    goal: g,
+                    willAllDone: _willAllDone(g, goals),
                     onComplete: () => app.completeGoal(g.id),
                     onUncomplete: () => app.uncompleteGoal(g.id),
                     onDelete: () => _handleDeleteRequest(g, app),
-                    // 수정 버튼 — Firestore에서 최신 데이터 직접 조회 후 수정 화면 열기
                     onEdit: () async {
                       final uid = app.authUser?.uid;
                       if (uid == null) return;
                       final snap = await app.firestoreService.getGoalDoc(uid, g.id);
                       if (!context.mounted || snap == null) return;
-                      // repeatId가 있으면 같은 반복 목표들의 날짜 범위 계산
                       if (g.repeatId != null) {
                         final repeatGoals = goals
                             .where((r) => r.repeatId == g.repeatId)
@@ -516,11 +519,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           snap['endDate'] = repeatGoals.last;
                         }
                       }
-                      Navigator.push(context, SlideUpRoute(
-                        page: AddGoalScreen(editGoalId: g.id, editGoalData: snap),
-                      ));
+                      Navigator.push(context, SlideUpRoute(page: AddGoalScreen(editGoalId: g.id, editGoalData: snap)));
                     },
-                    selectedDate: _selectedDate, todayStr: _todayStr,
+                    // 6번: 이월 가능 여부 + 이월 콜백
+                    canCarryOver: _canCarryOver(g),
+                    onCarryOver: () => _carryOverGoal(g, app),
+                    selectedDate: _selectedDate,
+                    todayStr: _todayStr,
                     showToast: app.showToast,
                   ),
                 )),
@@ -530,14 +535,12 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
         if (_deleteModal != null)
           _DeleteModal(
-            repeatInfo: _deleteModal!['repeatInfo'], // null이면 단일 목표 확인 UI
+            repeatInfo: _deleteModal!['repeatInfo'],
             onDeleteAll: () {
-              // 반복 목표 전체 삭제
               app.removeRepeatGoals(_deleteModal!['repeatInfo']['repeatId']);
               setState(() => _deleteModal = null);
             },
             onDeleteOne: () {
-              // 단일 삭제 (단일 목표 또는 반복 목표 하나만)
               app.removeGoal(_deleteModal!['goalId']);
               setState(() => _deleteModal = null);
             },
@@ -555,14 +558,17 @@ class _GoalCard extends StatefulWidget {
   final GoalModel goal;
   final bool willAllDone;
   final VoidCallback onComplete, onUncomplete, onDelete;
-  // onEdit은 async — DB 조회가 포함되므로 Future<void> Function() 타입
   final Future<void> Function() onEdit;
+  // 6번: 이월
+  final bool canCarryOver;
+  final Future<void> Function() onCarryOver;
   final String selectedDate, todayStr;
   final void Function(String) showToast;
   const _GoalCard({
     required this.goal, required this.willAllDone,
     required this.onComplete, required this.onUncomplete,
     required this.onDelete, required this.onEdit,
+    required this.canCarryOver, required this.onCarryOver,
     required this.selectedDate, required this.todayStr, required this.showToast,
   });
   @override
@@ -600,6 +606,8 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
     final tagLabel = g.type == 'short' ? '단기' : g.type == 'mid' ? '중기' : '장기';
     final isRepeat = g.repeatId != null;
     final displayXp = isRepeat ? (widget.willAllDone ? g.repeatXp + g.xp : g.repeatXp) : g.xp;
+    // 6번: 이월된 목표 여부
+    final isCarriedOver = g.isCarriedOver;
 
     return GestureDetector(
       onLongPress: widget.onEdit,
@@ -608,9 +616,15 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
         opacity: g.done ? 0.65 : 1.0,
         child: Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: context.surfaceColor,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: context.borderColor, width: 0.5)),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              // 6번: 이월된 목표는 주황색 테두리
+              color: isCarriedOver ? const Color(0xFFf9a825).withOpacity(0.6) : context.borderColor,
+              width: isCarriedOver ? 1.5 : 0.5,
+            ),
+          ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             TapScale(
               onTap: () {
@@ -641,11 +655,27 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                   Row(children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: tagColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(4)),
+                      decoration: BoxDecoration(
+                          color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
                       child: Text(isRepeat ? '반복' : tagLabel,
                           style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
                     ),
+                    // 6번: 이월 뱃지
+                    if (isCarriedOver) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFFf9a825).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFFf9a825).withOpacity(0.4))),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.forward, size: 10, color: Color(0xFFf9a825)),
+                          const SizedBox(width: 2),
+                          Text('이월', style: const TextStyle(color: Color(0xFFf9a825), fontSize: 10, fontWeight: FontWeight.w500)),
+                        ]),
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     Expanded(
                       child: AnimatedDefaultTextStyle(
@@ -657,13 +687,17 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                       ),
                     ),
                   ]),
+                  // 6번: 이월 원본 날짜 표시
+                  if (isCarriedOver && g.carryOverFrom != null) ...[
+                    const SizedBox(height: 3),
+                    Text('${g.carryOverFrom!.replaceAll('-', '.')} 에서 이월',
+                        style: TextStyle(fontSize: 10, color: const Color(0xFFf9a825))),
+                  ],
                   if (g.repeat != null) ...[
                     const SizedBox(height: 4),
                     Text('🔄 ${g.repeat!.type == 'daily' ? '매일'
                         : g.repeat!.type == 'weekly'
-                            // 다중 요일 — days 배열 우선, 없으면 레거시 day 사용
                             ? '매주 ${(g.repeat!.days?.isNotEmpty == true ? g.repeat!.days! : [g.repeat!.day ?? 0]).map((d) => _weekDays[d]).join(', ')}요일'
-                            // 다중 날짜 — dates 배열 우선, 없으면 레거시 date 사용
                             : '매달 ${(g.repeat!.dates?.isNotEmpty == true ? g.repeat!.dates! : [g.repeat!.date ?? 1]).join(', ')}일'}',
                         style: TextStyle(fontSize: 11, color: context.textSecondary)),
                   ],
@@ -671,8 +705,7 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                     duration: const Duration(milliseconds: 200),
                     child: _expanded && g.desc.isNotEmpty
                         ? Padding(padding: const EdgeInsets.only(top: 6),
-                            child: Text(g.desc, style: TextStyle(fontSize: 13,
-                                color: context.textSecondary, height: 1.6)))
+                            child: Text(g.desc, style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.6)))
                         : const SizedBox(),
                   ),
                   const SizedBox(height: 8),
@@ -696,14 +729,87 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
             ),
             const SizedBox(width: 8),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              // 수정 / 삭제 버튼 — 상단 우측에 나란히 배치
               Row(mainAxisSize: MainAxisSize.min, children: [
+                // 6번: 이월 버튼 — 이월 가능한 경우에만 표시
+                if (widget.canCarryOver) ...[
+                  GestureDetector(
+                    onTap: () async {
+                      // 이월 확인 다이얼로그
+                      final scheduled = g.scheduledDate!;
+                      final diffDays = DateTime.now().difference(DateTime.parse(scheduled)).inDays;
+                      final penalty = diffDays * 20;
+                      // 반복 목표는 repeatXp 기준, 단일 목표는 xp 기준
+                      final isRepeatGoal = g.repeatId != null;
+                      final baseXp = isRepeatGoal ? g.repeatXp : g.xp;
+                      final newXp = (baseXp - penalty).clamp(0, baseXp);
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          backgroundColor: context.modalBg,
+                          title: Text('목표 이월', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('오늘로 목표를 이월하시겠어요?', style: TextStyle(fontSize: 13, color: context.textSecondary)),
+                            const SizedBox(height: 8),
+                            // 패널티 박스 — 창 너비 전체에 색상 적용
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppTheme.danger.withOpacity(0.07),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppTheme.danger.withOpacity(0.2)),
+                              ),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  const Icon(Icons.schedule, size: 13, color: AppTheme.danger),
+                                  const SizedBox(width: 4),
+                                  Text('경과: $diffDays일', style: const TextStyle(fontSize: 12, color: AppTheme.danger)),
+                                ]),
+                                const SizedBox(height: 4),
+                                Row(children: [
+                                  const Icon(Icons.remove_circle_outline, size: 13, color: AppTheme.danger),
+                                  const SizedBox(width: 4),
+                                  Text('XP 패널티: -${penalty}XP (1일당 -20XP)', style: const TextStyle(fontSize: 12, color: AppTheme.danger)),
+                                ]),
+                                const Divider(height: 14),
+                                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                                  Text(isRepeatGoal ? '원래 1회 XP' : '원래 XP', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+                                  Text('${baseXp}XP', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+                                ]),
+                                const SizedBox(height: 2),
+                                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                                  Text('이월 후 XP', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textPrimary)),
+                                  Text('${newXp}XP', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                                      color: newXp == 0 ? AppTheme.danger : const Color(0xFFf9a825))),
+                                ]),
+                              ]),
+                            ),
+                          ]),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context, false),
+                                child: Text('취소', style: TextStyle(color: context.textSecondary))),
+                            TextButton(onPressed: () => Navigator.pop(context, true),
+                                child: const Text('이월', style: TextStyle(color: Color(0xFFf9a825)))),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) await widget.onCarryOver();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFf9a825).withOpacity(0.6)),
+                          borderRadius: BorderRadius.circular(6)),
+                      child: const Text('이월', style: TextStyle(fontSize: 11, color: Color(0xFFf9a825))),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 GestureDetector(
                   onTap: widget.onEdit,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(border: Border.all(color: context.borderColor),
-                        borderRadius: BorderRadius.circular(6)),
+                    decoration: BoxDecoration(border: Border.all(color: context.borderColor), borderRadius: BorderRadius.circular(6)),
                     child: Text('수정', style: TextStyle(fontSize: 11, color: context.textSecondary)),
                   ),
                 ),
@@ -712,7 +818,6 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                   onTap: widget.onDelete,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    // 삭제 버튼 — 빨간색으로 강조
                     decoration: BoxDecoration(
                         border: Border.all(color: AppTheme.danger.withOpacity(0.5)),
                         borderRadius: BorderRadius.circular(6)),
@@ -721,14 +826,12 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                 ),
               ]),
               const SizedBox(height: 8),
-              // XP — 항상 표시 (완료 시 초록색)
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 200),
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
                     color: g.done ? const Color(0xFF1b8a5a) : context.textSecondary),
                 child: Text('+$displayXp XP'),
               ),
-              // 취소는 왼쪽 원형 체크 버튼으로 대체 — 별도 취소 버튼 없음
             ]),
           ]),
         ),
@@ -738,14 +841,11 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
 }
 
 class _DeleteModal extends StatelessWidget {
-  // repeatInfo가 null이면 단일 목표 삭제 확인 UI 표시
   final Map<String, dynamic>? repeatInfo;
   final VoidCallback onDeleteAll, onDeleteOne, onCancel;
-  const _DeleteModal({required this.repeatInfo, required this.onDeleteAll,
-      required this.onDeleteOne, required this.onCancel});
+  const _DeleteModal({required this.repeatInfo, required this.onDeleteAll, required this.onDeleteOne, required this.onCancel});
   @override
   Widget build(BuildContext context) {
-    // 단일 목표 여부
     final isSingle = repeatInfo == null;
     return Container(
       color: Colors.black54,
@@ -770,7 +870,6 @@ class _DeleteModal extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            // 단일 목표는 '삭제', 반복 목표는 '모두 삭제'
             _ModalBtn(label: isSingle ? '삭제' : '모두 삭제',
                 color: AppTheme.danger, textColor: Colors.white,
                 onTap: isSingle ? onDeleteOne : onDeleteAll),
@@ -803,14 +902,12 @@ class _ModalBtn extends StatelessWidget {
             color: color ?? Colors.transparent,
             border: color == null ? Border.all(color: context.borderColor) : null,
             borderRadius: BorderRadius.circular(12)),
-        child: Center(child: Text(label, style: TextStyle(fontSize: 15,
-            fontWeight: FontWeight.w500, color: textColor ?? context.textPrimary))),
+        child: Center(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: textColor ?? context.textPrimary))),
       ),
     );
   }
 }
 
-// 한국 공휴일 서비스 — 날짜→이름 맵, SharedPreferences 캐시 + 병렬 호출
 class _HolidayService {
   static const _apiKey = '0f8987c04c97c0fd409d53ffb3912016bdc591bcc782b0523565edc9f7edcd72';
   static final Map<int, Map<String, String>> _memCache = {};
@@ -860,8 +957,7 @@ class _HolidayService {
       });
       final results = await Future.wait(futures);
       for (final r in results) holidays.addAll(r);
-      await prefs.setStringList(cacheKey,
-          holidays.entries.map((e) => '${e.key}|${e.value}').toList());
+      await prefs.setStringList(cacheKey, holidays.entries.map((e) => '${e.key}|${e.value}').toList());
     } catch (e) { debugPrint('[Holiday] error: $e'); }
     _memCache[year] = holidays;
     return holidays;
