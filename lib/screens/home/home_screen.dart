@@ -13,13 +13,13 @@ import '../my/mailbox_screen.dart';
 import '../my/activity_notification_screen.dart';
 import '../social/character_avatar.dart';
 
-const _kPatchId = 'patchnote';
-const _kPatchTitle = '패치노트';
+const _kPatchId = 'patch_v1.2.1';
+const _kPatchTitle = '패치노트 - 버전 1.3.0';
 const _kPatchItems = [
-  '1. 목표 이월 기능이 추가되었습니다. 미완료 목표를 오늘로 이월이 가능하며, 1일당 20XP의 패널티가 적용됩니다.'
-  '2. 채팅 메시지를 길게 눌러 반응을 남기거나 수정, 삭제를 할 수 있습니다. 기존의 반응추가 버튼은 삭제됩니다.'
-  '3. 자신의 메시지에도 반응을 추가할 수 있게 되었습니다.'
-  '4. 일기 탭에서도 사진을 추가할 수 있도록 변경되었습니다.',
+  '1. 친구 접속 시간이 비정상적으로 표시되는 문제가 해결됐습니다.',
+  '2. 출석시 획득하는 XP가 조정됩니다. 이제 10일 단위로 100XP씩 증가하며, 최대 1000XP까지 획득할 수 있습니다.',
+  '3. 채팅방에 들어갈때마다 사진을 다시 로딩하지 않도록 변경됩니다.',
+  '4. 채팅방에서 주고 받은 사진을 다운로드 하는 기능이 추가됩니다.',
 ];
 
 class HomeScreen extends StatefulWidget {
@@ -30,20 +30,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // 출석 모달 로컬 표시 상태 — app.showAttendModal을 로컬로 캐싱해서 Stack 오버레이로 표시
   bool _showAttend = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // 출석 모달 먼저 확인 후 패치노트 표시
       _syncAttendModal();
       if (mounted && !_showAttend) await _checkAndShowPatch();
     });
   }
 
-  // app.showAttendModal 상태를 로컬 _showAttend에 동기화
   void _syncAttendModal() {
     if (!mounted) return;
     final app = context.read<AppProvider>();
@@ -76,7 +73,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 출석 모달 닫기 — 닫힌 후 패치노트 확인
   Future<void> _dismissAttend() async {
     final app = context.read<AppProvider>();
     app.dismissAttendModal();
@@ -110,7 +106,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final todayPct = todayTotal == 0 ? 0 : (todayDone / todayTotal * 100).round();
     final focusHours = (userData.totalFocusMin / 60).floor();
 
-    // 외부(부활 아이템 등)에서 app.showAttendModal이 true로 바뀌면 로컬도 동기화
     if (app.showAttendModal && !_showAttend) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _showAttend = true);
@@ -315,9 +310,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     final repeatGoals = app.goals
                         .where((r) => r.repeatId == g.repeatId)
                         .toList()
-                      ..sort((a, b) => (a.scheduledDate ?? '').compareTo(b.scheduledDate ?? ''));
+                      ..sort((a, b) {
+                        // 이월된 목표는 carryOverFrom 기준으로 정렬
+                        final aDate = (a.isCarriedOver && a.carryOverFrom != null) ? a.carryOverFrom! : (a.scheduledDate ?? '');
+                        final bDate = (b.isCarriedOver && b.carryOverFrom != null) ? b.carryOverFrom! : (b.scheduledDate ?? '');
+                        return aDate.compareTo(bDate);
+                      });
                     totalCount = repeatGoals.length;
-                    currentCount = repeatGoals.indexWhere((r) => r.id == g.id) + 1;
+                    // 이월된 목표는 carryOverFrom 기준으로 회차 찾기
+                    final myDate = (g.isCarriedOver && g.carryOverFrom != null) ? g.carryOverFrom! : (g.scheduledDate ?? '');
+                    currentCount = repeatGoals.indexWhere((r) {
+                      final rDate = (r.isCarriedOver && r.carryOverFrom != null) ? r.carryOverFrom! : (r.scheduledDate ?? '');
+                      return r.id == g.id || rDate == myDate;
+                    }) + 1;
                     willAllDone = repeatGoals.where((r) => r.id != g.id).every((r) => r.done);
                   }
                   return Padding(
@@ -361,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                   );
-                }),
+                }).toList(),
 
               // 목표 추가 버튼
               Padding(
@@ -564,7 +569,15 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
           onTap: g.done ? widget.onUncomplete : widget.onComplete,
           child: Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: context.surfaceColor, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.borderColor, width: 0.5)),
+            decoration: BoxDecoration(
+              color: context.surfaceColor,
+              borderRadius: BorderRadius.circular(14),
+              // 이월된 목표는 주황색 테두리
+              border: Border.all(
+                color: g.isCarriedOver ? const Color(0xFFf9a825).withOpacity(0.6) : context.borderColor,
+                width: g.isCarriedOver ? 1.5 : 0.5,
+              ),
+            ),
             child: Row(children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
@@ -581,6 +594,22 @@ class _GoalItemState extends State<_GoalItem> with SingleTickerProviderStateMixi
                     decoration: BoxDecoration(color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
                     child: Text(isRepeat ? '반복' : tagLabel, style: TextStyle(color: tagColor, fontSize: 10, fontWeight: FontWeight.w500)),
                   ),
+                  // 이월 뱃지
+                  if (g.isCarriedOver) ...[
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFf9a825).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFFf9a825).withOpacity(0.4))),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.forward, size: 10, color: Color(0xFFf9a825)),
+                        SizedBox(width: 2),
+                        Text('이월', style: TextStyle(color: Color(0xFFf9a825), fontSize: 10, fontWeight: FontWeight.w500)),
+                      ]),
+                    ),
+                  ],
                   Expanded(child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 200),
                     style: TextStyle(color: g.done ? context.textSecondary : context.textPrimary, fontSize: 14, fontWeight: FontWeight.w500, decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none),

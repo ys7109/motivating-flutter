@@ -1,7 +1,7 @@
 name: motivating
 description: Gamified productivity app
 publish_to: 'none'
-version: 1.2.1+15
+version: 1.3.0+20
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -13,6 +13,7 @@ dependencies:
     sdk: flutter
   app_links: ^6.3.4
   http: ^1.2.0
+  crypto: ^3.0.6
   permission_handler: ^11.3.0
   flutter_colorpicker: ^1.1.0
   flutter_exif_rotation: ^0.5.2
@@ -29,7 +30,6 @@ dependencies:
   cloud_firestore: ^5.4.4
   firebase_storage: ^12.3.2
   firebase_messaging: ^15.1.3
-  firebase_app_check: ^0.3.1
 
   # Google Sign-In
   google_sign_in: ^6.2.1
@@ -42,6 +42,7 @@ dependencies:
   flutter_svg: ^2.0.10+1
   intl: ^0.20.2
   shared_preferences: ^2.5.5
+  path_provider: ^2.1.5
   url_launcher: ^6.3.0
   flutter_local_notifications: ^17.2.2
   timezone: ^0.9.4

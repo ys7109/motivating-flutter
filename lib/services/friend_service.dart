@@ -79,6 +79,7 @@ class FriendService {
         ...userData,
         'uid': fUid,
         'presenceStatus': presenceStatus,
+        'lastSeen': presenceData['lastSeen'],
         'isOnline': presenceStatus == 'online',
         'isFocusing': presenceStatus == 'focusing',
       };
@@ -158,6 +159,7 @@ class FriendService {
               ...userData,
               'uid': fUid,
               'presenceStatus': presenceStatus,
+              'lastSeen': presenceData['lastSeen'],
               'isOnline': presenceStatus == 'online',
               'isFocusing': presenceStatus == 'focusing',
             };
@@ -229,21 +231,15 @@ class FriendService {
     return snap.data()?['status'] as String?;
   }
 
-  // presence + users 양쪽에 lastLogin 동시 저장
-  // users.lastLogin은 friends_tab에서 서버 직접 조회로 접속 시각 표시에 사용
-  Future<void> _setPresenceWithLastLogin(String uid, Map<String, dynamic> presenceData) async {
-    final batch = _db.batch();
-    batch.set(_db.collection('presence').doc(uid), presenceData, SetOptions(merge: true));
-    // users.lastLogin 항상 최신으로 유지
-    batch.set(_db.collection('users').doc(uid),
-        {'lastLogin': presenceData['lastSeen']}, SetOptions(merge: true));
-    await batch.commit();
+  // presence 전용 저장 — lastLogin은 실제 로그인 시각으로만 유지
+  Future<void> _setPresence(String uid, Map<String, dynamic> presenceData) async {
+    await _db.collection('presence').doc(uid).set(presenceData, SetOptions(merge: true));
   }
 
   // 온라인 상태 설정
   Future<void> setOnline(String uid) async {
     final now = FieldValue.serverTimestamp();
-    await _setPresenceWithLastLogin(uid, {
+    await _setPresence(uid, {
       'isOnline': true,
       'lastSeen': now,
       'lastActivity': now,
@@ -254,7 +250,7 @@ class FriendService {
   // 활동 감지 시 lastActivity 갱신 (탭, 스크롤 등)
   Future<void> updateActivity(String uid) async {
     final now = FieldValue.serverTimestamp();
-    await _setPresenceWithLastLogin(uid, {
+    await _setPresence(uid, {
       'lastActivity': now,
       'lastSeen': now,
     });
@@ -263,7 +259,7 @@ class FriendService {
   // 집중모드 시작
   Future<void> setFocusing(String uid) async {
     final now = FieldValue.serverTimestamp();
-    await _setPresenceWithLastLogin(uid, {
+    await _setPresence(uid, {
       'isFocusing': true,
       'lastActivity': now,
       'lastSeen': now,
@@ -273,7 +269,7 @@ class FriendService {
   // 집중모드 종료
   Future<void> clearFocusing(String uid) async {
     final now = FieldValue.serverTimestamp();
-    await _setPresenceWithLastLogin(uid, {
+    await _setPresence(uid, {
       'isFocusing': false,
       'lastActivity': now,
       'lastSeen': now,
@@ -283,7 +279,7 @@ class FriendService {
   // 오프라인 상태 설정 — isOnline: false로 즉시 오프라인 처리
   Future<void> setOffline(String uid) async {
     final now = FieldValue.serverTimestamp();
-    await _setPresenceWithLastLogin(uid, {
+    await _setPresence(uid, {
       'isOnline': false,
       'lastSeen': now,
       'isFocusing': false,

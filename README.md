@@ -4,7 +4,7 @@
  
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage%20%7C%20Messaging-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.2.1-green)]()
+[![Version](https://img.shields.io/badge/version-1.2.2-green)]()
  
 ---
  
@@ -227,7 +227,18 @@ chats/{chatId}/messages/{msgId}
 ---
  
 ## 📋 버전 히스토리
-<!-- 다음버전에서 고칠것 - 🔧 소셜탭의 친구 접속 시간이 비정상적으로 표시되는 문제 해결 -->
+### v1.3.0 (2026.06.16)
+- 🔧 친구 접속 시간이 비정상적으로 표시되는 문제 해결
+- 🔧 출석시 획득하는 XP 조정
+- 🔧 채팅방에 들어갈때마다 사진을 다시 로딩하지 않도록 변경
+- ✨ 채팅방에서 주고 받은 사진을 다운로드 하는 기능 추가
+
+
+### v1.2.2 (2026.05.20)
+- 🔧 로그인이 유지되지 않는 문제 해결
+- 🔧 이월된 목표의 반복회차 표시 오류 해결
+- 🔧 목표 탭에서도 반복회차가 표시되도록 변경
+- 🔧 다른 앱으로 화면을 전환한 경우 채팅 알림이 두번 오는 문제 해결
 
 ### v1.2.1 (2026.05.20)
 - ✨ 목표 이월 기능 추가 — 미완료 목표를 오늘로 이월, 경과 1일당 20XP 패널티
@@ -243,7 +254,6 @@ chats/{chatId}/messages/{msgId}
 - 🔧 채팅방 입장 시 해당 채팅 알림 자동 삭제
 - 🔧 회원 탈퇴 시 접속 상태 데이터 자동 삭제
 - 🔧 백그라운드 푸시 알림 중복 등록 버그 수정
-
 
 ### v1.2.0 (2026.05.18)
 - ✨ 채팅방에서 사진 전송 기능 추가

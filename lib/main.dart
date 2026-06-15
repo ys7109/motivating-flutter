@@ -13,15 +13,11 @@ import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/withdraw/withdraw_pending_screen.dart';
 import 'widgets/main_nav.dart';
 import 'services/notification_service.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.debug,
-  );
   // 백그라운드 핸들러는 notification_service.dart의 것만 사용 — 중복 등록 금지
   // NotificationService.init() 내부에서 FirebaseMessaging.onBackgroundMessage 등록함
   await NotificationService.init();
@@ -52,7 +48,6 @@ Future<void> _requestNotificationPermissionOnFirstLaunch() async {
   await prefs.setBool('notif_permission_asked', true);
   if (granted) {
     await NotificationService.scheduleDailyGoalReminder();
-    await NotificationService.scheduleStreakRiskReminder(0);
   }
 }
 

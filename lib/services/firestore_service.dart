@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import '../models/goal_model.dart';
 import '../models/mail_model.dart';
 import '../models/achievement_definitions.dart';
+import '../utils/attendance_reward.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -11,6 +12,7 @@ class FirestoreService {
   Future<void> ensureUserDoc(User user) async {
     final ref = _db.collection('users').doc(user.uid);
     final snap = await ref.get();
+    final now = FieldValue.serverTimestamp();
     if (!snap.exists) {
       await ref.set({
         'uid': user.uid,
@@ -28,11 +30,13 @@ class FirestoreService {
         'claimedAchievements': [],
         'equippedAchievement': null,
         'achievementUnlockedAt': {},
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastLogin': FieldValue.serverTimestamp(),
+        'createdAt': now,
+        'lastLogin': now,
+        'lastlogin': now,
       });
     } else {
-      await ref.update({'lastLogin': FieldValue.serverTimestamp()});
+      // 기존 lastlogin 필드와 신규 lastLogin 필드를 함께 갱신
+      await ref.update({'lastLogin': now, 'lastlogin': now});
     }
   }
 
@@ -192,7 +196,7 @@ class FirestoreService {
   }
 
   Future<void> sendAttendanceMail(String uid, int streakDay) async {
-    final xp = streakDay * 10;
+    final xp = attendanceXpForStreak(streakDay);
     final isSpecial = streakDay % 7 == 0;
     await _db.collection('users').doc(uid).collection('mailbox').add({
       'title': '${streakDay}일차 출석 보상',

@@ -56,6 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final app = context.read<AppProvider>();
     final uid = app.authUser?.uid;
     final streak = app.userData?.streak ?? 0;
+    final lastAttendDate = app.userData?.lastAttendDate;
 
     if (newVal) {
       final hasPermission = await NotificationService.hasPermission();
@@ -106,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (newVal) await NotificationService.scheduleDailyGoalReminder();
       else await NotificationService.cancelNotification(1);
     } else if (key == 'streak') {
-      if (newVal) await NotificationService.scheduleStreakRiskReminder(streak);
+      if (newVal) await NotificationService.scheduleStreakRiskReminder(streak, lastAttendDate: lastAttendDate);
       else await NotificationService.cancelNotification(2);
     } else if (key == 'mail') {
       if (!newVal) await NotificationService.cancelNotification(3);
@@ -207,7 +208,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _LinkItem(label: '이용약관', onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const InAppWebView(
                         url: 'https://motivating-5a036.web.app/terms.html', title: '이용약관')))),
-                _LinkItem(label: '오픈소스 라이선스', onTap: () {}),
                 _LinkItem(label: '문의하기', onTap: () async {
                   final uri = Uri.parse('mailto:kimyusong77@gmail.com?subject=Motivating 문의');
                   if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -216,8 +216,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               // 앱 정보 섹션
               _Section(title: '앱 정보', children: [
-                const _InfoItem(label: '버전', value: '1.2.1'),
-                const _InfoItem(label: '빌드', value: '2026.05.20'),
+                const _InfoItem(label: '버전', value: '1.3.0'),
+                const _InfoItem(label: '빌드', value: '2026.06.16'),
               ]),
 
               // 계정 섹션

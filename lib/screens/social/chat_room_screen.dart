@@ -5,9 +5,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import '../../utils/theme.dart';
 import '../../providers/app_provider.dart';
 import '../../services/chat_service.dart';
+import '../../services/chat_image_cache_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/activity_notification_service.dart';
 import '../social/character_avatar.dart';
@@ -144,6 +146,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       );
       await ref.putFile(file);
       final imageUrl = await ref.getDownloadURL();
+      await ChatImageCacheService.instance.cacheLocalImage(imageUrl, file);
       final receivers = _memberUids.where((uid) => uid != _myUid).toList();
       await _chatService.sendMessage(
           widget.chatId, _myUid!, receivers, imageUrl, type: 'image');
@@ -224,6 +227,44 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _openUserProfile(String uid) {
     if (uid.isEmpty || uid == _myUid) return;
     showUserProfileSheet(context, uid);
+  }
+
+  void _showChatSnack(String message) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(
+      content: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.white, fontSize: 13),
+      ),
+      duration: const Duration(milliseconds: 1600),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: const Color(0xFF323232),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.fromLTRB(24, 0, 24, 84),
+    ));
+  }
+
+  Future<void> _downloadImage(String url, {void Function(String message)? showMessage}) async {
+    final notify = showMessage ?? _showChatSnack;
+    notify('사진 저장 중...');
+    try {
+      final savedPath = await ChatImageCacheService.instance.saveToDownloads(url);
+      debugPrint('사진 저장 완료: $savedPath');
+      notify('사진이 저장되었습니다.');
+    } catch (e) {
+      debugPrint('사진 저장 실패: $e');
+      if (!mounted) return;
+      if (e is MissingPluginException) {
+        notify('앱을 완전히 재실행한 뒤 다시 저장해 주세요');
+      } else if (e is PlatformException && e.code == 'PERMISSION_DENIED') {
+        notify('저장 권한이 필요해요');
+      } else {
+        notify('사진 저장에 실패했어요');
+      }
+    }
   }
 
   @override
@@ -339,6 +380,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         isNextContinued: isNextContinued,
                         chatId: widget.chatId,
                         chatService: _chatService,
+                        onDownloadImage: _downloadImage,
                         // 5번: 꾹 누르면 바텀시트 표시
                         onLongPress: () => _showMessageActions(context, msg, isMe),
                       ),
@@ -417,6 +459,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 );
               }).toList(),
             ),
+            if (msg.type == 'image') ...[
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(Icons.download_rounded, color: context.onSurfaceText),
+                title: Text('사진 다운로드', style: TextStyle(
+                    color: context.onSurfaceText, fontWeight: FontWeight.w500)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _downloadImage(msg.content);
+                },
+              ),
+            ],
             // 내 메시지면 수정/삭제 옵션 표시
             if (isMe && msg.type != 'image') ...[
               const SizedBox(height: 16),
@@ -756,6 +811,174 @@ class _ChatInputBarState extends State<_ChatInputBar> {
   }
 }
 
+class _CachedChatImage extends StatefulWidget {
+  final String url;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+
+  const _CachedChatImage({
+    required this.url,
+    this.width,
+    this.height,
+    required this.fit,
+  });
+
+  @override
+  State<_CachedChatImage> createState() => _CachedChatImageState();
+}
+
+class _CachedChatImageState extends State<_CachedChatImage> {
+  late Future<File> _imageFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _imageFuture = ChatImageCacheService.instance.getImageFile(widget.url);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CachedChatImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _imageFuture = ChatImageCacheService.instance.getImageFile(widget.url);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<File>(
+      future: _imageFuture,
+      builder: (_, snap) {
+        if (snap.hasData) {
+          return Image.file(
+            snap.data!,
+            width: widget.width,
+            height: widget.height,
+            fit: widget.fit,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _error(context),
+          );
+        }
+        if (snap.hasError) return _error(context);
+        return Container(
+          width: widget.width ?? 220,
+          height: widget.height ?? 220,
+          color: context.subtleBg,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      },
+    );
+  }
+
+  Widget _error(BuildContext context) {
+    return Container(
+      width: widget.width ?? 220,
+      height: widget.height ?? 80,
+      color: context.subtleBg,
+      child: Center(child: Text('이미지를 불러올 수 없어요',
+          style: TextStyle(fontSize: 12, color: context.textSecondary))),
+    );
+  }
+}
+
+class _FullscreenChatImageDialog extends StatefulWidget {
+  final String url;
+  final Future<void> Function(String url, {void Function(String message)? showMessage}) onDownloadImage;
+
+  const _FullscreenChatImageDialog({
+    required this.url,
+    required this.onDownloadImage,
+  });
+
+  @override
+  State<_FullscreenChatImageDialog> createState() => _FullscreenChatImageDialogState();
+}
+
+class _FullscreenChatImageDialogState extends State<_FullscreenChatImageDialog> {
+  String? _message;
+  Timer? _hideTimer;
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showPreviewMessage(String message) {
+    if (!mounted) return;
+    setState(() => _message = message);
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _message = null);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(children: [
+      Positioned.fill(
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(color: Colors.transparent),
+        ),
+      ),
+      Center(
+        child: InteractiveViewer(
+          child: _CachedChatImage(url: widget.url, fit: BoxFit.contain),
+        ),
+      ),
+      Positioned(
+        top: 48,
+        right: 60,
+        child: GestureDetector(
+          onTap: () => widget.onDownloadImage(widget.url, showMessage: _showPreviewMessage),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+            child: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
+          ),
+        ),
+      ),
+      Positioned(
+        top: 48,
+        right: 16,
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+            child: const Icon(Icons.close, color: Colors.white, size: 18),
+          ),
+        ),
+      ),
+      if (_message != null)
+        Positioned(
+          left: 24,
+          right: 24,
+          bottom: 48,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF323232),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                _message!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+          ),
+        ),
+    ]);
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isMe, isGroup, isContinued, isNextContinued, isRead;
@@ -767,6 +990,7 @@ class _MessageBubble extends StatelessWidget {
   final String? senderProfileImageUrl;
   final VoidCallback? onProfileTap;
   final ChatService chatService;
+  final Future<void> Function(String url, {void Function(String message)? showMessage}) onDownloadImage;
   // 5번: 꾹 누르기 콜백
   final VoidCallback? onLongPress;
 
@@ -777,7 +1001,7 @@ class _MessageBubble extends StatelessWidget {
     required this.hideTime, required this.groupUnreadCount,
     required this.chatId, required this.senderName,
     this.senderCharacter, this.senderProfileImageUrl,
-    this.onProfileTap, required this.chatService,
+    this.onProfileTap, required this.chatService, required this.onDownloadImage,
     this.onLongPress,
   });
 
@@ -787,15 +1011,10 @@ class _MessageBubble extends StatelessWidget {
 
   void _openFullscreen(BuildContext context, String url) {
     showDialog(context: context, barrierColor: Colors.black87,
-      builder: (_) => GestureDetector(onTap: () => Navigator.pop(context),
-        child: Stack(children: [
-          Center(child: InteractiveViewer(child: Image.network(url))),
-          Positioned(top: 48, right: 16,
-            child: GestureDetector(onTap: () => Navigator.pop(context),
-              child: Container(width: 36, height: 36,
-                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                child: const Icon(Icons.close, color: Colors.white, size: 18)))),
-        ])));
+      builder: (_) => _FullscreenChatImageDialog(
+        url: url,
+        onDownloadImage: onDownloadImage,
+      ));
   }
 
   @override
@@ -827,13 +1046,16 @@ class _MessageBubble extends StatelessWidget {
           onTap: () => _openFullscreen(context, message.content),
           onLongPress: onLongPress,
           child: ClipRRect(borderRadius: BorderRadius.circular(12),
-            child: Image.network(message.content, width: 180, height: 180, fit: BoxFit.cover,
-              loadingBuilder: (_, child, progress) => progress == null ? child
-                  : Container(width: 180, height: 180, color: context.subtleBg,
-                      child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
-              errorBuilder: (_, __, ___) => Container(width: 180, height: 60, color: context.subtleBg,
-                  child: Center(child: Text('이미지를 불러올 수 없어요',
-                      style: TextStyle(fontSize: 12, color: context.textSecondary)))))),
+            child: Stack(children: [
+              _CachedChatImage(url: message.content, width: 180, height: 180, fit: BoxFit.cover),
+              Positioned(right: 6, bottom: 6,
+                child: GestureDetector(
+                  onTap: () => onDownloadImage(message.content),
+                  child: Container(width: 28, height: 28,
+                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
+                    child: const Icon(Icons.download_rounded, color: Colors.white, size: 15)),
+                )),
+            ])),
         );
       }
       return GestureDetector(

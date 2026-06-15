@@ -15,7 +15,6 @@ class StreakModal extends StatefulWidget {
 class _StreakModalState extends State<StreakModal> with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _scaleAnim;
-  bool _watchingAd = false;
 
   @override
   void initState() {
@@ -43,16 +42,7 @@ class _StreakModalState extends State<StreakModal> with SingleTickerProviderStat
             scale: _scaleAnim,
             child: widget.type == 'milestone'
                 ? _MilestoneContent(userData: userData, onClose: widget.onClose, app: app)
-                : _BrokenContent(userData: userData, onClose: widget.onClose, app: app,
-                    watchingAd: _watchingAd, onWatchAd: () async {
-                      setState(() => _watchingAd = true);
-                      await Future.delayed(const Duration(seconds: 3));
-                      if (mounted) {
-                        setState(() => _watchingAd = false);
-                        await app.reviveStreakByAd();
-                        widget.onClose();
-                      }
-                    }),
+                : _BrokenContent(userData: userData, onClose: widget.onClose, app: app),
           ),
         ),
       ),
@@ -128,9 +118,7 @@ class _BrokenContent extends StatelessWidget {
   final dynamic userData;
   final VoidCallback onClose;
   final AppProvider app;
-  final bool watchingAd;
-  final VoidCallback onWatchAd;
-  const _BrokenContent({required this.userData, required this.onClose, required this.app, required this.watchingAd, required this.onWatchAd});
+  const _BrokenContent({required this.userData, required this.onClose, required this.app});
 
   @override
   Widget build(BuildContext context) {
@@ -163,10 +151,6 @@ class _BrokenContent extends StatelessWidget {
         _ReviveBtn(emoji: '🛡️', title: '부활 아이템 사용',
           sub: hasRevive ? '보유 ${reviveItem}개' : '아이템 없음', badge: '무료', disabled: !hasRevive,
           onTap: () async { await app.reviveStreakByItem(); onClose(); }),
-        const SizedBox(height: 10),
-        _ReviveBtn(emoji: '📺',
-          title: watchingAd ? '광고 시청 중...' : '광고 시청으로 복구',
-          sub: '15~30초 광고 시청', badge: '무료', disabled: watchingAd, onTap: onWatchAd),
         const SizedBox(height: 10),
         GestureDetector(
           onTap: () async { await app.resetStreak(); onClose(); },

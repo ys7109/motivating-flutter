@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/theme.dart';
+import '../utils/attendance_reward.dart';
 import '../providers/app_provider.dart';
 
 class AttendanceModal extends StatefulWidget {
@@ -35,7 +36,7 @@ class _AttendanceModalState extends State<AttendanceModal> with SingleTickerProv
 
     final streak = userData.streak;
     final isSpecial = streak % 7 == 0;
-    final xpReward = streak * 10;
+    final xpReward = attendanceXpForStreak(streak);
     final daysInCycle = streak % 7;
     final nextSpecial = daysInCycle == 0 ? 7 : 7 - daysInCycle;
 

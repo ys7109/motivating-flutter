@@ -69,9 +69,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   Future<void> _loadHolidays() async {
     final now = DateTime.now();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('holidays_${now.year}');
-    await prefs.remove('holidays_${now.year + 1}');
+    // 캐시 삭제 제거 — API 실패 시 공휴일이 빈 맵이 되는 문제 방지
     final h1 = await _HolidayService.getHolidays(now.year);
     final h2 = await _HolidayService.getHolidays(now.year + 1);
     if (mounted) setState(() => _holidays = {...h1, ...h2});
@@ -389,7 +387,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                     ),
                                     Container(
                                       width: 4, height: 4,
-                                      margin: const EdgeInsets.only(top: 3),
+                                      margin: const EdgeInsets.only(top: 1),
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         color: hasGoals
@@ -414,20 +412,25 @@ class _GoalsScreenState extends State<GoalsScreen> {
               // 날짜 + 공휴일
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(dateHeader, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textPrimary)),
-                  if (holidayName != null) ...[
-                    const SizedBox(height: 2),
-                    Text(holidayName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: AppTheme.danger, fontWeight: FontWeight.w500)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(dateHeader, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textPrimary)),
+                      if (holidayName != null) ...[
+                        const SizedBox(height: 2),
+                        Text(holidayName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, color: AppTheme.danger, fontWeight: FontWeight.w500)),
+                      ],
+                    ]),
+                    // 진행중/완료 표시 — 날짜와 같은 줄 오른쪽 정렬
+                    if (dateTotal > 0)
+                      Text('진행중 : $dateActive개, 완료: $dateDone개, 완료율 : $datePct%',
+                          style: TextStyle(fontSize: 12,
+                              color: datePct == 100 ? const Color(0xFF1b8a5a) : context.textSecondary)),
                   ],
-                  if (dateTotal > 0) ...[
-                    const SizedBox(height: 4),
-                    Text('진행중 : $dateActive개  완료 : $dateDone개  $datePct% 완료',
-                        style: TextStyle(fontSize: 12,
-                            color: datePct == 100 ? const Color(0xFF1b8a5a) : context.textSecondary)),
-                  ],
-                ]),
+                ),
               ),
               const SizedBox(height: 8),
 
@@ -495,40 +498,63 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   ])),
                 )
               else
-                ...selectedGoals.map((g) => Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                  child: _GoalCard(
-                    goal: g,
-                    willAllDone: _willAllDone(g, goals),
-                    onComplete: () => app.completeGoal(g.id),
-                    onUncomplete: () => app.uncompleteGoal(g.id),
-                    onDelete: () => _handleDeleteRequest(g, app),
-                    onEdit: () async {
-                      final uid = app.authUser?.uid;
-                      if (uid == null) return;
-                      final snap = await app.firestoreService.getGoalDoc(uid, g.id);
-                      if (!context.mounted || snap == null) return;
-                      if (g.repeatId != null) {
-                        final repeatGoals = goals
-                            .where((r) => r.repeatId == g.repeatId)
-                            .map((r) => r.scheduledDate ?? '')
-                            .where((d) => d.isNotEmpty)
-                            .toList()..sort();
-                        if (repeatGoals.isNotEmpty) {
-                          snap['startDate'] = repeatGoals.first;
-                          snap['endDate'] = repeatGoals.last;
+                ...selectedGoals.map((g) {
+                  int? currentCount;
+                  int? totalCount;
+                  if (g.repeatId != null) {
+                    final repeatGoals = goals
+                        .where((r) => r.repeatId == g.repeatId)
+                        .toList()
+                      ..sort((a, b) {
+                        // 이월된 목표는 carryOverFrom 기준으로 정렬
+                        final aDate = (a.isCarriedOver && a.carryOverFrom != null) ? a.carryOverFrom! : (a.scheduledDate ?? '');
+                        final bDate = (b.isCarriedOver && b.carryOverFrom != null) ? b.carryOverFrom! : (b.scheduledDate ?? '');
+                        return aDate.compareTo(bDate);
+                      });
+                    totalCount = repeatGoals.length;
+                    // 이월된 목표는 carryOverFrom 기준으로 회차 찾기
+                    final myDate = (g.isCarriedOver && g.carryOverFrom != null) ? g.carryOverFrom! : (g.scheduledDate ?? '');
+                    currentCount = repeatGoals.indexWhere((r) {
+                      final rDate = (r.isCarriedOver && r.carryOverFrom != null) ? r.carryOverFrom! : (r.scheduledDate ?? '');
+                      return r.id == g.id || rDate == myDate;
+                    }) + 1;
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: _GoalCard(
+                      goal: g,
+                      currentCount: currentCount,
+                      totalCount: totalCount,
+                      willAllDone: _willAllDone(g, goals),
+                      onComplete: () => app.completeGoal(g.id),
+                      onUncomplete: () => app.uncompleteGoal(g.id),
+                      onDelete: () => _handleDeleteRequest(g, app),
+                      onEdit: () async {
+                        final uid = app.authUser?.uid;
+                        if (uid == null) return;
+                        final snap = await app.firestoreService.getGoalDoc(uid, g.id);
+                        if (!context.mounted || snap == null) return;
+                        if (g.repeatId != null) {
+                          final repeatGoals = goals
+                              .where((r) => r.repeatId == g.repeatId)
+                              .map((r) => r.scheduledDate ?? '')
+                              .where((d) => d.isNotEmpty)
+                              .toList()..sort();
+                          if (repeatGoals.isNotEmpty) {
+                            snap['startDate'] = repeatGoals.first;
+                            snap['endDate'] = repeatGoals.last;
+                          }
                         }
-                      }
-                      Navigator.push(context, SlideUpRoute(page: AddGoalScreen(editGoalId: g.id, editGoalData: snap)));
-                    },
-                    // 6번: 이월 가능 여부 + 이월 콜백
-                    canCarryOver: _canCarryOver(g),
-                    onCarryOver: () => _carryOverGoal(g, app),
-                    selectedDate: _selectedDate,
-                    todayStr: _todayStr,
-                    showToast: app.showToast,
-                  ),
-                )),
+                        Navigator.push(context, SlideUpRoute(page: AddGoalScreen(editGoalId: g.id, editGoalData: snap)));
+                      },
+                      canCarryOver: _canCarryOver(g),
+                      onCarryOver: () => _carryOverGoal(g, app),
+                      selectedDate: _selectedDate,
+                      todayStr: _todayStr,
+                      showToast: app.showToast,
+                    ),
+                  );
+                }).toList(),
             ]),
           ),
         ),
@@ -557,15 +583,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
 class _GoalCard extends StatefulWidget {
   final GoalModel goal;
   final bool willAllDone;
+  final int? currentCount, totalCount;
   final VoidCallback onComplete, onUncomplete, onDelete;
   final Future<void> Function() onEdit;
-  // 6번: 이월
   final bool canCarryOver;
   final Future<void> Function() onCarryOver;
   final String selectedDate, todayStr;
   final void Function(String) showToast;
   const _GoalCard({
     required this.goal, required this.willAllDone,
+    this.currentCount, this.totalCount,
     required this.onComplete, required this.onUncomplete,
     required this.onDelete, required this.onEdit,
     required this.canCarryOver, required this.onCarryOver,
@@ -683,7 +710,11 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,
                             color: g.done ? context.textSecondary : context.textPrimary,
                             decoration: g.done ? TextDecoration.lineThrough : TextDecoration.none),
-                        child: Text(g.title),
+                        child: Text(
+                          isRepeat && widget.currentCount != null && widget.totalCount != null
+                              ? '${g.title} (${widget.currentCount}/${widget.totalCount})'
+                              : g.title,
+                        ),
                       ),
                     ),
                   ]),
@@ -773,7 +804,7 @@ class _GoalCardState extends State<_GoalCard> with SingleTickerProviderStateMixi
                                 ]),
                                 const Divider(height: 14),
                                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                  Text(isRepeatGoal ? '원래 1회 XP' : '원래 XP', style: TextStyle(fontSize: 12, color: context.textSecondary)),
+                                  Text(isRepeatGoal ? '원래 획득 XP' : '원래 XP', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                                   Text('${baseXp}XP', style: TextStyle(fontSize: 12, color: context.textSecondary)),
                                 ]),
                                 const SizedBox(height: 2),
