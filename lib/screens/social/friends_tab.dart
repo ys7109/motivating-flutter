@@ -477,94 +477,20 @@ class _FriendTileState extends State<_FriendTile> {
   bool _navigating = false;
 
   StreamSubscription? _presenceSub;
-  StreamSubscription? _userSub;
   String _presenceStatus = 'offline';
-  // 마지막 로그인 시각 — users의 로그인 시각 필드 기준
-  Timestamp? _lastLoginTime;
-  // 로그인 시각 필드가 없는 기존 유저용 보조 시각
-  Timestamp? _fallbackLastSeenTime;
-  // 30초마다 UI 갱신 — "N분 전 접속" 숫자 업데이트
-  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _presenceStatus = widget.friend['presenceStatus'] as String? ?? 'offline';
-    _lastLoginTime = _lastLoginFromMap(widget.friend);
-    _fallbackLastSeenTime = _toTimestamp(widget.friend['lastSeen']);
     _subscribePres();
-    _subscribeUser();
-    _loadLastLoginFromServer();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  Timestamp? _toTimestamp(dynamic value) {
-    if (value == null) return null;
-    if (value is Timestamp) return value;
-    if (value is DateTime) return Timestamp.fromDate(value);
-    if (value is int) {
-      final millis = value > 1000000000000 ? value : value * 1000;
-      return Timestamp.fromMillisecondsSinceEpoch(millis);
-    }
-    if (value is String) {
-      final parsed = DateTime.tryParse(value);
-      if (parsed != null) return Timestamp.fromDate(parsed);
-    }
-    return null;
-  }
-
-  DateTime? _toDateTime(Timestamp? ts) => ts?.toDate();
-
-  // lastLogin/lastlogin 혼용 데이터 중 가장 최신값 선택
-  Timestamp? _lastLoginFromMap(Map<String, dynamic>? data) {
-    if (data == null) return null;
-    final candidates = [
-      _toTimestamp(data['lastLogin']),
-      _toTimestamp(data['lastlogin']),
-      _toTimestamp(data['last_login']),
-    ].whereType<Timestamp>();
-    Timestamp? latest;
-    for (final ts in candidates) {
-      if (latest == null || ts.compareTo(latest) > 0) latest = ts;
-    }
-    return latest;
-  }
-
-  // users 컬렉션에서 로그인 시각 서버 직접 조회 — 캐시 표시 오차 방지
-  Future<void> _loadLastLoginFromServer() async {
-    final friendUid = widget.friend['uid'] as String;
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(friendUid)
-          .get(const GetOptions(source: Source.server));
-      if (!mounted) return;
-      final ts = _lastLoginFromMap(snap.data());
-      if (ts != null) setState(() => _lastLoginTime = ts);
-    } catch (_) {}
-  }
-
-  void _subscribeUser() {
-    final friendUid = widget.friend['uid'] as String;
-    final ref = FirebaseFirestore.instance.collection('users').doc(friendUid);
-
-    // users 로그인 시각 실시간 구독 — 실제 로그인 시각 표시용
-    _userSub = ref.snapshots()
-        .where((snap) => !snap.metadata.hasPendingWrites)
-        .listen((snap) {
-      if (!mounted) return;
-      final ts = _lastLoginFromMap(snap.data());
-      if (ts != null) setState(() => _lastLoginTime = ts);
-    });
   }
 
   void _subscribePres() {
     final friendUid = widget.friend['uid'] as String;
     final ref = FirebaseFirestore.instance.collection('presence').doc(friendUid);
 
-    // presence 실시간 구독 — 접속 상태(온라인/오프라인/집중) 반영
+    // presence 실시간 구독 — 접속 상태(집중중/접속중/미접속) 반영
     // hasPendingWrites 필터링으로 serverTimestamp pending 스냅샷 제외
     _presenceSub = ref.snapshots()
         .where((snap) => !snap.metadata.hasPendingWrites)
@@ -572,11 +498,7 @@ class _FriendTileState extends State<_FriendTile> {
       if (!mounted) return;
       final data = snap.data() ?? {};
       final status = FriendService().buildPresenceData(friendUid, data)['presenceStatus'] as String? ?? 'offline';
-      final lastSeen = _toTimestamp(data['lastSeen']);
-      setState(() {
-        _presenceStatus = status;
-        if (lastSeen != null) _fallbackLastSeenTime = lastSeen;
-      });
+      setState(() => _presenceStatus = status);
     });
   }
 
@@ -590,8 +512,6 @@ class _FriendTileState extends State<_FriendTile> {
   @override
   void dispose() {
     _presenceSub?.cancel();
-    _userSub?.cancel();
-    _timer?.cancel();
     super.dispose();
   }
 
@@ -628,32 +548,18 @@ class _FriendTileState extends State<_FriendTile> {
     final isOnline = effectiveStatus == 'online';
     final isFocusing = effectiveStatus == 'focusing';
 
+    // 상태는 집중중 / 접속중 / 미접속 3가지로만 표현 (접속시간 표시 제거)
     String statusText;
     Color statusColor;
     if (isFocusing) {
-      statusText = '집중모드 실행중';
+      statusText = '집중중';
       statusColor = const Color(0xFFf9a825);
     } else if (isOnline) {
-      statusText = '접속 중';
+      statusText = '접속중';
       statusColor = const Color(0xFF4CAF50);
     } else {
-      // users 로그인 시각 우선, 없는 기존 유저만 presence.lastSeen으로 보조 표시
-      final dt = _toDateTime(_lastLoginTime ?? _fallbackLastSeenTime);
-      if (dt == null) {
-        statusText = '접속 정보 없음';
-        statusColor = context.textSecondary;
-      } else {
-        final diff = DateTime.now().difference(dt);
-        if (diff.isNegative || diff.inSeconds < 60)
-          statusText = '방금 전 접속';
-        else if (diff.inMinutes < 60)
-          statusText = '${diff.inMinutes}분 전 접속';
-        else if (diff.inHours < 24)
-          statusText = '${diff.inHours}시간 전 접속';
-        else
-          statusText = '${diff.inDays}일 전 접속';
-        statusColor = context.textSecondary;
-      }
+      statusText = '미접속';
+      statusColor = context.textSecondary;
     }
 
     final dotColor = isFocusing

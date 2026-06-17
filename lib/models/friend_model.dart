@@ -36,15 +36,4 @@ class FriendModel {
       isOnline: map['isOnline'] ?? false,
     );
   }
-
-  // 마지막 접속 시간 표시 텍스트
-  String get lastSeenText {
-    if (isOnline) return '접속 중';
-    if (lastSeen == null) return '접속 정보 없음';
-    final diff = DateTime.now().difference(lastSeen!);
-    if (diff.inMinutes < 1) return '방금 전 접속';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}분 전 접속';
-    if (diff.inHours < 24) return '${diff.inHours}시간 전 접속';
-    return '${diff.inDays}일 전 접속';
-  }
 }

@@ -20,19 +20,31 @@ async function getNotifSettings(uid) {
 }
 
 // FCM 발송 헬퍼
+// 데이터 전용(data-only) 메시지로 발송 — Android OS의 자동 알림 표시를 막아
+// 중복 알림을 방지하고, 앱이 직접 인박스 스타일(겹쳐보이는) 알림을 생성하도록 함.
 async function sendPush(token, title, body, data = {}, tag = null) {
   if (!token) return;
   try {
     await getMessaging().send({
       token,
-      notification: { title, body },
-      data: Object.fromEntries(Object.entries({ ...data }).map(([k, v]) => [k, String(v)])),
+      data: {
+        ...Object.fromEntries(Object.entries({ ...data }).map(([k, v]) => [k, String(v)])),
+        title: String(title),
+        body: String(body),
+        ...(tag ? { tag: String(tag) } : {}),
+      },
       android: {
         priority: "high",
-        notification: {
-          sound: "default",
-          clickAction: "FLUTTER_NOTIFICATION_CLICK",
-          ...(tag ? { tag: String(tag) } : {}),
+      },
+      // iOS는 data-only 메시지로 백그라운드 알림을 표시할 수 없으므로 apns alert 사용
+      apns: {
+        headers: { "apns-priority": "10" },
+        payload: {
+          aps: {
+            alert: { title: String(title), body: String(body) },
+            sound: "default",
+            ...(tag ? { "thread-id": String(tag) } : {}),
+          },
         },
       },
     });

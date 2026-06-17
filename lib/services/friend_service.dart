@@ -104,7 +104,7 @@ class FriendService {
     return null;
   }
 
-  // 접속 상태 계산 — 3분 이상 비활동 시 오프라인, 집중모드 중이면 focusing
+  // 접속 상태 계산 — 1분 이상 비활동 시 오프라인, 집중모드 중이면 focusing
   String _calcPresenceStatus(Map<String, dynamic> presenceData) {
     final isFocusing = presenceData['isFocusing'] == true;
     if (isFocusing) return 'focusing';
@@ -113,8 +113,8 @@ class FriendService {
     final lastActivityTime = _presenceTime(presenceData['lastActivity']);
     if (lastActivityTime == null) return 'offline';
     final diff = DateTime.now().difference(lastActivityTime);
-    // 3분 이상 활동 없으면 오프라인
-    if (diff.inMinutes >= 3) return 'offline';
+    // 1분 이상 활동 없으면 오프라인
+    if (diff.inMinutes >= 1) return 'offline';
     return 'online';
   }
 

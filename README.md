@@ -4,7 +4,7 @@
  
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Storage%20%7C%20Messaging-orange)](https://firebase.google.com)
-[![Version](https://img.shields.io/badge/version-1.2.2-green)]()
+[![Version](https://img.shields.io/badge/version-1.3.1-green)]()
  
 ---
  
@@ -41,8 +41,8 @@
 - 꾹 눌러서 채팅방 설정 메뉴 표시
 ### 👥 소셜
 - **친구 탭**: 닉네임 검색, 실시간 접속 상태 표시, 친구 랭킹
-  - 접속 중 (초록) / 집중모드 실행중 (노란) / 오프라인 (회색)
-  - 3분 이상 비활동 시 자동 오프라인 처리
+  - 접속중 (초록) / 집중중 (노란) / 미접속 (회색)
+  - 1분 이상 비활동 시 자동 미접속 처리
 - **채팅 탭**: 채팅 목록 (1:1/그룹 필터)
 - **피드 탭**: 친구의 목표 달성 활동 피드
 - **게시판 탭**: 게시글 작성/댓글/대댓글/좋아요
@@ -227,6 +227,10 @@ chats/{chatId}/messages/{msgId}
 ---
  
 ## 📋 버전 히스토리
+### v1.3.1 (2026.06.17)
+- 🔧 앱 백그라운드/종료 상태에서 채팅 알림이 두 개씩 표시되던 문제 해결 (data-only 메시지로 전환, OS 자동 알림 중복 제거)
+- 🔧 친구 상태 표시를 집중중 / 접속중 / 미접속 3가지로 단순화 (접속 시간 표시 제거)
+
 ### v1.3.0 (2026.06.16)
 - 🔧 친구 접속 시간이 비정상적으로 표시되는 문제 해결
 - 🔧 출석시 획득하는 XP 조정

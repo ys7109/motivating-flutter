@@ -8,8 +8,11 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 
 // 백그라운드 FCM 핸들러 — 최상위 함수여야 함 (Firebase 요구사항)
+// data-only 메시지를 받으므로 백그라운드 isolate에서 직접 로컬 알림을 표시한다.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // 백그라운드 isolate는 별도 메모리이므로 알림 플러그인을 다시 초기화해야 함
+  await NotificationService._initPlugin();
   await NotificationService._showLocalNotification(message);
 }
 
@@ -51,39 +54,40 @@ class NotificationService {
   static bool _isAppInForeground = true;
   static void setAppForeground(bool isForeground) => _isAppInForeground = isForeground;
 
-  // 알림 서비스 초기화 — 채널 생성, 권한 요청, FCM 리스너 등록
-  static Future<void> init() async {
-    if (_initialized) return;
-    tz_data.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
+  // 알림 플러그인 초기화 여부 — 포그라운드/백그라운드 isolate 각각에서 1회 보장
+  static bool _pluginInitialized = false;
 
+  // 로컬 알림 탭 콜백 — 포그라운드 알림 탭 시 채팅방/소셜 탭 이동
+  static void _onNotificationResponse(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload != null && payload.isNotEmpty) {
+      // payload 형식: 'chat:{chatId}:{title}' 또는 'activity'
+      if (payload.startsWith('chat:')) {
+        final parts = payload.split(':');
+        if (parts.length >= 2) {
+          final chatId = parts[1];
+          final title = parts.length >= 3 ? parts.sublist(2).join(':') : '채팅';
+          pendingTab = 3;
+          pendingChatId = chatId;
+          pendingChatTitle = title;
+          dismissChatNotification(chatId);
+        }
+      } else if (payload == 'activity') {
+        pendingTab = 3;
+        pendingChatId = null;
+        pendingChatTitle = null;
+      }
+    }
+  }
+
+  // 로컬 알림 플러그인 + 채널 초기화 — 백그라운드 isolate에서도 호출됨
+  static Future<void> _initPlugin() async {
+    if (_pluginInitialized) return;
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     final settings = InitializationSettings(android: androidSettings);
-
-    // 로컬 알림 탭 콜백 — 포그라운드 알림 탭 시 채팅방/소셜 탭 이동
     await _plugin.initialize(
       settings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        final payload = response.payload;
-        if (payload != null && payload.isNotEmpty) {
-          // payload 형식: 'chat:{chatId}:{title}' 또는 'activity'
-          if (payload.startsWith('chat:')) {
-            final parts = payload.split(':');
-            if (parts.length >= 2) {
-              final chatId = parts[1];
-              final title = parts.length >= 3 ? parts.sublist(2).join(':') : '채팅';
-              pendingTab = 3;
-              pendingChatId = chatId;
-              pendingChatTitle = title;
-              dismissChatNotification(chatId);
-            }
-          } else if (payload == 'activity') {
-            pendingTab = 3;
-            pendingChatId = null;
-            pendingChatTitle = null;
-          }
-        }
-      },
+      onDidReceiveNotificationResponse: _onNotificationResponse,
     );
 
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
@@ -91,6 +95,16 @@ class NotificationService {
     await androidPlugin?.createNotificationChannel(_activityChannel);
     await androidPlugin?.createNotificationChannel(_chatChannel);
     await androidPlugin?.createNotificationChannel(_goalAlarmChannel);
+    _pluginInitialized = true;
+  }
+
+  // 알림 서비스 초기화 — 채널 생성, 권한 요청, FCM 리스너 등록
+  static Future<void> init() async {
+    if (_initialized) return;
+    tz_data.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
+
+    await _initPlugin();
 
     await _fcm.requestPermission(alert: true, badge: true, sound: true);
 
@@ -113,11 +127,14 @@ class NotificationService {
 
   // FCM 메시지를 로컬 알림으로 표시
   // 현재 열린 채팅방 알림은 표시 안 함
+  // data-only 메시지를 받으므로 제목/본문은 data에서 읽는다 (notification 페이로드는 iOS 폴백).
   static Future<void> _showLocalNotification(RemoteMessage message) async {
-    final notification = message.notification;
-    if (notification == null) return;
-
     final type = message.data['type'] ?? '';
+    final title = message.notification?.title ?? message.data['title'];
+    final body = message.notification?.body ?? message.data['body'] ?? '';
+    // 표시할 내용이 없으면 무시
+    if ((title == null || title.isEmpty) && body.isEmpty) return;
+
     final msgChatId = message.data['chatId'] ?? '';
     // 현재 열려있는 채팅방 알림은 무시
     if (type == 'chat' && msgChatId == currentOpenChatId) return;
@@ -135,12 +152,12 @@ class NotificationService {
           lines = List<String>.from(
               (jsonDecode(inboxJson) as List).map((e) => e.toString()));
         } catch (_) {
-          lines = [notification.body ?? ''];
+          lines = [body];
         }
       } else {
         // 로컬 캐시로 메시지 누적 (최대 5개)
         _chatMessages.putIfAbsent(msgChatId, () => []);
-        _chatMessages[msgChatId]!.add(notification.body ?? '');
+        _chatMessages[msgChatId]!.add(body);
         if (_chatMessages[msgChatId]!.length > 5) {
           _chatMessages[msgChatId]!.removeAt(0);
         }
@@ -149,7 +166,7 @@ class NotificationService {
 
       await _plugin.show(
         msgChatId.hashCode.abs(),
-        notification.title,
+        title,
         lines.last,
         NotificationDetails(
           android: AndroidNotificationDetails(
@@ -160,22 +177,22 @@ class NotificationService {
             tag: msgChatId,
             styleInformation: InboxStyleInformation(
               lines,
-              contentTitle: notification.title,
+              contentTitle: title,
               summaryText: '메시지 ${lines.length}개',
             ),
           ),
         ),
         // payload: 탭 시 채팅방 이동에 사용
-        payload: 'chat:$msgChatId:${notification.title ?? '채팅'}',
+        payload: 'chat:$msgChatId:${title ?? '채팅'}',
       );
       return;
     }
 
-    // 활동 알림 — 각각 별도 알림으로 표시
+    // 활동 알림 — 각각 별도 알림으로 표시 (고유 ID로 서로 덮어쓰지 않게)
     await _plugin.show(
-      notification.hashCode.abs(),
-      notification.title,
-      notification.body,
+      DateTime.now().microsecondsSinceEpoch.remainder(1000000),
+      title,
+      body,
       NotificationDetails(
         android: AndroidNotificationDetails(
           channelId, channelName,
